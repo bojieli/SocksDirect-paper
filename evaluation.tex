@@ -1,0 +1,12 @@
+\section{Preliminary Evaluation}
+Due to complexity in hardware development, we first built a software prototype using a dedicated CPU core to process control-plane messages. The core is assigned to a \textit{monitor container}. Request queues and event queues are created between monitor container and other containers.
+
+We evaluate our software prototype on a Dell R720 server with two Xeon E5-2650 v2 CPUs, 128~GiB DDR3 memory and Archlinux kernel 4.11.9.
+Between two processes on two cores in a same NUMA node, the lockless shared-memory queue can transfer up to 27~M 64-byte messages per second, 2.5x faster than a shared-memory queue using memory barriers~\cite{ipc-bench} and 8.4x faster than Linux socket. The round-trip ping-pong delay on the queue is 0.25~$\mu$s, 50x faster than Linux \textit{pipe}. Furthermore, all these speed up comes without any overall limitation. The throughput and latency does not degrade if there are other queues on other cores.
+
+Our prototype monitor container can process 12~M requests per second. Given that each connection setup needs 3~requests (each \textit{socket}, \textit{connect} or \textit{accept} call needs 1~request), up to 4~M local socket connections can be created per second, 13x of Linux kernel and 6x of Fastsocket~\cite{lin2016scalable}. This throughput can be further scaled if we assign more CPU cores to the monitor container. After connection setup, packets can be transfered via lockless shared memory queue. The shared memory queue has 9x throughput and 60x lower latency compared to Linux socket.
+
+We are still working on the implementation with programmable NICs.
+NIC hardware has higher processing capacity than dedicated CPU cores.
+A NIC with PCIe Gen3 x16 can perform up to 160~M DMA requests per second, 6x compared with a CPU core which can only receive 26~M non-batched messages per second.
+Therefore, with programmable NICs, the throughput of our design still has much room for improvement.

@@ -1,0 +1,17 @@
+\section{Motivation}
+\label{sec:intro}
+
+Containers are an emerging cloud service for developers to wrap up applications into isolated boxes. To simplify deployment, developers break large monolithic services into small self-contained microservice containers, interconnected via \textit{container network}. For example, a Web application is typically built with a load balancer, Web application containers, cache, search index, database and background data analytic services.
+Each component is wrapped into a container and they communicate via a virtual network, \textit{e.g.}, Linux bridge.
+%To leverage multi-core processing capacity, a containerized process may have multiple threads, synchronized via \textit{locks}.
+
+Due to extensive communication among containers, currently the OS kernel is the performance bottleneck for most containerized applications.
+Our stress tests on NSC DNS server, Redis, Nginx and lighttpd show that 78\%\ to 92\% of CPU time is spent in container networking.
+The CPU cost of container networking attributes to two factors, connection setup and data transmission. With Linux network stack, a CPU core can create 50K new connections per second, mainly attributed to file descriptor and socket initialization.
+With 24 cores, the connection setup throughput only increases to 6x~\cite{lin2016scalable}. This sub-linear scaling is due to lock contention in the file system and network stack.
+For data transmission, a context switch is required per \textit{send} and \textit{recv} system call, and the network stack is involved even if the sender and receiver are in a same server.
+As a result, a single-core application can only process 300K network messages per second~\cite{peter2016arrakis}.
+These overheads kept many developers away from containerizing performance-critical applications.
+
+%For lock-intensive applications, \textit{e.g.}, in-memory databases, on average ?? of CPU time is spent in lock contention.
+%Locks are implemented with atomic instructions supported by CPU, \textit{e.g.}, compare-and-swap (CAS). To guarantee atomicity, the CPU needs to lock the inter-core bus during the atomic instruction and broadcast the update to all cores. As a result, lock coordination performance does not scale as the number of participating cores increase. (add a figure here)
