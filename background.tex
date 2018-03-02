@@ -1,0 +1,37 @@
+\section{Background}
+\label{sec:background}
+
+\subsection{Socket: the Performance Bottleneck}
+
+Benchmark applications (intra-server and inter-server), show the portion of socket operation in CPU utilization.
+
+Source of Linux socket performance bottleneck:
+\begin{itemize}
+	\item Context switch
+	\item Data copy
+	\item OS network stack (overhead for intra-server \& does not leverage RDMA hardware for inter-server)
+	\item Lock in kernel (CPU overhead \& not scalable)
+\end{itemize}
+
+The Multikernel design: replaces locks in kernel with message passing, but does not remove context switch.
+
+\subsection{Challenges for High Performance Socket}
+
+List related work on fast sockets. They are not compatible with existing applications.
+
+Overview of socket APIs. (A table of APIs is great.)
+\begin{itemize}
+	\item Process and thread creation. (fork, pthread\_create)
+	\item Socket initialization.
+	\item Connection setup.
+	\item Data transmission.
+\end{itemize}
+
+Challenges for high performance sockets:
+\begin{enumerate}
+	\item Compatible with existing software. Multiplex system calls and file descriptors between sockets and OS files.
+	\item Coordination free. A socket can be read by multiple receivers and written by multiple senders. The read ordering.
+	\item Kernel bypass. Isolation.
+	\item Zero copy. Read/write after send, receive to user-specified address.
+	\item Bridging proactive and reactive APIs from socket and RDMA.
+\end{enumerate}

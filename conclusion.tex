@@ -1,6 +1,2 @@
 \section{Conclusion}
 \label{sec:conclusion}
-
-There has been a long debate on where to implement network stacks: hardware, kernel or user-space. With programmable NIC, hardware and software can work together by separation of coordination-intensive control plane and communication-intensive data plane. By offloading some kernel functionalities to hardware as well as user-space, the throughput of short-lived connections and the network delay among containers have an order of magnitude improvement.
-
-A key challenge in FPGA-based NIC design is PCIe latency. With the advent of Xeon+FPGA platform, we expect higher throughput and lower latency communication between CPU and FPGA, to enable more fine-grained hardware-software co-design.
