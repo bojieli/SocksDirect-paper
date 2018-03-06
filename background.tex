@@ -9,7 +9,15 @@ Figure xx shows the percentage of sockets of applications. Some detail explanati
 
 Benchmark applications (intra-server and inter-server), show the portion of socket operation in CPU utilization.
 
-How the socket works. A table show the process of using socket.
+How the socket works. A table show the process of using socket:
+
+\begin{itemize}
+	\item Process and thread creation. (fork, pthread\_create)
+	\item Socket initialization.
+	\item Connection setup.
+	\item Data transmission.
+\end{itemize}
+
 
 \subsection{Why Socket is Slow}
 Source of Linux socket performance bottleneck:
@@ -25,13 +33,6 @@ The Multikernel design: replaces locks in kernel with message passing, but does 
 \subsection{Challenges for High Performance Socket}
 
 List related work on fast sockets. They are not compatible with existing applications.
-
-\begin{itemize}
-	\item Process and thread creation. (fork, pthread\_create)
-	\item Socket initialization.
-	\item Connection setup.
-	\item Data transmission.
-\end{itemize}
 
 Challenges for high performance sockets:
 \begin{enumerate}
