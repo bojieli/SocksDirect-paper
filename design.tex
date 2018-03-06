@@ -6,6 +6,7 @@ This subsection shows the architecture of \sys. (Library Operating System for So
 Processes as a distributed system.
 Threads are treated as separate processes.
 Processes communicate with each other via message passing.
+Shared-memory isolation.
 
 File system, inter-process communication, network stack and storage stack in user-mode.
 Use unmodified Linux kernel for process/thread creation, scheduling and memory management.
@@ -17,9 +18,6 @@ Monitor is like the coordinator in distributed system.
 For most socket operations, two processes communicate with each other directly, without involving the monitor process.
 
 
-For compatibility
-LD\_PRELOAD.
-Separate file descriptors in \sys and Linux. Linux use low FD space, \sys use high FD space. Same as LOS (APNet'17).
 
 \section{Inter-Process Socket in a Server}
 \label{sec:intra-server}
