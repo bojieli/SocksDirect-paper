@@ -1,24 +1,28 @@
-\section{Design}
+\section{Architecture}
 \label{sec:design}
 
-\subsection{Library Operating System for Socket}
-
-This subsection shows the architecture of \sys.
+This subsection shows the architecture of \sys. (Library Operating System for Socket)
 
 Processes as a distributed system.
 Threads are treated as separate processes.
 Processes communicate with each other via message passing.
 
-For compatibility
-LD\_PRELOAD.
+File system, inter-process communication, network stack and storage stack in user-mode.
+Use unmodified Linux kernel for process/thread creation, scheduling and memory management.
 
-How to remove coordination bottleneck:
+To remove coordination bottleneck:
 Separate scalable and non-scalable parts of socket API.
-Scalable parts are implemented in each process, and non-scalable parts are delegated to a monitor process.
+Scalable parts are implemented in the library in each process, and non-scalable parts are delegated to a monitor process.
+Monitor is like the coordinator in distributed system.
 For most socket operations, two processes communicate with each other directly, without involving the monitor process.
 
-Subsections discuss each component in detail.
 
+For compatibility
+LD\_PRELOAD.
+Separate file descriptors in \sys and Linux. Linux use low FD space, \sys use high FD space. Same as LOS (APNet'17).
+
+\section{Inter-Process Socket in a Server}
+\label{sec:intra-server}
 
 \subsection{Scaling Socket API}
 
@@ -32,8 +36,10 @@ Need a figure to show the lifecycle (message passing flow) of a socket connectio
 	\item Data transmission.
 \end{itemize}
 
+
 \subsection{Fork and Thread Creation}
 
+Key point: Coordination in shared socket.
 
 \subsection{Lockless Shared-memory Queue}
 
@@ -42,8 +48,6 @@ Inter-process communication through single-writer and single-reader lockless sha
 Multiplex file descriptors through a same queue to reduce memory footprint and polling cost. Why we can do this without head-of-line blocking problem? Because most applications call epoll to get events and process them one by one.
 
 
-Data buffer and free slot allocation.
-
 Head of line blocking problem implies additional features:
 \begin{itemize}
 	\item Fetch from middle (del).
@@ -51,10 +55,22 @@ Head of line blocking problem implies additional features:
 	\item Overflow per-file-descriptor slot to prevent deadlock.
 \end{itemize}
 
+Data buffer and free slot allocation.
+
+\subsection{Event Polling and Notification}
+
+Discuss epoll and signal.
+
+Message passing may wait too long.
+Signal mechanism. Signal process after waiting until timeout.
+
+Monitor detect process death (via control socket SIGHUP) and notify endpoints.
+
+
+\subsection{Zero Copy}
 
 
 
-\subsection{Zero Copy Sockets}
-
-\subsection{RDMA for Remote Access}
+\section{Utilizing RDMA for Inter-server Socket}
+\label{sec:rdma}
 

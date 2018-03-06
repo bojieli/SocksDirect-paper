@@ -1,13 +1,4 @@
 \section{Implementation}
 \label{sec:implementation}
 
-How many lines of code...
-
 The implementation section discusses some less important details in the design.
-
-Separate file descriptors in \sys and Linux. Linux use low FD space, \sys use high FD space. Same as LOS (APNet'17).
-
-Monitor detect process death (via control socket SIGHUP) and notify endpoints.
-
-Message passing may wait too long.
-Signal mechanism. Signal after waiting until timeout.
