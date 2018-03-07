@@ -1,6 +1,16 @@
 \section{Architecture}
 \label{sec:design}
 
+\sys takes the idea of Library Operating System. All the threads are treated as separated processes in our design. All function calls to the GNU C library of each thread and process is hooked to our library \libipc. 
+
+\libipc leverages message passing to communicate with other processes to conduct inter-process communication and coordination of the resources of the operating system i.e. file system, networking (sockets) in user-mode. We take advantage of the unmodified Linux Kernel for process creation and isolation, scheduling and memory management.
+
+To make a high performance design of \libipc, we treat processes as a distributed system and separate the Linux API to scalable and non-scalable parts. For the scalable parts eg. assign file descriptor, the \libipc of each process settle them individually. For the non-scalable parts, \libipc revisit the idea of a single monitor process on each machine to tackle the coordination problem without the overhead of traditional distributed systems.
+
+We noticed that the read and write between two processes can be highly scalable if two process communicate with each other directly with a shared memory queue. As a result, only the connection setup is coordinated by the monitor, which alleviate the workload of the monitor. The permission of Linux Kernel could provide isolation for different connections. RDMA is used in our design for inter-process communication across multiple machines.
+
+  
+
 This subsection shows the architecture of \sys. (Library Operating System for Socket)
 
 Processes as a distributed system.
