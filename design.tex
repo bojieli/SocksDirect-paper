@@ -15,7 +15,7 @@ We develop a high performance lockless shared memory queue (Sec.\ref{subsec:lock
 As discussed in Sec.\ref{subsec:challenges}, sockets are shared among threads and children processes after fork. To remove coordination and locks, \libipc creates a queue between each pair of sender and receiver processes. Although most applications do not receive one socket with multiple threads, we need to guarantee the ordering semantics in case an application does so (Sec.\ref{subsec:fork}).
 
 \textbf{Utilize hardware for performance.}
-To achieve zero-copy for sending and receiving large buffers inside a same server, we utilize the virtual memory in CPU and modify page mapping on send and receive (Sec.\ref{subsec:zerocopy}). To achieve zero-copy and kernel-bypass for inter-server communication, we utilize one-sided RDMA to offload the network stack to NIC hardware (Sec.\ref{sec:rdma}).
+To achieve zero-copy for sending and receiving large buffers inside a same server, we utilize the virtual memory in CPU and modify page mapping on send and receive (Sec.\ref{subsec:zerocopy}). To achieve zero-copy and kernel-bypass for inter-server communication, we utilize one-sided RDMA to offload the network stack to NIC hardware (Sec.\ref{sec:rdma}). For storage, to achieve kernel-bypass, we embed SPDK for \libipc.
 
 
 \RED{Why do we take the idea of Library OS? Every design choice should have rationale, otherwise the paper would look like a technical report.}
