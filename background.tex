@@ -9,17 +9,9 @@ Figure xx shows the percentage of sockets of applications. Some detail explanati
 
 Benchmark applications (intra-server and inter-server), show the portion of socket operation in CPU utilization.
 
-How the socket works. A table show the process of using socket:
-
-\begin{itemize}
-	\item Process and thread creation. (fork, pthread\_create)
-	\item Socket initialization.
-	\item Connection setup.
-	\item Data transmission.
-\end{itemize}
 
 
-\subsection{Why Socket is Slow}
+\subsection{The dilemma between performance and compatibility}
 Source of Linux socket performance bottleneck:
 \begin{itemize}
 	\item Context switch
@@ -30,16 +22,19 @@ Source of Linux socket performance bottleneck:
 
 The Multikernel design: replaces locks in kernel with message passing, but does not remove context switch.
 
+List related work on fast sockets. They are not compatible with existing applications.
+
 \subsection{Challenges for High Performance Socket}
 \label{subsec:challenges}
 
-List related work on fast sockets. They are not compatible with existing applications.
 
 Challenges for high performance sockets:
 \begin{enumerate}
 	\item Compatible with existing software. Multiplex system calls and file descriptors between sockets and OS files.
-	\item Coordination free. A socket can be read by multiple receivers and written by multiple senders. The read ordering.
+	\item Efficient coordination. A socket can be read by multiple receivers and written by multiple senders. The read ordering.
 	\item Kernel bypass. Isolation.
 	\item Zero copy. Read/write after send, receive to user-specified address.
 	\item Bridging proactive and reactive APIs from socket and RDMA.
 \end{enumerate}
+
+\textbf{Comparison of CAS, Cache migration, Mutex, Futex}

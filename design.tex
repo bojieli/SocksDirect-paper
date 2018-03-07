@@ -7,7 +7,7 @@ To remove the overhead of context switch and centralized coordination while pres
 Similar to the idea of Library Operating System~\RED{(cite)} and user-mode network stacks~\RED{(cite)}, we move most OS functions from the kernel to user mode, \textit{i.e.}, file system and network sockets. The kernel is still responsible for process creation, scheduling, virtual memory and peripheral device management, but no longer on the critical path of performance. To maintain compatibility with existing Linux applications, we design a user-mode library \libipc as a drop-in replacement of the system call wrappers in the GNU C library (glibc). \libipc implements file system and network socket functions in user mode, and adds a wrapper to other system calls to track process creation and memory allocation.
 
 \textbf{Treat processes as a distributed system.}
-For multi-core and multi-server scalability, we follow the principle of Multikernel~\RED{(cite)} and use message passing for inter-process coordination. To remove locks for inter-thread mutual exclusion, each thread is treated as a separated process in our design. We analyze the semantics of Linux socket API and separate them to scalable and non-scalable parts (Sec.\ref{subsec:socket-api}). For the scalable parts, \textit{e.g.}, assigning file descriptors and sending a piece of data, \libipc processes them locally. For the non-scalable parts, \textit{e.g.} load balancing new connections to worker processes, \libipc revisits the idea of \textit{monitor process}~\RED{(cite)} and delegates the coordination to the monitor process.
+For multi-core and multi-server scalability, we follow the principle of Multikernel~\cite{baumann2009multikernel} and use message passing for inter-process coordination. To remove locks for inter-thread mutual exclusion, each thread is treated as a separated process in our design. We analyze the semantics of Linux socket API and separate them to scalable and non-scalable parts (Sec.\ref{subsec:socket-api}). For the scalable parts, \textit{e.g.}, assigning file descriptors and sending a piece of data, \libipc processes them locally. For the non-scalable parts, \textit{e.g.} load balancing new connections to worker processes, \libipc revisits the idea of \textit{monitor process}~\RED{(cite)} and delegates the coordination to the monitor process.
 
 We develop a high performance lockless shared memory queue (Sec.\ref{subsec:lockless-queue}) to enable two application processes or one application process and the monitor process to communicate with each other directly. The Linux kernel provides memory isolation among different shared-memory queues. To reduce memory footprint and polling overhead, all socket connections between two processes are multiplexed through one lockless queue. In most cases, event polling and notifications are done locally (Sec.\ref{subsec:epoll}). As a result, only process initialization and connection setup are coordinated by the monitor.
 
@@ -15,7 +15,7 @@ We develop a high performance lockless shared memory queue (Sec.\ref{subsec:lock
 As discussed in Sec.\ref{subsec:challenges}, sockets are shared among threads and children processes after fork. To remove coordination and locks, \libipc creates a queue between each pair of sender and receiver processes. Although most applications do not receive one socket with multiple threads, we need to guarantee the ordering semantics in case an application does so (Sec.\ref{subsec:fork}).
 
 \textbf{Utilize hardware for performance.}
-To achieve zero-copy for sending and receiving large buffers inside a same server, we utilize the virtual memory in CPU and modify page mapping on send and receive (Sec.\ref{subsec:zerocopy}). To achieve zero-copy and kernel-bypass for inter-server communication, we utilize one-sided RDMA to offload the network stack to NIC hardware (Sec.\ref{sec:rdma}). For storage, to achieve kernel-bypass, we embed SPDK for \libipc.
+To achieve zero-copy for sending and receiving large buffers inside a same server, we utilize the virtual memory in CPU and modify page mapping on send and receive (Sec.\ref{subsec:zerocopy}). To achieve zero-copy and kernel-bypass for inter-server communication, we utilize one-sided RDMA to offload the network stack to NIC hardware (Sec.\ref{sec:rdma}). For storage, to reduce coordination and bypass kernel, we leverage multi-queue NVMe SSDs and create per-process queues using user-mode SPDK library.
 
 
 \RED{Why do we take the idea of Library OS? Every design choice should have rationale, otherwise the paper would look like a technical report.}
@@ -53,15 +53,33 @@ For most socket operations, two processes communicate with each other directly, 
 \subsection{Scaling Socket API}
 \label{subsec:socket-api}
 
-Data structure in each process. Data structure in the monitor process.
-
-Need a figure to show the lifecycle (message passing flow) of a socket connection. Three sub-figures:
+How the socket works. A table show the process of using socket:
 
 \begin{itemize}
+	\item Process and thread creation. (fork, pthread\_create)
 	\item Socket initialization.
 	\item Connection setup.
 	\item Data transmission.
 \end{itemize}
+
+
+Data structure in each process. Data structure in the monitor process.
+
+Need a figure to show the lifecycle (message passing flow) of a socket connection. Three sub-figures:
+
+
+	 \textbf{Socket initialization.}
+	  
+	 \textbf{Connection setup. (accept scheduling)}
+	 
+	 \textbf{Data transmission.}
+\begin{itemize}
+	\item Pick from the middle of the Q
+	\item Starving (per fd slot)
+	\item emergency Q
+\end{itemize}
+
+    \textbf{Close \& ACK}
 
 
 \subsection{Fork and Thread Creation}
@@ -69,22 +87,19 @@ Need a figure to show the lifecycle (message passing flow) of a socket connectio
 
 Key point: Coordination in shared socket.
 
-\subsection{Lockless Shared-memory Queue}
-\label{subsec:lockless-queue}
+Clock pointer (simple)
 
-Inter-process communication through single-writer and single-reader lockless shared-memory queue. The queue is a ring buffer.
+Takeover (compare with \ref{subsec:socket-api})
 
-Multiplex file descriptors through a same queue to reduce memory footprint and polling cost. Why we can do this without head-of-line blocking problem? Because most applications call epoll to get events and process them one by one.
+Read Lock
+
+Tree
+
+Fork \& Close interleaving
 
 
-Head of line blocking problem implies additional features:
-\begin{itemize}
-	\item Fetch from middle (del).
-	\item One normal queue and an emergency queue. Why we need the emergency queue.
-	\item Overflow per-file-descriptor slot to prevent deadlock.
-\end{itemize}
 
-Data buffer and free slot allocation.
+
 
 \subsection{Event Polling and Notification}
 \label{subsec:epoll}
