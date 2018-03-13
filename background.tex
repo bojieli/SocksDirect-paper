@@ -1,24 +1,60 @@
 \section{Background}
 \label{sec:background}
 
-\subsection{Why Socket is Important}
+\subsection{Socket: the Performance Bottleneck}
 
-Socket is widely used in common datacenter application etc. Related work Balabala (Imply compatibility is important )
+\begin{figure}[t]
+	\centering
+	\includegraphics[width=0.3\textwidth]{images/fixme}
+	\caption{Fraction of CPU time in the kernel (socket connection setup, socket data transmission and non-socket system calls) and user-mode applications.}
+	\label{fig:socket-kernel-time}
+\end{figure}
 
-Figure xx shows the percentage of sockets of applications. Some detail explanation for the access pattern for applications
+\begin{figure}[t]
+	\centering
+	\includegraphics[width=0.3\textwidth]{images/fixme}
+	\caption{Performance of back-end systems using inter-server socket, intra-server socket, inter-server RDMA and intra-server shared memory.}
+	\label{fig:backend-performance}
+\end{figure}
 
-Benchmark applications (intra-server and inter-server), show the portion of socket operation in CPU utilization.
+\begin{figure}[t]
+	\centering
+	\includegraphics[width=0.3\textwidth]{images/fixme}
+	\caption{Throughput (bar) and latency (line) for 16B messages using inter-server TCP socket, inter-server RDMA, intra-server TCP socket, UNIX socket, pipe and shared memory queue.}
+	\label{fig:socket-comparison}
+\end{figure}
 
 
+Socket is a well-known bottleneck in fast data center networks \RED{(cite)}. In a data center, we categorize systems that process queries from Internet users to be \textit{front-end} (\textit{e.g.} DNS server, load balancer and Web service), and the other systems (\textit{e.g.} database, stream processing and machine learning) to be \textit{back-end}.
+For front-end systems, as shown in Figure~\ref{fig:socket-kernel-time}, 70\% -- 90\% CPU time is used in socket system calls. They maintain a large number of socket connections to Internet users, so connection setup consumes a significant portion of CPU time~\cite{lin2016scalable}.
+For back-end systems, as shown in Figure~\ref{fig:backend-performance}, the performance using socket is significantly worse than using RDMA or shared memory. This is because back-end systems interact frequently with other nodes and services, consequently the latency is vital for their performance. The socket latency between different processes in a same server is $\approx$10~$\mu$s, even much higher than inter-server RDMA latency ($\approx$2~$\mu$s) (Figure~\ref{fig:socket-comparison}).
 
-\subsection{The dilemma between performance and compatibility}
-Source of Linux socket performance bottleneck:
+
+There has been much work~\cite{peter2016arrakis,lin2016scalable} to analyze the source of socket processing overhead.
+
+\textbf{Context switch.}
+Socket APIs are implemented in kernel space and thus require context switch for each socket operation. To protect against side-channel attacks based on speculative execution~\cite{Kocher2018spectre} and caching~\cite{Lipp2018meltdown}, system calls become more expensive~\cite{kpti}.
+
+\textbf{Network stack.}
+On one hand, inter-server connections need to go through the TCP/IP stack, and receiving each packet takes $\approx$3$\mu$s CPU time~\cite{peter2016arrakis}. On the other hand, processes communicating within a same server still need to communicate through the network stack. \RED{We need to profile the overhead of Linux socket system calls. How much does each portion contribute? Is the TCP/IP part really time consuming? Intra-server socket and pipe performance are similar, indicating that the TCP/IP stuff is not the real bottleneck.}
+
+\textbf{Data copy.}
+In Linux kernel, Applications sending large chunks of data 
+
+\textbf{Synchronization}
+In the Linux kernel, requires synchronization. Scalability~\cite{boyd2010analysis}.
+
 \begin{itemize}
 	\item Context switch
 	\item Data copy
 	\item OS network stack (overhead for intra-server \& does not leverage RDMA hardware for inter-server)
 	\item Lock in kernel (CPU overhead \& not scalable)
 \end{itemize}
+
+Many works propose to use user-level TCP/IP stack \RED{(cite)} or RDMA \RED{(cite)} to improve
+
+
+
 
 The Multikernel design: replaces locks in kernel with message passing, but does not remove context switch.
 
@@ -27,14 +63,29 @@ List related work on fast sockets. They are not compatible with existing applica
 \subsection{Challenges for High Performance Socket}
 \label{subsec:challenges}
 
+\begin{figure}[t]
+	\centering
+	\includegraphics[width=0.3\textwidth]{images/fixme}
+	\caption{Latency comparison of mutual exclusion mechanisms (CAS, mutex, futex) and cache migration.}
+	\label{fig:mutual-exclusion}
+\end{figure}
 
-Challenges for high performance sockets:
-\begin{enumerate}
-	\item Compatible with existing software. Multiplex system calls and file descriptors between sockets and OS files.
-	\item Efficient coordination. A socket can be read by multiple receivers and written by multiple senders. The read ordering.
-	\item Kernel bypass. Isolation.
-	\item Zero copy. Read/write after send, receive to user-specified address.
-	\item Bridging proactive and reactive APIs from socket and RDMA.
-\end{enumerate}
+\textbf{Kernel bypass.}
+The common wisdom is that user-space network stacks do not provide multiplexing and isolation among applications, therefore dataplane operating systems either demonstrate good performance with kernel-based network stacks~\cite{belay2014ix,tsai2017lite} or delegate socket processing to a virtual switch running on dedicated cores~\cite{martins2014clickos,roghanchi2017ffwd}. \sys resolves the dilemma by leveraging CPU memory protection and NIC multi-queue to provide multiplexing and isolation.
 
-\textbf{Comparison of CAS, Cache migration, Mutex, Futex}
+
+\textbf{Mutual exclusion for shared socket.}
+The main challenge for Linux socket scalability is that a socket connection may be shared by multiple processes and threads. Threads in a same process share all socket connections. When a process forks, the parent and child processes share sockets created before fork. A Linux-compatible socket implementation requires mutual exclusion to protect concurrent operations. Linux uses compare-and-swap (CAS) atomic instructions to implement mutual exclusion. As shown in Figure~\ref{fig:mutual-exclusion}, the CAS instruction is significantly slower than cache migration (the major source of latency in message passing), so the socket performance would be bottlenecked by mutual exclusion. Coupled with scheduling and context switch overhead, kernel mutex and user-mode futex are slower than CAS.
+
+Fortunately, we observe that most applications do not receive from a socket connection concurrently from multiple processes or threads. For such producer-consumer scenarios, applications typically use message queues~\cite{hintjens2013zeromq}. However, applications do implicitly transfer a socket from one receiving process or thread to another (\textit{e.g.} from master to a worker). Multiple threads may also send large chunks of data (\textit{e.g.} log) through a shared socket.
+To this end, we need a scalable socket architecture to eliminate mutual exclusion in the most cases and ensure correctness in the worst case.
+
+
+\textbf{Multiplexing socket connections.}
+Each process may connect to multiple Internet hosts and data center servers. Linux processes typically use \textit{epoll} to find socket connections that have incoming data.
+
+
+\textbf{Zero copy.}
+The socket API was initially designed for blocking operations. The \textit{reactive} semantics of Linux event polling API seems to mandate data copy for both send and receive. After a non-blocking send operation, the send buffer may be overwritten by the application, so the implementation of send() needs to copy the data to an internal buffer. For the receive operation, application provides a buffer and processes the data after recv() returns. If the data is buffered on the sender, the application needs to wait for a round-trip time on recv(). Otherwise, the receiver's network stack cannot predict the user-provided recv() address and needs to buffer received data internally.
+
+On the contrary, zero-copy API (\textit{e.g.} RDMA) has \textit{proactive} semantics. The application manages buffers, reserves the send buffer after send operation and releases it after send completion notification. The application also delegates non-blocking receive operations along with receive buffers, so the NIC can DMA received data directly to the receive buffers, then notify the application that data is ready. Although rsockets~\cite{rsockets} and SDP~\cite{socketsdirect} simplify RDMA API, they are still more complicated than the Linux socket API because the application needs to manage the buffers and predict how much data it expects to receive. Furthermore, for inter-process communication in a same server, RDMA still needs the NIC to copy from send to receive buffer. Because the PCIe bus between NIC and CPU has an order of magnitude lower bandwidth and higher latency than the DDR channels between memory and CPU~\cite{li2017kv}, it is desirable to bypass NIC for inter-process communication.

@@ -1,52 +1,3 @@
-\section{Architecture}
-\label{sec:design}
-
-To remove the overhead of context switch and centralized coordination while preserving the semantics and isolation of Linux system calls, we rethink the OS architecture and propose four design principles:
-
-\textbf{Performance-critical OS functions run in user-mode library.}
-Similar to the idea of Library Operating System~\RED{(cite)} and user-mode network stacks~\RED{(cite)}, we move most OS functions from the kernel to user mode, \textit{i.e.}, file system and network sockets. The kernel is still responsible for process creation, scheduling, virtual memory and peripheral device management, but no longer on the critical path of performance. To maintain compatibility with existing Linux applications, we design a user-mode library \libipc as a drop-in replacement of the system call wrappers in the GNU C library (glibc). \libipc implements file system and network socket functions in user mode, and adds a wrapper to other system calls to track process creation and memory allocation.
-
-\textbf{Treat processes as a distributed system.}
-For multi-core and multi-server scalability, we follow the principle of Multikernel~\cite{baumann2009multikernel} and use message passing for inter-process coordination. To remove locks for inter-thread mutual exclusion, each thread is treated as a separated process in our design. We analyze the semantics of Linux socket API and separate them to scalable and non-scalable parts (Sec.\ref{subsec:socket-api}). For the scalable parts, \textit{e.g.}, assigning file descriptors and sending a piece of data, \libipc processes them locally. For the non-scalable parts, \textit{e.g.} load balancing new connections to worker processes, \libipc revisits the idea of \textit{monitor process}~\RED{(cite)} and delegates the coordination to the monitor process.
-
-We develop a high performance lockless shared memory queue (Sec.\ref{subsec:lockless-queue}) to enable two application processes or one application process and the monitor process to communicate with each other directly. The Linux kernel provides memory isolation among different shared-memory queues. To reduce memory footprint and polling overhead, all socket connections between two processes are multiplexed through one lockless queue. In most cases, event polling and notifications are done locally (Sec.\ref{subsec:epoll}). As a result, only process initialization and connection setup are coordinated by the monitor.
-
-\textbf{Design for the common and prepare for the worst.}
-As discussed in Sec.\ref{subsec:challenges}, sockets are shared among threads and children processes after fork. To remove coordination and locks, \libipc creates a queue between each pair of sender and receiver processes. Although most applications do not receive one socket with multiple threads, we need to guarantee the ordering semantics in case an application does so (Sec.\ref{subsec:fork}).
-
-\textbf{Utilize hardware for performance.}
-To achieve zero-copy for sending and receiving large buffers inside a same server, we utilize the virtual memory in CPU and modify page mapping on send and receive (Sec.\ref{subsec:zerocopy}). To achieve zero-copy and kernel-bypass for inter-server communication, we utilize one-sided RDMA to offload the network stack to NIC hardware (Sec.\ref{sec:rdma}). For storage, to reduce coordination and bypass kernel, we leverage multi-queue NVMe SSDs and create per-process queues using user-mode SPDK library.
-
-
-\RED{Why do we take the idea of Library OS? Every design choice should have rationale, otherwise the paper would look like a technical report.}
-\sys takes the idea of Library Operating System \RED{(cite)}. All the threads are treated as separated processes in our design. All function calls to the GNU C library is redirected to our user-mode library \libipc.
-
-\libipc leverages message passing to communicate with other processes to conduct inter-process communication and coordination of the resources of the operating system, i.e., file system, networking (sockets) in user-mode. We take advantage of the unmodified Linux Kernel for process creation and isolation, scheduling and memory management.
-
-To make a high performance design of \libipc, we treat processes as a distributed system and separate the Linux API to scalable and non-scalable parts. For the scalable parts eg. assign file descriptor, the \libipc of each process settle them individually. For the non-scalable parts, \libipc revisit the idea of a single monitor process on each machine to tackle the coordination problem without the overhead of traditional distributed systems.
-
-We noticed that the read and write between two processes can be highly scalable if two process communicate with each other directly with a shared memory queue. As a result, only the connection setup is coordinated by the monitor, which alleviate the workload of the monitor. The permission of Linux Kernel could provide isolation for different connections. RDMA is used in our design for inter-process communication across multiple machines.
-
-  
-
-This subsection shows the architecture of \sys. (Library Operating System for Socket)
-
-Processes as a distributed system.
-Threads are treated as separate processes.
-Processes communicate with each other via message passing.
-Shared-memory isolation.
-
-File system, inter-process communication, network stack and storage stack in user-mode.
-Use unmodified Linux kernel for process/thread creation, scheduling and memory management.
-
-To remove coordination bottleneck:
-Separate scalable and non-scalable parts of socket API.
-Scalable parts are implemented in the library in each process, and non-scalable parts are delegated to a monitor process.
-Monitor is like the coordinator in distributed system.
-For most socket operations, two processes communicate with each other directly, without involving the monitor process.
-
-
-
 \section{Inter-Process Socket in a Server}
 \label{sec:intra-server}
 
@@ -98,9 +49,6 @@ Tree
 Fork \& Close interleaving
 
 
-
-
-
 \subsection{Event Polling and Notification}
 \label{subsec:epoll}
 
@@ -115,8 +63,10 @@ Monitor detect process death (via control socket SIGHUP) and notify endpoints.
 \subsection{Zero Copy}
 \label{subsec:zerocopy}
 
+We leverage page remapping
 
 
 \section{Utilizing RDMA for Inter-server Socket}
 \label{sec:rdma}
 
+Remember: if the other endpoint is not RDMA capable, use libvma.

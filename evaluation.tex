@@ -3,10 +3,28 @@
 
 \subsection{Microbenchmarks}
 
+Linux socket vs \sys performance comparison： latency, throughput
+
 \subsection{Web Application}
 
-\subsection{Network Function Chain}
+Nginx, Nodejs, Redis
+
+\begin{itemize}
+	\item Many short-lived connections. Nginx $\rightarrow$ Nodejs, Nodejs access Redis once.
+	\item Each connection, backend interact extensively. (Nodejs access Redis multiple round trips.)
+	\item Long connection to download a large in-memory file. (test zero copy)
+\end{itemize}
+
+\subsection{Network Function}
+
+Firewall (no packet change), NAT (change a packet field), Tunnel endpoint (add/remove packet header, change length)
+
+Latency, throughput
 
 \subsection{Real-time Stream Processing}
 
+Apache Flink (need to turn off durability on disk)
+
 \subsection{Machine Learning}
+
+Tensorflow
