@@ -36,6 +36,16 @@ Need a figure to show the lifecycle (message passing flow) of a socket connectio
 \subsection{Fork and Thread Creation}
 \label{subsec:fork}
 
+Process fork and thread creation are essential methods to enable parallelism in modern applications. 
+However, as stated in \ref{subsec:challenges}, fork and thread creation pose the contention of logically shared data. With traditional mutual exclusion solution, the scalability of Socket is limited.
+
+To tackle this issue, we make the following observation.
+\begin{itemize}
+	\item Fork system call and thread creation is low-frequency used in high performance applications.
+	\item It is uncommon that several threads read data from one connection concurrently.
+\end{itemize} 
+
+
 Key point: Coordination in shared socket.
 
 Clock pointer (simple)
