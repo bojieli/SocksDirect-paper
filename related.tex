@@ -1,6 +1,61 @@
 \section{Related Work}
 \label{sec:related}
 
+PacketShader~\cite{han2010packetshader}
+F-stack~\cite{fstack}
+DPDK~\cite{dpdk} lwip~\cite{dunkels2001design}
+PF\_RING~\cite{pf_ring}
+netmap~\cite{rizzo2012netmap}
+
+Improving network connection locality in multi-core:
+Affinity-Accept~\cite{pesterev2012improving}
+
+
+MegaPipe~\cite{han2012megapipe}
+
+system call scheduling:
+FlexSC~\cite{soares2010flexsc}
+
+Vector operating systems.
+VOS~\cite{vasudevan2011case}
+
+mTCP~\cite{jeong2014mtcp}
+StackMap~\cite{yasukata2016stackmap}
+
+data center RPC~\cite{stuedi2014darpc}
+
+Network specialization for performance~\cite{marinos2014network}
+
+OpenOnload~\cite{openonload}
+TCP chimney offload~\cite{networking2004network}
+
+Dune: safe user-mode access to privileged CPU features~\cite{belay2012dune}
+
+Scalable commutative rule~\cite{clements2015scalable}
+
+Unikernel~\cite{madhavapeddy2013unikernels}
+
+libevent~\cite{libevent}
+
+Metron NFV NSDI'18~\cite{metron2018nsdi}
+
+Anna~\cite{anna}
+
+Linux API what needs to be supported~\cite{tsai2016study}
+
+MICA~\cite{lim2014mica}
+
+FARM~\cite{dragojevic2014farm}
+One-sided RDMA~\cite{mitchell2013using}
+Two-sided RDMA~\cite{kalia2014using}
+RDMA design guidelines~\cite{kaminsky2016design}
+LITE kernel RDMA~\cite{tsai2017lite}
+
+FreeFlow~\cite{freeflow}
+
+
+ffwd delegation~\cite{roghanchi2017ffwd}
+
 Recent years we see a trend of specializing operating system for high performance.
 The network stack in an operating system can be roughly divided into two layers: network packet processing and application interface (\textit{e.g.} socket, RDMA).
 
@@ -23,4 +78,4 @@ Mellanox VMA~\cite{vma} translates socket APIs into RDMA verbs via a light-weigh
 When applying these designs to container networking, there are two challenges: (1) All packets traverse through the NIC, while the NIC has limited \textit{hairpin} processing capacity and PCIe bandwidth. (2) The number of NIC virtual functions (VF) is not enough to support each container with a VF.
 This paper basically falls in this category and solves the challenges using careful hardware-software co-design.
 
-After years of broken promises, the increasing gap between network speed and CPU processing capacity finally makes \textit{programmable NICs} deployed in data centers~\cite{li2016clicknp}, opening up new possibilities for network stack design.
+After years of broken promises, the increasing gap between network speed and CPU processing capacity finally makes \textit{programmable NICs} deployed in data centers~\cite{smartnic}, opening up new possibilities for network stack design.

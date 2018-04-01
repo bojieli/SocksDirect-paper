@@ -48,6 +48,9 @@ Tree
 
 Fork \& Close interleaving
 
+\subsection{Queue}
+
+x86-TSO~\cite{sewell2010x86}, intel manual~\cite{intel-manual}
 
 \subsection{Event Polling and Notification}
 \label{subsec:epoll}
@@ -59,11 +62,13 @@ Signal mechanism. Signal process after waiting until timeout.
 
 Monitor detect process death (via control socket SIGHUP) and notify endpoints.
 
+Blocking operation: sched\_yield.
+
 
 \subsection{Zero Copy}
 \label{subsec:zerocopy}
 
-We leverage page remapping
+
 
 
 \section{Utilizing RDMA for Inter-server Socket}

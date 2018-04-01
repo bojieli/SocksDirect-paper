@@ -36,13 +36,15 @@ There has been much work~\cite{peter2016arrakis,lin2016scalable} to analyze the 
 Socket APIs are implemented in kernel space and thus require context switch for each socket operation. To protect against side-channel attacks based on speculative execution~\cite{Kocher2018spectre} and caching~\cite{Lipp2018meltdown}, system calls become more expensive~\cite{kpti}.
 
 \textbf{Network stack.}
-On one hand, inter-server connections need to go through the TCP/IP stack, and receiving each packet takes $\approx$3$\mu$s CPU time~\cite{peter2016arrakis}. On the other hand, processes communicating within a same server still need to communicate through the network stack. \RED{We need to profile the overhead of Linux socket system calls. How much does each portion contribute? Is the TCP/IP part really time consuming? Intra-server socket and pipe performance are similar, indicating that the TCP/IP stuff is not the real bottleneck.}
+In Linux socket, inter-server connections need to go through the TCP/IP stack, and receiving each packet takes $\approx$3$\mu$s CPU time~\cite{peter2016arrakis}. In addition, processes communicating within a same server still need to communicate through the network stack.
 
 \textbf{Data copy.}
-In Linux kernel, Applications sending large chunks of data 
+For inter-server data transmission, Linux kernel copies data four times: on the send side, from the application buffer to kernel socket buffer, then to NIC ring buffer; the receive side is similar.
+For intra-server transmission, data is copied three times: from the send application to kernel send buffer, then to kernel receive buffer and finally to the receive application.
+%However, each CPU core can only copy 5~GiB data per second, limiting throughput for applications that operate on large chunks of data~\cite{panda2016netbricks}.
 
-\textbf{Synchronization}
-In the Linux kernel, requires synchronization. Scalability~\cite{boyd2010analysis}.
+\textbf{Synchronization.}
+Scalability analysis of Linux system calls~\cite{boyd2010analysis} suggests that many socket operations are not commutable. The Linux kernel needs to acquire global locks for socket connection setup and a per-socket lock for each socket operation. The synchronization overhead greatly mitigates
 
 \begin{itemize}
 	\item Context switch
@@ -75,14 +77,16 @@ The common wisdom is that user-space network stacks do not provide multiplexing 
 
 
 \textbf{Mutual exclusion for shared socket.}
-The main challenge for Linux socket scalability is that a socket connection may be shared by multiple processes and threads. Threads in a same process share all socket connections. When a process forks, the parent and child processes share sockets created before fork. A Linux-compatible socket implementation requires mutual exclusion to protect concurrent operations. Linux uses compare-and-swap (CAS) atomic instructions to implement mutual exclusion. As shown in Figure~\ref{fig:mutual-exclusion}, the CAS instruction is significantly slower than cache migration (the major source of latency in message passing), so the socket performance would be bottlenecked by mutual exclusion. Coupled with scheduling and context switch overhead, kernel mutex and user-mode futex are slower than CAS.
+The main challenge for Linux socket scalability is that a socket connection may be shared by multiple processes and threads. Threads in a same process share all socket connections. When a process forks, the parent and child processes share the sockets created before fork. The Linux implementation uses a shared queue and protects concurrent operations with mutual exclusion.
+Ideally, inter-process message passing requires only one cache migration. As shown in Figure~\ref{fig:mutual-exclusion}, the Compare-And-Swap (CAS) instruction for mutual exclusion, even in non-contended case, is significantly slower than cache migration. Kernel mutex and user-mode futex are even slower than CAS. Mutual exclusion becomes a bottleneck. In addition, both mutual exclusion and contended memory write are not scalable to multiple cores~\cite{boyd2014optimizing}.
 
 Fortunately, we observe that most applications do not receive from a socket connection concurrently from multiple processes or threads. For such producer-consumer scenarios, applications typically use message queues~\cite{hintjens2013zeromq}. However, applications do implicitly transfer a socket from one receiving process or thread to another (\textit{e.g.} from master to a worker). Multiple threads may also send large chunks of data (\textit{e.g.} log) through a shared socket.
 To this end, we need a scalable socket architecture to eliminate mutual exclusion in the most cases and ensure correctness in the worst case.
 
 
-\textbf{Multiplexing socket connections.}
-Each process may connect to multiple Internet hosts and data center servers. Linux processes typically use \textit{epoll} to find socket connections that have incoming data.
+\textbf{Reduce per-socket memory footprint.}
+Each process may connect to multiple Internet hosts and data center servers. In Linux, each socket connection has dedicated send and receive buffers, and each buffer is at least one page (4KB). With millions of concurrent connections, the socket buffers consumes tens of gigabytes of memory, most of which is empty.
+
 
 
 \textbf{Zero copy.}

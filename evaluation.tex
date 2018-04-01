@@ -3,11 +3,13 @@
 
 \subsection{Microbenchmarks}
 
+IPC-bench~\cite{ipc-bench}
+
 Linux socket vs \sys performance comparison： latency, throughput
 
 \subsection{Web Application}
 
-Nginx, Nodejs, Redis
+Nginx~\cite{nginx}, Nodejs~\cite{nodejs}, Redis~\cite{redis}, memcached~\cite{memcached}
 
 \begin{itemize}
 	\item Many short-lived connections. Nginx $\rightarrow$ Nodejs, Nodejs access Redis once.
@@ -17,14 +19,16 @@ Nginx, Nodejs, Redis
 
 \subsection{Network Function}
 
+Network functions~\cite{li2016clicknp}, ClickOS~\cite{martins2014clickos}
+
 Firewall (no packet change), NAT (change a packet field), Tunnel endpoint (add/remove packet header, change length)
 
 Latency, throughput
 
 \subsection{Real-time Stream Processing}
 
-Apache Flink (need to turn off durability on disk)
+Apache Flink~\cite{carbone2015apache} (need to turn off durability on disk)
 
 \subsection{Machine Learning}
 
-Tensorflow
+Tensorflow~\cite{abadi2016tensorflow}

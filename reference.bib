@@ -1,4 +1,13 @@
-
+@inproceedings{han2010packetshader,
+	title={PacketShader: a GPU-accelerated software router},
+	author={Han, Sangjin and Jang, Keon and Park, KyoungSoo and Moon, Sue},
+	booktitle={ACM SIGCOMM Computer Communication Review},
+	volume={40},
+	number={4},
+	pages={195--206},
+	year={2010},
+	organization={ACM}
+}
 
 @inproceedings{boyd2008corey,
   title={Corey: An Operating System for Many Cores.},
@@ -9,7 +18,7 @@
   year={2008}
 }
 
-
+c
 @inproceedings{baumann2009multikernel,
   title={The multikernel: a new OS architecture for scalable multicore systems},
   author={Baumann, Andrew and Barham, Paul and Dagand, Pierre-Evariste and Harris, Tim and Isaacs, Rebecca and Peter, Simon and Roscoe, Timothy and Sch{\"u}pbach, Adrian and Singhania, Akhilesh},
@@ -37,6 +46,17 @@
   number={EPFL-CONF-201671},
   year={2014},
   organization={USENIX}
+}
+
+@article{belay2017ix,
+	title={The IX operating system: Combining low latency, high throughput, and efficiency in a protected dataplane},
+	author={Belay, Adam and Prekas, George and Primorac, Mia and Klimovic, Ana and Grossman, Samuel and Kozyrakis, Christos and Bugnion, Edouard},
+	journal={ACM Transactions on Computer Systems (TOCS)},
+	volume={34},
+	number={4},
+	pages={11},
+	year={2017},
+	publisher={ACM}
 }
 
 @inproceedings{palkar2015e2,
@@ -109,6 +129,17 @@
   year={2014}
 }
 
+@inproceedings{kalia2014using,
+	title={Using RDMA efficiently for key-value services},
+	author={Kalia, Anuj and Kaminsky, Michael and Andersen, David G},
+	booktitle={ACM SIGCOMM Computer Communication Review},
+	volume={44},
+	number={4},
+	pages={295--306},
+	year={2014},
+	organization={ACM}
+}
+
 @misc{ipc-bench,
   title={IPC benchmark},
   author={Computer Laboratory, University of Cambridge},
@@ -118,6 +149,17 @@
 @misc{intel-manual,
   title={Intel 64 and IA-32 Architectures Software Developer Manual, Volume 3},
   author={Intel Corporation}
+}
+
+@article{sewell2010x86,
+	title={x86-TSO: a rigorous and usable programmer's model for x86 multiprocessors},
+	author={Sewell, Peter and Sarkar, Susmit and Owens, Scott and Nardelli, Francesco Zappa and Myreen, Magnus O},
+	journal={Communications of the ACM},
+	volume={53},
+	number={7},
+	pages={89--97},
+	year={2010},
+	publisher={ACM}
 }
 
 @inproceedings{kaminsky2016design,
@@ -159,11 +201,6 @@ isbn = {978-1-4503-4661-0/16/11}
   publisher={WinHEC}
 }
 
-@misc{vma,
-  title={Mellanox VMA},
-  url={http://www.mellanox.com/page/software_vma}
-}
-
 @inproceedings{lin2016scalable,
   title={Scalable kernel tcp design and implementation for short-lived connections},
   author={Lin, Xiaofeng and Chen, Yu and Li, Xiaodong and Mao, Junjie and He, Jiaquan and Xu, Wei and Shi, Yuanchun},
@@ -173,11 +210,6 @@ isbn = {978-1-4503-4661-0/16/11}
   pages={339--352},
   year={2016},
   organization={ACM}
-}
-
-@misc{fstack,
-  title={High-Performance Network Framework Based on DPDK},
-  url={http://f-stack.org/}
 }
 
 @inproceedings{huang2017high,
@@ -258,9 +290,32 @@ isbn = {978-1-4503-4661-0/16/11}
 	url = {https://github.com/mellanox/libvma},
 }
 
+@techreport{openonload,
+	title={Introduction to OpenOnload—Building Application Transparency and Protocol Conformance into Application Acceleration Middleware},
+	author={Pope, Steve and Riddoch, David},
+	year={2011}
+}
+
 @article{spdk,
 	title = {Storage Performance Development Kit},
 	url = {http://www.spdk.io/},
+}
+
+
+@misc{fstack,
+	title={High-Performance Network Framework Based on DPDK},
+	url={http://f-stack.org/}
+}
+
+@misc{dpdk,
+	title={Data plane development kit},
+	author={Intel},
+	year={2014}
+}
+
+@misc{pf_ring,
+	title={PF\_RING},
+	url={http://www.ntop.org}
 }
 
 @inproceedings{boyd2010analysis,
@@ -352,4 +407,232 @@ isbn = {978-1-4503-4661-0/16/11}
 @article{socketsdirect,
 	title={Sockets Direct Protocol V1. 0 RDMA Consortium},
 	author={Pinkerton, Jim}
+}
+
+@inproceedings{jeong2014mtcp,
+	title={mTCP: a Highly Scalable User-level TCP Stack for Multicore Systems.},
+	author={Jeong, EunYoung and Woo, Shinae and Jamshed, Muhammad Asim and Jeong, Haewon and Ihm, Sunghwan and Han, Dongsu and Park, KyoungSoo},
+	booktitle={NSDI},
+	volume={14},
+	pages={489--502},
+	year={2014}
+}
+
+@inproceedings{yasukata2016stackmap,
+	title={StackMap: Low-Latency Networking with the OS Stack and Dedicated NICs.},
+	author={Yasukata, Kenichi and Honda, Michio and Santry, Douglas and Eggert, Lars},
+	booktitle={USENIX Annual Technical Conference},
+	pages={43--56},
+	year={2016}
+}
+
+@inproceedings{han2012megapipe,
+	title={MegaPipe: A New Programming Interface for Scalable Network I/O.},
+	author={Han, Sangjin and Marshall, Scott and Chun, Byung-Gon and Ratnasamy, Sylvia},
+	booktitle={OSDI},
+	volume={12},
+	pages={135--148},
+	year={2012}
+}
+
+@inproceedings{pesterev2012improving,
+	title={Improving network connection locality on multicore systems},
+	author={Pesterev, Aleksey and Strauss, Jacob and Zeldovich, Nickolai and Morris, Robert T},
+	booktitle={Proceedings of the 7th ACM european conference on Computer Systems},
+	pages={337--350},
+	year={2012},
+	organization={ACM}
+}
+
+@inproceedings{soares2010flexsc,
+	title={FlexSC: Flexible system call scheduling with exception-less system calls},
+	author={Soares, Livio and Stumm, Michael},
+	booktitle={Proceedings of the 9th USENIX conference on Operating systems design and implementation},
+	pages={33--46},
+	year={2010},
+	organization={USENIX Association}
+}
+
+@inproceedings{vasudevan2011case,
+	title={The Case for VOS: The Vector Operating System.},
+	author={Vasudevan, Vijay and Andersen, David G and Kaminsky, Michael},
+	booktitle={HotOS},
+	year={2011}
+}
+
+@inproceedings{marinos2014network,
+	title={Network stack specialization for performance},
+	author={Marinos, Ilias and Watson, Robert NM and Handley, Mark},
+	booktitle={ACM SIGCOMM Computer Communication Review},
+	volume={44},
+	number={4},
+	pages={175--186},
+	year={2014},
+	organization={ACM}
+}
+
+@inproceedings{stuedi2014darpc,
+	title={DaRPC: Data center rpc},
+	author={Stuedi, Patrick and Trivedi, Animesh and Metzler, Bernard and Pfefferle, Jonas},
+	booktitle={Proceedings of the ACM Symposium on Cloud Computing},
+	pages={1--13},
+	year={2014},
+	organization={ACM}
+}
+
+@inproceedings{belay2012dune,
+	title={Dune: Safe User-level Access to Privileged CPU Features.},
+	author={Belay, Adam and Bittau, Andrea and Mashtizadeh, Ali Jos{\'e} and Terei, David and Mazi{\`e}res, David and Kozyrakis, Christos},
+	booktitle={Osdi},
+	volume={12},
+	pages={335--348},
+	year={2012}
+}
+
+@article{clements2015scalable,
+	title={The scalable commutativity rule: Designing scalable software for multicore processors},
+	author={Clements, Austin T and Kaashoek, M Frans and Zeldovich, Nickolai and Morris, Robert T and Kohler, Eddie},
+	journal={ACM Transactions on Computer Systems (TOCS)},
+	volume={32},
+	number={4},
+	pages={10},
+	year={2015},
+	publisher={ACM}
+}
+
+@phdthesis{boyd2014optimizing,
+	title={Optimizing Communication Bottlenecks in Multiprocessor Operating System Kernels},
+	author={Boyd-Wickizer, Silas},
+	year={2014},
+	school={Massachusetts Institute of Technology}
+}
+
+@article{dunkels2001design,
+	title={Design and Implementation of the lwIP TCP/IP Stack},
+	author={Dunkels, Adam},
+	journal={Swedish Institute of Computer Science},
+	volume={2},
+	pages={77},
+	year={2001}
+}
+
+@inproceedings{mitchell2013using,
+	title={Using One-Sided RDMA Reads to Build a Fast, CPU-Efficient Key-Value Store.},
+	author={Mitchell, Christopher and Geng, Yifeng and Li, Jinyang},
+	booktitle={USENIX Annual Technical Conference},
+	pages={103--114},
+	year={2013}
+}
+
+@inproceedings{madhavapeddy2013unikernels,
+	title={Unikernels: Library operating systems for the cloud},
+	author={Madhavapeddy, Anil and Mortier, Richard and Rotsos, Charalampos and Scott, David and Singh, Balraj and Gazagnaire, Thomas and Smith, Steven and Hand, Steven and Crowcroft, Jon},
+	booktitle={Acm Sigplan Notices},
+	volume={48},
+	number={4},
+	pages={461--472},
+	year={2013},
+	organization={ACM}
+}
+
+@article{libevent,
+	title={libevent: An event notification library},
+	author={Mathewson, Nick and Provos, Niels},
+	journal={Retrieved on Nov},
+	year={2017}
+}
+
+@inproceedings {metron2018nsdi,
+	author = {Georgios P. Katsikas and Tom Barbette and Dejan Kosti{\'c} and Rebecca Steinert and Gerald Q. Maguire Jr.},
+	title = {Metron: {NFV} Service Chains at the True Speed of the Underlying Hardware},
+	booktitle = {15th {USENIX} Symposium on Networked Systems Design and Implementation ({NSDI} 18)},
+	year = {2018},
+	isbn = {978-1-931971-43-0},
+	address = {Renton, WA},
+	pages = {171--186},
+	url = {https://www.usenix.org/conference/nsdi18/presentation/katsikas},
+	publisher = {{USENIX} Association},
+}
+
+@article{anna,
+	title={Anna: A KVS For Any Scale},
+	author={Wu, Chenggang and Faleiro, Jose M and Lin, Yihan and Hellerstein, Joseph M},
+	publisher={ICDE'18}
+}
+
+@inproceedings {smartnic,
+	author = {Daniel Firestone and Andrew Putnam and Sambhrama Mundkur and Derek Chiou and Alireza Dabagh and Mike Andrewartha and Hari Angepat and Vivek Bhanu and Adrian Caulfield and Eric Chung and Harish Kumar Chandrappa and Somesh Chaturmohta and Matt Humphrey and Jack Lavier and Norman Lam and Fengfen Liu and Kalin Ovtcharov and Jitu Padhye and Gautham Popuri and Shachar Raindel and Tejas Sapre and Mark Shaw and Gabriel Silva and Madhan Sivakumar and Nisheeth Srivastava and Anshuman Verma and Qasim Zuhair and Deepak Bansal and Doug Burger and Kushagra Vaid and David A. Maltz and Albert Greenberg},
+	title = {Azure Accelerated Networking: SmartNICs in the Public Cloud},
+	booktitle = {15th {USENIX} Symposium on Networked Systems Design and Implementation ({NSDI} 18)},
+	year = {2018},
+	isbn = {978-1-931971-43-0},
+	address = {Renton, WA},
+	pages = {51--66},
+	url = {https://www.usenix.org/conference/nsdi18/presentation/firestone},
+	publisher = {{USENIX} Association},
+}
+
+@article{carbone2015apache,
+	title={Apache flink: Stream and batch processing in a single engine},
+	author={Carbone, Paris and Katsifodimos, Asterios and Ewen, Stephan and Markl, Volker and Haridi, Seif and Tzoumas, Kostas},
+	journal={Bulletin of the IEEE Computer Society Technical Committee on Data Engineering},
+	volume={36},
+	number={4},
+	year={2015},
+	publisher={IEEE Computer Society}
+}
+
+@inproceedings{abadi2016tensorflow,
+	title={TensorFlow: A System for Large-Scale Machine Learning.},
+	author={Abadi, Mart{\'\i}n and Barham, Paul and Chen, Jianmin and Chen, Zhifeng and Davis, Andy and Dean, Jeffrey and Devin, Matthieu and Ghemawat, Sanjay and Irving, Geoffrey and Isard, Michael and others},
+	booktitle={OSDI},
+	volume={16},
+	pages={265--283},
+	year={2016}
+}
+
+@article{redis,
+	title={Redis: Lightweight key/value store that goes the extra mile},
+	author={Zawodny, Jeremy},
+	journal={Linux Magazine},
+	volume={79},
+	year={2009}
+}
+
+@book{nodejs,
+	title={Node. js 8 the Right Way: Practical, Server-side Javascript that Scales},
+	author={Wilson, Jim},
+	year={2018},
+	publisher={Pragmatic Bookshelf}
+}
+
+@article{nginx,
+	title={Nginx: the high-performance web server and reverse proxy},
+	author={Reese, Will},
+	journal={Linux Journal},
+	volume={2008},
+	number={173},
+	pages={2},
+	year={2008},
+	publisher={Belltown Media}
+}
+
+@article{memcached,
+	title={Distributed caching with memcached},
+	author={Fitzpatrick, Brad},
+	journal={Linux journal},
+	volume={2004},
+	number={124},
+	pages={5},
+	year={2004},
+	publisher={Belltown Media}
+}
+
+@incollection{hoare1974monitors,
+	title={Monitors: An operating system structuring concept},
+	author={Hoare, Charles Antony Richard},
+	booktitle={The origin of concurrent programming},
+	pages={272--294},
+	year={1974},
+	publisher={Springer}
 }
