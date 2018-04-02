@@ -24,6 +24,8 @@ Need a figure to show the lifecycle (message passing flow) of a socket connectio
 	 \textbf{Connection setup. (accept scheduling)}
 	 
 	 \textbf{Data transmission.}
+	 
+	 Discuss epoll.
 \begin{itemize}
 	\item Pick from the middle of the Q
 	\item Starving (per fd slot)
@@ -31,6 +33,8 @@ Need a figure to show the lifecycle (message passing flow) of a socket connectio
 \end{itemize}
 
     \textbf{Close \& ACK}
+
+
 
 
 \subsection{Fork and Thread Creation}
@@ -58,14 +62,13 @@ Tree
 
 Fork \& Close interleaving
 
-\subsection{Queue}
+\subsection{Shared-Memory Queue}
 
 x86-TSO~\cite{sewell2010x86}, intel manual~\cite{intel-manual}
 
-\subsection{Event Polling and Notification}
+\subsection{Process Multiplexing}
 \label{subsec:epoll}
 
-Discuss epoll and signal.
 
 Message passing may wait too long.
 Signal mechanism. Signal process after waiting until timeout.
@@ -78,7 +81,37 @@ Blocking operation: sched\_yield.
 \subsection{Zero Copy}
 \label{subsec:zerocopy}
 
+\begin{figure}[t]
+	\centering
+	\includegraphics[width=0.3\textwidth]{images/fixme}
+	\caption{Zero-copy theory of operation.}
+	\label{fig:zerocopy}
+\end{figure}
 
+The main challenge for zero copy is the buffer reuse after send and the non-deterministic buffer for receive.
+Fortunately, the virtual memory provides a layer of indirection, so we can remap virtual address of a buffer to another physical page, if the data occupies entire 4~KiB pages.
+To this end, we wrap around \texttt{malloc} function and allocate 4~KiB aligned addresses for large allocations.
+If the size of send message is not a multiple of 4~KiB, the last chunk of data is copied on \texttt{send} and \texttt{recv}.
+
+As shown in Figure~\ref{fig:zerocopy}, for \texttt{send} operation, \libipc{} invokes the kernel to get an encrypted physical address of send buffer and send the address to receiver via user-mode shared-memory queue.
+The address is encrypted to prevent unsolicited mapping of arbitrary pages.
+Because the sender may read the buffer after \texttt{send} or send the buffer to multiple receivers, the physical page cannot be remapped.
+Additionally, \texttt{send} needs to write-protect the buffer because the receiver needs to read it.
+On receiving side, \libipc{} invokes the kernel to remap the encrypted physical address to the application-provided receive buffer.
+\texttt{recv} also needs to write-protect the buffer because it is shared by the sender and potentially multiple receivers.
+
+A challenge arises when sender writes the buffer after \texttt{send}.
+Existing zero-copy socket designs~\cite{thadani1995efficient,chu1996zero} use copy-on-write. Copy is required because the sender may read the non-written part of the page.
+Because most applications reuse the buffer for subsequent send operations, copy-on-write is invoked in most cases, making zero-copy essentially useless on sender.
+Our observation is that most applications overwrite entire pages of the send buffer via \texttt{recv} or \texttt{memcpy}, so it is unnecessary to copy old data when the first byte of the page is written.
+Zero-copy \texttt{recv} remaps the buffer without triggering copy-on-write, so proxy applications can achieve zero copy.
+For \texttt{memcpy}, we add preamble code to the function in both \libipc{} runtime and compiler inline library. If both source, destination addresses and the copy size are aligned to 4~KiB, and the destination address is a send buffer, the preamble code invokes the kernel to remap new pages to the destination address and disable write protection.
+For compatibility, copy-on-write is still used for other write operations to protected buffers.
+
+A second challenge is that page remapping requires the kernel to allocate and free pages for each \texttt{send} and \texttt{recv}. Page allocation in kernel acquires a global lock, therefore it is inefficient. Instead, \libipc{} manages a pool of free pages in each user-mode process.
+We add to the kernel a system call to convert virtual addresses in the pool and encrypted physical addresses.
+\libipc{} also tracks the origin of received zero-copy buffers.
+After page remapping on sender \texttt{memcpy} and receiver \texttt{recv}, if the old physical page is from another process, \libipc{} sends a message to the origin process to return the buffer.
 
 
 \section{Utilizing RDMA for Inter-server Socket}
