@@ -45,6 +45,30 @@ To tackle this issue, we make the following observation.
 	\item It is uncommon that several threads read data from one connection concurrently.
 \end{itemize} 
 
+Our design of multiple threading can be divided to two parts: a). fork and pthread\_create function call. b). read and write operation. Based on the observation above, our goal is to maximize the performance of the usual case (i.e. Fork happens not very frequently, one connection is only handled by one thread) while keep the maximum compatibility of the Linux socket semantics (i.e. multiple threads contend for message in the same connection).
+
+One instinctive design to archive the goal is to create separate queues for each sender and receiver and the queues build a bipartite graph between the sender and the receiver. Senders send the message to different receivers in turn. We could prove that from the receiver side, the order of one designated sender is ensured.
+
+By adopting the methods above, we illustrate the process of fork function call as figure \ref{fig:fork-process}. When fork is called, the process notify monitor and monitor create new shared buffer for each existing shared buffer between the parent process and the existing peers of parent process. The peer of the parent process is notified of the fork and connect to the newly created child process.
+
+\begin{figure}[t]
+	\centering
+	\includegraphics[width=0.3\textwidth]{images/fixme}
+	\caption{This figure should explain the workflow when fork happens.}
+	\label{fig:fork-process}
+\end{figure}
+
+While the previous design achieves high scalability compared with traditional Linux socket design, but there are several corner cases that our design is not compatible with the Linux.
+
+1. Before the new thread is created, the queue of a connection may already accumulate some bytes. After the fork, how could we deal with the existing data in the old queue? One simple solution is keep the data in the old queue, but by doing so, newly created process cannot access the data of the old queue, which violate the Linux semantics: all the data is shared by all the receivers. 
+
+2. The old process or the new process may not consume the data of the connection (i.e. dead receiver). For instance, Nginx creates a socket for log propose and only one process read from the socket while all the threads have the access to that file descriptor. However, without this knowledge, sender side consistently push data into all the receivers, which lead to starving and deadlock (i.e. the queue of the dead receiver is full).
+
+To settle the first problem, we take advantage of a tree data structure. To settle the second problem, we take idea of a pointer in shared memory and the takeover concept.
+
+\subsubsection{title}  
+
+
 
 Key point: Coordination in shared socket.
 
