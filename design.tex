@@ -135,7 +135,7 @@ Existing zero-copy socket designs~\cite{thadani1995efficient,chu1996zero} use co
 Because most applications reuse the buffer for subsequent send operations, copy-on-write is invoked in most cases, making zero-copy essentially useless on sender.
 Our observation is that most applications overwrite entire pages of the send buffer via \texttt{recv} or \texttt{memcpy}, so it is unnecessary to copy old data when the first byte of the page is written.
 Zero-copy \texttt{recv} remaps the buffer without triggering copy-on-write, so proxy applications can achieve zero copy.
-For \texttt{memcpy}, we add preamble code to the function in both \libipc{} runtime and compiler inline library. If both source, destination addresses and the copy size are aligned to 4~KiB, and the destination address is a send buffer, the preamble code invokes the kernel to remap new pages to the destination address and disable write protection.
+For \texttt{memcpy}, we add preamble code to the function in both \libipc{} runtime and compiler inline library. If both source, destination addresses and the copy size are aligned to 4~KiB, and the destination address is write-protected by \libipc{}, the preamble code invokes the kernel to remap new pages to the destination address and disable write protection.
 For compatibility, copy-on-write is still used for other write operations to protected buffers.
 
 A second challenge is that page remapping requires the kernel to allocate and free pages for each \texttt{send} and \texttt{recv}. Page allocation in kernel acquires a global lock, therefore it is inefficient. Instead, \libipc{} manages a pool of free pages in each user-mode process.
