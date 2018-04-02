@@ -1,7 +1,7 @@
 \section{Inter-Process Socket in a Server}
 \label{sec:intra-server}
 
-\subsection{Scaling Socket API}
+\subsection{Processes as Distributed System}
 \label{subsec:socket-api}
 
 How the socket works. A table show the process of using socket:
@@ -33,19 +33,27 @@ Need a figure to show the lifecycle (message passing flow) of a socket connectio
     \textbf{Close \& ACK}
 
 
-\subsection{Fork and Thread Creation}
+\subsection{Scaling socket API}
 \label{subsec:fork}
 
 Process fork and thread creation are essential methods to enable parallelism in modern applications. 
-However, as stated in \ref{subsec:challenges}, fork and thread creation pose the contention of logically shared data. With traditional mutual exclusion solution, the scalability of Socket is limited.
+However, as stated in \ref{subsec:challenges}, fork and thread creation pose the contention of logically shared data since it is a producer-consumer model and multiple consumer compete one shared data. With traditional mutual exclusion solution, the scalability of Socket is limited.
 
 To tackle this issue, we make the following observation.
 \begin{itemize}
 	\item Fork system call and thread creation is low-frequency used in high performance applications.
-	\item It is uncommon that several threads read data from one connection concurrently.
+	\item It is uncommon that several threads read data from one connection concurrently since Linux cannot guarantee atomicity of the bytes stream.
 \end{itemize} 
 
-Our design of multiple threading can be divided to two parts: a). fork and pthread\_create function call. b). read and write operation. Based on the observation above, our goal is to maximize the performance of the usual case (i.e. Fork happens not very frequently, one connection is only handled by one thread) while keep the maximum compatibility of the Linux socket semantics (i.e. multiple threads contend for message in the same connection).
+Our design of multiple threading can be divided to three parts: a) read and write operation b) fork and pthread\_create function call (i.e. duplicate a fd to two processes). c) close function call (i.e. destroy a fd). Based on the observation above, our goal is to maximize the performance of the usual case while keep the maximum compatibility of the Linux socket semantics.
+
+For the performance goal, base on the second observation. We propose the following requirements to maximize the performance of the usual case:
+\begin{itemize}
+ \item In multiple threads scenario, the performance of one-one connection ought to have the similar throughput and latency compared with that in single thread scenario.
+ \item For multiple sender and one receiver, the performance is supposed to scale, rather than dropped heavily compared with mutual exclusion solution.
+ \item  
+\end{itemize}
+
 
 One instinctive design to archive the goal is to create separate queues for each sender and receiver and the queues build a bipartite graph between the sender and the receiver. Senders send the message to different receivers in turn. We could prove that from the receiver side, the order of one designated sender is ensured.
 
