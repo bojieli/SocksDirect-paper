@@ -47,7 +47,7 @@ To tackle this issue, we make the following observation.
 	\item It is uncommon that several processes read data from one connection concurrently since Linux cannot guarantee atomicity of the bytes stream.
 \end{itemize} 
 
-Our design of multiple processing can be divided to three parts: a) read and write operation b) fork and pthread\_create function call (i.e. duplicate a fd to two processes). c) close function call (i.e. destroy a fd). Based on the observation above, our goal is to maximize the performance of the usual case while keep the maximum compatibility of the Linux socket semantics.
+Based on the observation above, our goal is to maximize the performance of the usual case while keep the maximum compatibility of the Linux socket semantics.
 
 For the performance goal, base on the second observation. We propose the following requirements to maximize the performance of the usual case:
 \begin{itemize}
@@ -59,11 +59,15 @@ For the performance goal, base on the second observation. We propose the followi
 For compatibility of the Linux semantics, the fundamental requirements is the order of the message. To be specific, the following two conditions need to be satisfied:
 \begin{itemize}
 \item For a specific consumer, the order of messages it from the same producer is supposed to be guaranteed.
-\item Our design shall not run into starvation. i.e. The existence of data of a certain connection and the existence of pending read function call cannot occur simultaneity.
+\item The order of messages sent by one sender and received by multiple receiver should be guaranteed. e.g. For any messages D1, D2 sent by a sender S, receiver R1 gets the message from S and sends N1 to receiver R2. R2 polls the other message from S after gets N1. We make sure that R1 receives D1 while R2 receives D2. 
+\item Our design shall not run into deadlock. i.e. The existence of data of a certain connection and the existence of pending read function call cannot occur simultaneity.
+\item Starvation is not supposed to happen in our system. i.e. One sender transmit data to two consumer, but only one receiver can get the message while the other one keeps waiting.
 \end{itemize}
 
 
 Briefly, our design to archive the goal mentioned above is to create separate queues for each sender and receiver and the queues build a bipartite graph between the sender and the receiver. For one sender, it pairs to a specific receiver who will receive and only transmit data to that receiver. The receiver round robin poll the messages from all the queues connected to senders. Figure \ref{fig:fork-process} shows the change of queues after fork happens. In the following paragraph, we will discuss our detailed design for the three parts we mentioned above.
+
+Our design of multiple processing can be divided to three parts: a) read and write operation b) fork and pthread\_create function call (i.e. new processes add to the existing connection). c) close function call (i.e. existing connection is closed, all the processes leave the connection).
 
 
 \begin{figure}[t]
@@ -72,10 +76,9 @@ Briefly, our design to archive the goal mentioned above is to create separate qu
 	\caption{This figure should explain the workflow when fork happens.}
 	\label{fig:fork-process}
 \end{figure}
-
-\subsubsection{Fork/Thread creation}
-
 \subsubsection{Read/Write operation}
+\subsubsection{Fork/Thread creation}
+For fork, the instinctive way is to create a new queue for the newly created process. 
 \subsubsection{Close of a connection}
   
 Key point: Coordination in shared socket.
