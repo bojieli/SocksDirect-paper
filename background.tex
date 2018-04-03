@@ -44,7 +44,7 @@ For intra-server transmission, data is copied three times: from the send applica
 %However, each CPU core can only copy 5~GiB data per second, limiting throughput for applications that operate on large chunks of data~\cite{panda2016netbricks}.
 
 \textbf{Synchronization.}
-Scalability analysis of Linux system calls~\cite{boyd2010analysis} suggests that many socket operations are not commutable. The Linux kernel needs to acquire global locks for socket connection setup and a per-socket lock for each socket operation. The synchronization overhead greatly mitigates
+Scalability analysis of Linux system calls~\cite{boyd2010analysis} suggests that many socket operations are not commutable. The Linux kernel needs to acquire global locks for socket connection setup and a per-socket lock for each socket operation. The synchronization overhead limits scalability of Linux socket.
 
 \begin{itemize}
 	\item Context switch
@@ -73,23 +73,37 @@ List related work on fast sockets. They are not compatible with existing applica
 \end{figure}
 
 \textbf{Kernel bypass.}
-The common wisdom is that user-space network stacks do not provide multiplexing and isolation among applications, therefore dataplane operating systems either demonstrate good performance with kernel-based network stacks~\cite{belay2014ix,tsai2017lite} or delegate socket processing to a virtual switch running on dedicated cores~\cite{martins2014clickos,roghanchi2017ffwd}. \sys resolves the dilemma by leveraging CPU memory protection and NIC multi-queue to provide multiplexing and isolation.
-
+The common wisdom is that user-space network stacks do not provide multiplexing and isolation among applications, therefore dataplane operating systems either demonstrate good performance with kernel-based network stacks~\cite{belay2014ix,tsai2017lite} or delegate socket processing to a virtual switch running on dedicated cores~\cite{martins2014clickos,roghanchi2017ffwd}.
+Our goal is to achieve kernel bypass for both connection setup and data transmission.
+For connection setup, we need to coordinate \texttt{listen} port numbers, load balance \texttt{connect} requests and allocate resources.
+For data transmission, modern commodity NICs support multiple queues with receive flow steering~\cite{herbertrfs,libvma,openonload}, so connection multiplexing and isolation can be offloaded to the NIC.
+The event polling API (\texttt{epoll}) also calls for user-space event notification and wakeup.
 
 \textbf{Mutual exclusion for shared socket.}
 The main challenge for Linux socket scalability is that a socket connection may be shared by multiple processes and threads. Threads in a same process share all socket connections. When a process forks, the parent and child processes share the sockets created before fork. The Linux implementation uses a shared queue and protects concurrent operations with mutual exclusion.
 Ideally, inter-process message passing requires only one cache migration. As shown in Figure~\ref{fig:mutual-exclusion}, the Compare-And-Swap (CAS) instruction for mutual exclusion, even in non-contended case, is significantly slower than cache migration. Kernel mutex and user-mode futex are even slower than CAS. Mutual exclusion becomes a bottleneck. In addition, both mutual exclusion and contended memory write are not scalable to multiple cores~\cite{boyd2014optimizing}.
 
 Fortunately, we observe that most applications do not receive from a socket connection concurrently from multiple processes or threads. For such producer-consumer scenarios, applications typically use message queues~\cite{hintjens2013zeromq}. However, applications do implicitly transfer a socket from one receiving process or thread to another (\textit{e.g.} from master to a worker). Multiple threads may also send large chunks of data (\textit{e.g.} log) through a shared socket.
-To this end, we need a scalable socket architecture to eliminate mutual exclusion in the most cases and ensure correctness in the worst case.
+To this end, we need a scalable socket architecture to eliminate mutual exclusion in most cases and ensure correctness in the worst case.
 
 
 \textbf{Reduce per-socket memory footprint.}
-Each process may connect to multiple Internet hosts and data center servers. In Linux, each socket connection has dedicated send and receive buffers, and each buffer is at least one page (4KB). With millions of concurrent connections, the socket buffers consumes tens of gigabytes of memory, most of which is empty.
-
+Each process may connect to multiple Internet hosts and data center servers. In Linux, each socket connection has dedicated send and receive buffers, and each buffer is at least one page (4KB). With millions of concurrent connections, the socket buffers consumes tens of gigabytes of memory, most of which is empty. Our goal is to share socket buffers among connections and amortize memory footprint.
 
 
 \textbf{Zero copy.}
-The socket API was initially designed for blocking operations. The \textit{reactive} semantics of Linux event polling API seems to mandate data copy for both send and receive. After a non-blocking send operation, the send buffer may be overwritten by the application, so the implementation of send() needs to copy the data to an internal buffer. For the receive operation, application provides a buffer and processes the data after recv() returns. If the data is buffered on the sender, the application needs to wait for a round-trip time on recv(). Otherwise, the receiver's network stack cannot predict the user-provided recv() address and needs to buffer received data internally.
+Historically, \texttt{send} was designed as a blocking operation, so the send buffer may be overwritten by the application after \texttt{send} operation.
+Non-blocking \texttt{send} preserves this semantics, so the network stack needs to copy data to an internal buffer, then send the internal buffer in background after \texttt{send} returns.
+For the \texttt{recv} operation, application provides a buffer and read the data after \texttt{recv} returns.
+If we implement \texttt{recv} as a lazy operation, \textit{i.e.}, the data is buffered on the sender, the receiver needs to wait for a round-trip time on \texttt{recv}.
+Otherwise, as in most socket implementations, we send data to the receiver before \texttt{recv}. Because the receiver's network stack cannot predict the user-provided \texttt{recv} address, it needs to buffer received data internally, then copy the data when \texttt{recv} is called.
+Our goal is to achieve zero copy in most large data transfers without change to applications.
 
-On the contrary, zero-copy API (\textit{e.g.} RDMA) has \textit{proactive} semantics. The application manages buffers, reserves the send buffer after send operation and releases it after send completion notification. The application also delegates non-blocking receive operations along with receive buffers, so the NIC can DMA received data directly to the receive buffers, then notify the application that data is ready. Although rsockets~\cite{rsockets} and SDP~\cite{socketsdirect} simplify RDMA API, they are still more complicated than the Linux socket API because the application needs to manage the buffers and predict how much data it expects to receive. Furthermore, for inter-process communication in a same server, RDMA still needs the NIC to copy from send to receive buffer. Because the PCIe bus between NIC and CPU has an order of magnitude lower bandwidth and higher latency than the DDR channels between memory and CPU~\cite{li2017kv}, it is desirable to bypass NIC for inter-process communication.
+\textbf{Translate socket to RDMA.}
+The event polling API in Linux is \textit{reactive}, in the sense that the applications knows a socket connection is ready for \texttt{send} or \texttt{recv}, then issues the operation.
+On the contrary, RDMA API is \textit{proactive}. The application delegates RDMA operations to the NIC hardware, and receives notification when they are completed.
+Translating socket API to RDMA requires bridging the reactive and proactive semantics.
+First, RDMA achieves zero copy by leaving buffer management to the application. SDP~\cite{socketsdirect} and rsockets~\cite{rsockets} are not compatible with Linux socket because the application still needs to manage send and receive buffers.
+Second, two-sided RDMA applications needs to predict the size and number of messages it expects to receive, and delegate enough \texttt{recv} operations to the NIC.
+Finally, one-sided RDMA \texttt{read} and \texttt{write} have higher throughput than two-sided \texttt{send} and \texttt{recv} for most RDMA NICs~\cite{kaminsky2016design}.
+Our goal is to use RDMA efficiently for existing socket applications.

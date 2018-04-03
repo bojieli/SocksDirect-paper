@@ -118,9 +118,9 @@ Blocking operation: sched\_yield.
 	\label{fig:zerocopy}
 \end{figure}
 
-The main challenge for zero copy is the buffer reuse after send and the non-deterministic buffer for receive.
+The main challenge for zero copy is to maintain the semantics of socket API. The sender may write the send buffer after non-blocking \texttt{send}, and the receiver does not know the receive buffer before \texttt{recv}.
 Fortunately, the virtual memory provides a layer of indirection, so we can remap virtual address of a buffer to another physical page, if the data occupies entire 4~KiB pages.
-To this end, we wrap around \texttt{malloc} function and allocate 4~KiB aligned addresses for large allocations.
+To this end, we wrap around \texttt{malloc} function and allocate 4~KiB aligned addresses for large allocations, so most buffers will align to page boundary.
 If the size of send message is not a multiple of 4~KiB, the last chunk of data is copied on \texttt{send} and \texttt{recv}.
 
 As shown in Figure~\ref{fig:zerocopy}, for \texttt{send} operation, \libipc{} invokes the kernel to get an encrypted physical address of send buffer and send the address to receiver via user-mode shared-memory queue.
@@ -148,3 +148,6 @@ After page remapping on sender \texttt{memcpy} and receiver \texttt{recv}, if th
 \label{sec:rdma}
 
 Remember: if the other endpoint is not RDMA capable, use libvma.
+
+ It reserves the send buffer after \texttt{send} and releases it after send completion notification.
+The application also delegates non-blocking receive operations along with receive buffers, so the NIC can DMA received data directly to the receive buffers, then notify the application that data is ready.
