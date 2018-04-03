@@ -81,3 +81,6 @@ When applying these designs to container networking, there are two challenges: (
 This paper basically falls in this category and solves the challenges using careful hardware-software co-design.
 
 After years of broken promises, the increasing gap between network speed and CPU processing capacity finally makes \textit{programmable NICs} deployed in data centers~\cite{smartnic}, opening up new possibilities for network stack design.
+
+Why not use NIC:
+Finally, for inter-process communication in a same server, RDMA still needs the NIC to copy from send to receive buffer. Because the PCIe bus between NIC and CPU has an order of magnitude lower bandwidth and higher latency than the DDR channels between memory and CPU~\cite{li2017kv}, it is desirable to bypass NIC for inter-process communication.
