@@ -67,12 +67,13 @@ Briefly, our design of multiple processing can be divided to three parts: a) rea
 
 
 \subsubsection{Read/Write Operation}
+\label{subsubsec:fork_rdwr}
 
 In this paragraph, we assume that the connection is already setup and the number of processes involved in this connection is stable. In order to achieve high throughput, we leverage lock-free queue to enable one-one connection. For multiple process on one connection, in order to achieve high scalability, we create separate queues for each sender and receiver and the queues build a bipartite graph between the sender and the receiver.To solve the multi-receiver ordering requirement and the deadlock-free requirement, each sender of a socket designate one receiver with exclusive access to the buffer. The receiver round robin poll the messages from all the queues connected to senders. Figure \ref{fig:fork-bipartitegraph} shows a sample of the shared-memory buffers between senders and receivers for one connection. 
 
 How to choose the specific receiver of the sender is a key challenge since the receiver chose by the sender may not handle the data in that connection while other receivers may under starvation. Based on our observation that usually only one receiver retrieves data from the sender side, we could simply let the sender transmit the data to the receiver who previously requested for it i.e. the receiver which calls read first send a ``takeover message'' to sender and sender begins to transmit byte stream to that receiver.  The main reason for takeover message is the multi-receiver ordering requirement and the deadlock-free requirement. In common cases, the performance could be achieved as high as one-one connection since the sender only send the data to one receiver and no contention happens in usual cases.
 
-However, in this design, in order to satisfy the order requirements, how to deal with the data already in the queue while a different receiver sends ``takeover message'' is especially challenging.  We need to ensure that all the old data is read by the newly receiver first, and then the new data of sender can be sent to the that receiver. Because multiple socket connections share a queue from sender to receiver, the new receiver cannot take over the queue from the old receiver directly. Instead, the sender first send a takeover request to the old receiver. Upon receiption of the takeover request, the old receiver returns all unconsumed messages in queue to sender, then sender forwards the messages to the new receiver. To tackle this problem, sender side first send a request to the old receiver to request it return all the unconsumed messages in queue to sender and sender retransmit them to new receiver. During migration of unconsumed messages, the sender blocks send operations to ensure message ordering.
+However, in this design, in order to satisfy the order requirements, how to deal with the data already in the queue while a different receiver sends ``takeover message'' is especially challenging.  We need to ensure that all the old data is read by the newly receiver first, and then the new data of sender can be sent to the that receiver. Because multiple socket connections share a queue from sender to receiver, the new receiver cannot take over the queue from the old receiver directly. Instead, the sender first send a takeover request to the old receiver. Upon receipt of the takeover request, the old receiver returns all unconsumed messages in queue to sender, then sender forwards the messages to the new receiver. To tackle this problem, sender side first send a request to the old receiver to request it return all the unconsumed messages in queue to sender and sender retransmit them to new receiver. During migration of unconsumed messages, the sender blocks send operations to ensure message ordering.
 
 Another challenge is that when a receiver should send a takeover message. In order to let the receiver know whether itself is designated by the sender, the sender keeps a bit flag in the shared memory between it and each receiver.  Only one of these flags, which is in where sender gets the ``takeover message'' lastly is set to one while other flags are set to zero. When sender notices a ``takeover message'', it changes the flag linked with the new receiver to one and set the original flag to zero.
 
@@ -83,11 +84,24 @@ Another challenge is that when a receiver should send a takeover message. In ord
 	\label{fig:fork-bipartitegraph}
 \end{figure}
 
-\subsubsection{Fork and Thread Creation}
-Fork is a widely used syscall to create new processes. Logically, there are four different situations when fork happens for one process, noted as 1, 2, 3, 4 in the following of the paragraph: 1. Receiver side forks 2. The process
+\subsubsection{Fork and Thread creation}
+Fork is a procedure that new processes attach to existing connections. Logically, there are four different cases when fork happens for one process, noted as 1, 2, 3, 4 in the following of the paragraph:
+\begin{enumerate}
+	\item The process itself is the sender side of the connection and it forks.
+	\item The process itself is the sender of the connection while one of the receiver folks.
+	\item The process itself is the receiver side of the connection and it forks.
+	\item The process itself is the receiver of the connection while one of the sender folks.
+\end{enumerate}
 
-\subsubsection{Fork and Thread Creation}
-For fork, the instinctive way is to create a new queue for the newly created process. 
+The general process of fork is that after monitor is notified of the fork, it creates shared memory between the newly created process and all the processes which previously have connections with the parent process. The key challenge lies in the fork is that how to deal with the existing data in the connection to guarantee the order requirements.
+
+For the cases 2 and 3, we could adopt the idea of ``takeover message'' as stated in \ref{subsubsec:fork_rdwr}. Each of the forked new process creates a new queue for its old connection. When the receiver side call read for the connection, a ``takeover message'' is emit and the sender designate the new process as the exclusive receiver and poll all the data in the old queue to the receiver which sends ``takeover message''.
+
+However, It is more complicated for case 1 and case 4. We cannot leverage the ``takeover message'' trick since the two senders may emit data in parallel and we cannot guarantee all the data sent prior to fork is consumed before to that following the fork by new processes. It is not efficient to block all the senders before old data is consumed either.
+
+Our solution is to when the sender side forks, we preserve the old shared memory and create two new shared memory for each receiver and connection them to the new sender processes separately. All the receiver side is notified of the folk and keep a tree data structure of all the shared memories.The two new sender transmit all the new messages to the newly created shared memory separately. When the receiver tries to retrieve data, it first try the old shared memory, if it is empty, it will remove the old shared memory and promote the child of this memory for the read request. 
+
+Things become much more complicated when cases 1,4 happens after cases 2,3 happening. After receiver forks, the unique sender is responsible for receiving ``takeover message'' and resend the data to new receivers. However, if sender forks following the receiver forks, according to the methods we mentioned above, there is no sender responsible for processing ``takeover message''. Our solution is that we require the receivers to poll the data from the old shared memory queue and compete for data. Since this case rarely happens, the performance of the overall design is not affected.
 
 \subsubsection{Connection Close}
   
