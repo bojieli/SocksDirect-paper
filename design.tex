@@ -35,39 +35,38 @@ Need a figure to show the lifecycle (message passing flow) of a socket connectio
     \textbf{Close \& ACK}
 
 
-\subsection{Scaling socket API}
+\subsection{Scaling Socket API}
 \label{subsec:fork}
 
-Process fork and thread creation are essential methods to enable parallelism in modern applications. 
-However, as stated in \ref{subsec:challenges}, fork and thread creation pose the contention of logically shared data since it is a producer-consumer model and multiple consumer compete one shared data. With traditional mutual exclusion solution, the scalability of Socket is limited.
+Process fork and thread creation are essential mechanisms to enable parallelism in modern applications. 
+However, as stated in \ref{subsec:challenges}, fork and thread creation makes socket a producer-consumer model, where senders and receivers contend on the shared queue. With a traditional mutual exclusion solution, the multi-process scalability of socket is limited.
 
-To tackle this issue, we make the following observation.
-\begin{itemize}
-	\item Fork system call and thread creation is low-frequency used in high performance applications.
-	\item It is uncommon that several processes read data from one connection concurrently since Linux cannot guarantee atomicity of the bytes stream.
-\end{itemize} 
-
-Based on the observation above, our goal is to maximize the performance of the usual case while keep the maximum compatibility of the Linux socket semantics.
-
-For the performance goal, base on the second observation. We propose the following requirements to maximize the performance of the usual case:
-\begin{itemize}
- \item In multiple processes scenario, the performance of one-one connection ought to have the similar throughput and latency compared with that in single process scenario.
- \item For multiple sender and one receiver, the performance is supposed to scale, rather than dropped heavily compared with mutual exclusion solution.
- \item The previous access pattern of one connection by multiple processes shall not have follow-up effect to current performance. It means once the system achieves one-one connection no matter what happens before, the throughput is supposed to be lie near the bare shared memory lockless-queue.
-\end{itemize}
-
-For compatibility of the Linux semantics, the fundamental requirements is the order of the message. To be specific, the following two conditions need to be satisfied:
+To tackle this issue, we make the following observations:
 \begin{enumerate}
-\item \textbf{Single receiver ordering } For a specific consumer, the order of messages it from the same producer is supposed to be guaranteed.
-\item \textbf{Multiple receiver ordering }The order of messages sent by one sender and received by multiple receiver should be guaranteed. e.g. For any messages D1, D2 sent by a sender S,  we guarantee that receiver R1 gets D1 and receiver R2 gets D2 if read called by R1 is prior to that by R2. 
-\item \textbf{Deadlock-free} Our design shall not run into deadlock. i.e. The existence of data of a certain connection and the existence of pending read function call cannot occur simultaneity.
-\item \textbf{Starvation-free} Starvation is not supposed to happen in our system. i.e. One sender transmit data to two consumer, but only one receiver can get the message while the other one keeps waiting.
+	\item Fork and thread creation are not frequent in high performance applications, compared to connection setup and data transmission.
+	\item It is uncommon that several processes receive concurrently from one shared socket.
+\end{enumerate} 
+
+Based on the observations above, our goal is to maximize the common-case performance while keep the maximum compatibility of the Linux socket semantics.
+Based on the second observation. We propose the following requirements to maximize the common-case performance:
+\begin{enumerate}
+ \item \textbf{Synchronization-free.} With multiple potential senders and receivers, if only one pair of sender and receiver is active, the throughput and latency should be comparable with that of a sender-receiver pair.
+ \item \textbf{Scalability.} For multiple active senders and one receiver, if the receiver is not the bottleneck, the throughput is supposed to scale, rather than dropping heavily due to mutual exclusion.
+ \item \textbf{Self-stabilization.} Previous access patterns shall not have follow-up effect on current performance. Corner-case operations may slow down the system temporarily, but after that the throughput is supposed to converge to common-case.
+\end{enumerate}
+
+For compatibility of Linux semantics, the fundamental requirements is the order of messages. To be specific:
+\begin{enumerate}
+\item \textbf{Single receiver ordering.} For a specific consumer, the order of messages it from the same producer is supposed to be guaranteed.
+\item \textbf{Multiple receiver ordering.} The order of messages sent by one sender and received by multiple receiver should be guaranteed. e.g. For any messages D1, D2 sent by a sender S,  we guarantee that receiver R1 gets D1 and receiver R2 gets D2 if read called by R1 is prior to that by R2. 
+\item \textbf{Deadlock-free.} Our design shall not run into deadlock. i.e. The existence of data of a certain connection and the existence of pending read function call cannot occur simultaneity.
+\item \textbf{Starvation-free.} Starvation is not supposed to happen in our system. i.e. One sender transmit data to two consumer, but only one receiver can get the message while the other one keeps waiting.
 \end{enumerate}
 
 Briefly, our design of multiple processing can be divided to three parts: a) read and write operation b) fork and pthread\_create function call (i.e. new processes add to the existing connection). c) close function call (i.e. existing connection is closed, all the processes leave the connection).
 
 
-\subsubsection{Read/Write operation}
+\subsubsection{Read/Write Operation}
 
 In this paragraph, we assume that the connection is already setup and the number of processes involved in this connection is stable. In order to achieve high throughput, we leverage lock-free queue to enable one-one connection. For multiple process on one connection, in order to achieve high scalability, we create separate queues for each sender and receiver and the queues build a bipartite graph between the sender and the receiver.To solve the multi-receiver ordering requirement and the deadlock-free requirement, each sender of a socket designate one receiver with exclusive access to the buffer. The receiver round robin poll the messages from all the queues connected to senders. Figure \ref{fig:fork-bipartitegraph} shows a sample of the shared-memory buffers between senders and receivers for one connection. 
 
@@ -77,7 +76,6 @@ However, in this design, in order to satisfy the order requirements, how to deal
 
 Another challenge is that when a receiver should send a takeover message. In order to let the receiver know whether itself is designated by the sender, the sender keeps a bit flag in the shared memory between it and each receiver.  Only one of these flags, which is in where sender gets the ``takeover message'' lastly is set to one while other flags are set to zero. When sender notices a ``takeover message'', it changes the flag linked with the new receiver to one and set the original flag to zero.
 
-
 \begin{figure}[t]
 	\centering
 	\includegraphics[width=0.3\textwidth]{images/fixme}
@@ -85,9 +83,13 @@ Another challenge is that when a receiver should send a takeover message. In ord
 	\label{fig:fork-bipartitegraph}
 \end{figure}
 
-\subsubsection{Fork/Thread creation}
+\subsubsection{Fork and Thread Creation}
 Fork is a widely used syscall to create new processes. Logically, there are four different situations when fork happens for one process, noted as 1, 2, 3, 4 in the following of the paragraph: 1. Receiver side forks 2. The process
-\subsubsection{Close of a connection}
+
+\subsubsection{Fork and Thread Creation}
+For fork, the instinctive way is to create a new queue for the newly created process. 
+
+\subsubsection{Connection Close}
   
 Key point: Coordination in shared socket.
 
@@ -153,8 +155,12 @@ We add to the kernel a system call to convert virtual addresses in the pool and 
 After page remapping on sender \texttt{memcpy} and receiver \texttt{recv}, if the old physical page is from another process, \libipc{} sends a message to the origin process to return the buffer.
 
 
-\section{Utilizing RDMA for Inter-server Socket}
+\section{Inter-Server Socket}
 \label{sec:rdma}
+
+RDMA if the remote side supports socket.
+
+ libvma (lightweight user-mode stack).
 
 Remember: if the other endpoint is not RDMA capable, use libvma.
 
