@@ -80,11 +80,11 @@ For data transmission, modern commodity NICs support multiple queues with receiv
 %The event polling API (\texttt{epoll}) also calls for event notification in user space.
 
 \textbf{Mutual exclusion for shared socket.}
-The main challenge for Linux socket scalability is that a socket connection may be shared by multiple processes and threads. Threads in a same process share all socket connections. When a process forks, the parent and child processes share the sockets created before fork. The processes and threads sharing a socket forms a multi-producer and multi-consumer model. The Linux implementation uses a shared queue and protects concurrent operations with mutual exclusion.
-Ideally, inter-process message passing requires only one cache migration. As shown in Figure~\ref{fig:mutual-exclusion}, the Compare-And-Swap (CAS) instruction for mutual exclusion, even in non-contended case, is significantly slower than cache migration. Kernel mutex and user-mode futex are even slower than CAS. Mutual exclusion becomes a bottleneck. In addition, both mutual exclusion and contended memory write are not scalable to multiple cores~\cite{boyd2014optimizing}.
+The main challenge for Linux socket scalability is that a socket connection may be shared by multiple processes and threads. Threads in a same process share all socket connections. When a process forks, the parent and child processes share the sockets created before fork. The processes and threads sharing a socket forms a multi-producer and multi-consumer model. Logically, senders enqueue data into a shared FIFO, and receivers dequeue an application-specified number of bytes from the FIFO. Linux protects concurrent operations with mutual exclusion.
 
-Fortunately, we observe that most applications do not receive from a socket connection concurrently from multiple processes or threads. For such producer-consumer scenarios, applications typically use message queues~\cite{hintjens2013zeromq}. However, applications do implicitly transfer a socket from one receiving process or thread to another (\textit{e.g.} from master to a worker). Multiple threads may also send data (\textit{e.g.} log) concurrently through a shared socket.
-To this end, we need a scalable socket architecture to eliminate mutual exclusion in most cases and ensure correctness in the worst case.
+Ideally, inter-process message passing requires only one cache migration~\cite{roghanchi2017ffwd}. However, as shown in Figure~\ref{fig:mutual-exclusion}, the Compare-And-Swap (CAS) instruction for mutual exclusion, even in non-contended case, is significantly slower than cache migration. Kernel mutex and user-mode futex are even slower than CAS. Mutual exclusion becomes a bottleneck. In addition, both mutual exclusion and contended memory write are not scalable to multiple cores~\cite{boyd2014optimizing}. To this end, we need a scalable socket architecture to eliminate mutual exclusion in most cases.
+
+
 
 
 \textbf{Reduce per-socket memory footprint.}
@@ -104,6 +104,6 @@ The event polling API in Linux is \textit{reactive}, in the sense that the appli
 On the contrary, RDMA API is \textit{proactive}. The application delegates RDMA operations to the NIC hardware, and receives notification when they are completed.
 Translating socket API to RDMA requires bridging the reactive and proactive semantics.
 First, RDMA achieves zero copy by leaving buffer management to the application. SDP~\cite{socketsdirect} and rsockets~\cite{rsockets} are not compatible with Linux socket because the application still needs to manage send and receive buffers.
-Second, two-sided RDMA applications needs to predict the size and number of messages it expects to receive, and delegate enough \texttt{recv} operations to the NIC.
-Finally, one-sided RDMA \texttt{read} and \texttt{write} have higher throughput than two-sided \texttt{send} and \texttt{recv} for most RDMA NICs~\cite{kaminsky2016design}.
+Second, two-sided RDMA applications needs to predict the size and number of messages it expects to receive, and delegate enough \texttt{recv} operations to the NIC~\cite{huang2017high}.
+Third, a large number of concurrent RDMA connections would cause frequent NIC cache misses and degrade performance~\cite{mprdma,kaminsky2016design}.
 Our goal is to use RDMA efficiently for existing socket applications.
