@@ -77,7 +77,7 @@ The common wisdom is that user-space network stacks do not provide multiplexing 
 Our goal is to achieve kernel bypass for both connection setup and data transmission.
 For connection setup, we need to coordinate \texttt{listen} port numbers, load balance \texttt{connect} requests and allocate resources.
 For data transmission, modern commodity NICs support multiple queues with receive flow steering~\cite{herbertrfs,libvma,openonload}, so connection multiplexing and isolation can be offloaded to the NIC.
-The event polling API (\texttt{epoll}) also calls for user-space event notification and wakeup.
+%The event polling API (\texttt{epoll}) also calls for event notification in user space.
 
 \textbf{Mutual exclusion for shared socket.}
 The main challenge for Linux socket scalability is that a socket connection may be shared by multiple processes and threads. Threads in a same process share all socket connections. When a process forks, the parent and child processes share the sockets created before fork. The processes and threads sharing a socket forms a multi-producer and multi-consumer model. The Linux implementation uses a shared queue and protects concurrent operations with mutual exclusion.
@@ -88,7 +88,7 @@ To this end, we need a scalable socket architecture to eliminate mutual exclusio
 
 
 \textbf{Reduce per-socket memory footprint.}
-Each process may connect to multiple Internet hosts and data center servers. In Linux, each socket connection has dedicated send and receive buffers, and each buffer is at least one page (4KB). With millions of concurrent connections, the socket buffers consumes tens of gigabytes of memory, most of which is empty. Our goal is to share socket buffers among connections and amortize memory footprint.
+Each process may connect to multiple Internet hosts and data center servers. In Linux, each socket connection has dedicated send and receive buffers, and each buffer is at least one page (4~KiB). With millions of concurrent connections, the socket buffers consumes tens of gigabytes of memory, most of which is empty~\cite{lin2016scalable}. Accessing many buffers randomly also leads to non-cached memory accesses, which is slower than sequential access to a single buffer~\cite{li2017kv}. Our goal is to share socket buffers among connections to amortize memory footprint and improve locality of reference.
 
 
 \textbf{Zero copy.}
