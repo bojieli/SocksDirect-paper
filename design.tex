@@ -44,8 +44,8 @@ However, as stated in \ref{subsec:challenges}, fork and thread creation makes so
 To tackle this issue, we make the following observations:
 \begin{enumerate}
 	\item Fork and thread creation are not frequent in high performance applications, compared to connection setup and data transmission.
-	\item It is uncommon that several processes receive concurrently from one shared socket.
-\end{enumerate} 
+	\item It is uncommon that several processes receive concurrently from one shared socket. The reason might be streaming semantics of socket, making concurrent receivers hard to avoid receiving incomplete messages.
+\end{enumerate}
 
 Based on the observations above, our goal is to maximize the common-case performance while keep the maximum compatibility of the Linux socket semantics.
 Based on the second observation. We propose the following requirements to maximize the common-case performance:
@@ -85,7 +85,7 @@ Another challenge is that when a receiver should send a takeover message. In ord
 \end{figure}
 
 \subsubsection{Fork and Thread creation}
-Fork is a procedure that new processes attach to existing connections. Logically, there are four different cases when fork happens for one process, noted as 1, 2, 3, 4 in the following of the paragraph:
+Fork is a procedure that new processes attach to existing connections. Logically, there are four different cases when fork happens for one process:
 \begin{enumerate}
 	\item The process itself is the sender side of the connection and it forks.
 	\item The process itself is the sender of the connection while one of the receiver folks.
