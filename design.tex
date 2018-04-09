@@ -4,6 +4,8 @@
 \subsection{Processes as Distributed System}
 \label{subsec:socket-api}
 
+fd multiplexing
+
 How the socket works. A table show the process of using socket:
 
 \begin{itemize}
@@ -105,11 +107,13 @@ Things become much more complicated when cases 1,4 happens after cases 2,3 happe
 
 \subsubsection{Connection Close}
 
-Close is the operation that all of the processes leave the connection. The synchronization is  especially challenging since all the processes are run in parallel. e.g. One process close a connection while the others are doing compute intensive tasks. It is possible that the file descriptor of the old process is reused and a new connection is setup with the same file descriptor. The other process may notice the close of the old connection and also call close on its own side, which lead to the new connection setup by the previous process closed due to the match of same file descriptor. 
+Close is the operation that all of the processes leave the connection. The synchronization is  especially challenging since all the processes are run in parallel. One challenge lies in file descriptors are managed by decentralized processes and are possibly reused. One process close a connection while the others are doing compute intensive tasks is a case. It is possible that the file descriptor of the old process is reused and a new connection is setup with the same file descriptor. The other process may notice the close of the old connection and also call close on its own side, which lead to the new connection setup by the previous process closed due to the match of same file descriptor. 
 
 To satisfy the synchronization requirements, the close function call is all completed by message passing. The caller of close need to wait for ACK from all the other peers before release resources. i.e. the status of the connection.
 
-Another challenge is that different kinds of messages may interleaved. One case is that is a process waiting for ACK of close request may get a fork notification by the peer.
+Another challenge lies in the close of a connection is that close is a broadcast operation while send/receive is sent to a specific process. Besides, fork and close are immutable operations while the scalability requirements of the system impose the constraint that all the operations run asynchronously. As a result, a rule to determine the partial order is required.
+
+In \libipc, we make the choice that the order of fork and close is determined at the start point of the fork operation and the end point (after receiving all the ACKs). By making this choice, when a process waiting fork close ACK encounters fork message, it could send a separate close request to newly created process, which guarantees all the processes closed.
   
 Key point: Coordination in shared socket.
 
