@@ -76,7 +76,7 @@ TCP Chimney~\cite{networking2004network} offloads a part of network stack to har
 
 The other line of work uses hardware (the NIC) to achieve kernel-bypass networking between VMs or processes on the same host.
 Arrakis~\cite{peter2016arrakis} and IX~\cite{belay2014ix} leverage hardware-assisted virtualization and SR-IOV NICs to bypass kernel coordination.
-Mellanox VMA~\cite{vma} translates socket APIs into RDMA verbs via a light-weight socket and network stack in user space.
+Mellanox VMA~\cite{libvma} translates socket APIs into RDMA verbs via a light-weight socket and network stack in user space.
 When applying these designs to container networking, there are two challenges: (1) All packets traverse through the NIC, while the NIC has limited \textit{hairpin} processing capacity and PCIe bandwidth. (2) The number of NIC virtual functions (VF) is not enough to support each container with a VF.
 This paper basically falls in this category and solves the challenges using careful hardware-software co-design.
 
