@@ -1,10 +1,10 @@
 \section{Inter-Process Socket in a Server}
 \label{sec:intra-server}
 
-\subsection{Scaling to Millions of Connections}
+\subsection{Scaling to Billions of Connections}
 \label{subsec:socket-api}
 
-
+As discussed 
 
 Thread can access file descriptors created by other threads. Resolution: give each thread a unique file descriptor space (similar to thread stack). If a thread access a file descriptor owned by another thread, process it like pthread\_create.
 
