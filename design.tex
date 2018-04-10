@@ -3,10 +3,10 @@
 
 \subsection{Processes as Distributed System}
 \label{subsec:socket-api}
-The main challenge in \libipc are in two parts: connection management and data transmission.
+As stated in section \ref{subsec:challenges}, to achieve kernel bypass, our design is to build a user-space library.
 \subsubsection{Connection management}
 
-As stated in section \ref{subsec:challenges}, to achieve kernel bypass, our design is to build a user-space library. We take the idea of \cite{roghanchi2017ffwd} and use a dedicate monitor to avoid mutual exclusion in current Linux kernel. For instance, sockets provides \textit{SO\_REUSEPORT} as one flag when sockets created. When this flag is enabled, multiple process on one host could listen to the same port and the incoming connections are dispatched to one of those. Nginx use this option to enable multiple worker processes listen on the same port for load balancing. In Linux kernel, mutual exclusion is used for processes to compete the incoming connections while in our design monitor process is responsible for choosing a process to handle it by message passing.
+ We take the idea of \cite{roghanchi2017ffwd} and use a dedicate monitor to avoid mutual exclusion in current Linux kernel. For instance, sockets provides \textit{SO\_REUSEPORT} as one flag when sockets created. When this flag is enabled, multiple process on one host could listen to the same port and the incoming connections are dispatched to one of those. Nginx use this option to enable multiple worker processes listen on the same port for load balancing. In Linux kernel, mutual exclusion is used for processes to compete the incoming connections while in our design monitor process is responsible for choosing a process to handle it by message passing.
 
 In order to achieve high scalability, we separate scalable operations to different processes. In Linux kernel, file descriptor (fd) allocation is handled by mutual exclusion in kernel space. To avoid the overhead of contention, \libipc enable the file descriptor allocation by individual process and when a connection is setup, the other peer of the connection gets notified of the file descriptor number by message passing. Since we treat different threads in one process as different processes, we allocate file descriptor of different ranges to each of them to avoid collision. Since file descriptor is managed separately by each process, it is possible that a file descriptor is reused after the connection is closed. Our solution is that resources of a file descriptor is not released until an ACK is received for the close operation.
 
@@ -21,6 +21,10 @@ Generally, each process in our design is treated as an endpoint in the network. 
 
 \label{subsubsec:connection_management}
 \subsubsection{Data transmission}
+
+
+
+
 \label{subsubsec:data_trans}
 fd multiplexing
 
