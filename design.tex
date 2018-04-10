@@ -1,9 +1,11 @@
 \section{Inter-Process Socket in a Server}
 \label{sec:intra-server}
 
-\subsection{Processes as Distributed System}
+\subsection{Scaling to Millions of Connections}
 \label{subsec:socket-api}
-As stated in section \ref{subsec:challenges}, to achieve kernel bypass, our design is to build a user-space library.
+\libipc is a user-space library to achieve kernel
+
+To remove locks for inter-thread mutual exclusion, each thread is treated as a separated process in our design.
 
 \subsubsection{Connection management}
 \label{subsubsec:connection_management}
@@ -66,7 +68,7 @@ Need a figure to show the lifecycle (message passing flow) of a socket connectio
     \textbf{Close \& ACK}
 
 
-\subsection{Scaling Socket API}
+\subsection{Scaling Shared Socket}
 \label{subsec:fork}
 
 Process fork and thread creation are essential mechanisms to enable parallelism in modern applications. 
