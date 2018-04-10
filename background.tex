@@ -26,9 +26,12 @@
 
 
 Socket is a well-known bottleneck in fast data center networks \RED{(cite)}. In a data center, we categorize systems that process queries from Internet users to be \textit{front-end} (\textit{e.g.} DNS server, load balancer and Web service), and the other systems (\textit{e.g.} database, stream processing and machine learning) to be \textit{back-end}.
-For front-end systems, as shown in Figure~\ref{fig:socket-kernel-time}, 70\% -- 90\% CPU time is used in socket system calls. They maintain a large number of socket connections to Internet users, so connection setup consumes a significant portion of CPU time~\cite{lin2016scalable}.
-For back-end systems, as shown in Figure~\ref{fig:backend-performance}, the performance using socket is significantly worse than using RDMA or shared memory. This is because back-end systems interact frequently with other nodes and services, consequently the latency is vital for their performance. The socket latency between different processes in a same server is $\approx$10~$\mu$s, even much higher than inter-server RDMA latency ($\approx$2~$\mu$s) (Figure~\ref{fig:socket-comparison}).
 
+For front-end systems, as shown in Figure~\ref{fig:socket-kernel-time}, 70\% -- 90\% CPU time is used in socket system calls. They maintain a large number of socket connections to Internet users. Establishing a socket connection takes $\approx$40$\mu$s CPU time, so a CPU core can only serve 25K new connections per second~\cite{lin2016scalable}.
+
+For back-end systems, as shown in Figure~\ref{fig:backend-performance}, the performance using socket is significantly worse than using RDMA or shared memory. This is because back-end systems interact frequently with other nodes and services, consequently the latency is vital for their performance. As shown in Figure~\ref{fig:socket-comparison}, socket latency between different processes in a same server is $\approx$10~$\mu$s, even much higher than inter-server RDMA latency ($\approx$2~$\mu$s).
+
+\textbf{Socket process: connection setup and data transmission.}
 
 There has been much work~\cite{peter2016arrakis,lin2016scalable} to analyze the source of socket processing overhead.
 
@@ -46,21 +49,11 @@ For intra-server transmission, data is copied three times: from the send applica
 \textbf{Synchronization.}
 Scalability analysis of Linux system calls~\cite{boyd2010analysis} suggests that many socket operations are not commutable. The Linux kernel needs to acquire global locks for socket connection setup and a per-socket lock for each socket operation. The synchronization overhead limits scalability of Linux socket.
 
-\begin{itemize}
-	\item Context switch
-	\item Data copy
-	\item OS network stack (overhead for intra-server \& does not leverage RDMA hardware for inter-server)
-	\item Lock in kernel (CPU overhead \& not scalable)
-\end{itemize}
 
-Many works propose to use user-level TCP/IP stack \RED{(cite)} or RDMA \RED{(cite)} to improve
-
-
-
+List several related work on fast sockets. They are not compatible with existing applications. Many works propose to use user-level TCP/IP stack \RED{(cite)} or RDMA \RED{(cite)}...
 
 The Multikernel design: replaces locks in kernel with message passing, but does not remove context switch.
 
-List related work on fast sockets. They are not compatible with existing applications.
 
 \subsection{Challenges for High Performance Socket}
 \label{subsec:challenges}

@@ -3,11 +3,14 @@
 
 \subsection{Scaling to Millions of Connections}
 \label{subsec:socket-api}
-\libipc is a user-space library to achieve kernel
 
-To remove locks for inter-thread mutual exclusion, each thread is treated as a separated process in our design.
 
-\subsubsection{Connection management}
+
+Thread can access file descriptors created by other threads. Resolution: give each thread a unique file descriptor space (similar to thread stack). If a thread access a file descriptor owned by another thread, process it like pthread\_create.
+
+
+
+\subsubsection{Connection Management}
 \label{subsubsec:connection_management}
 
 We take the idea of \cite{roghanchi2017ffwd} and use a dedicate monitor to avoid mutual exclusion in current Linux kernel. For instance, sockets provides \textit{SO\_REUSEPORT} as one flag when sockets created. When this flag is enabled, multiple process on one host could listen to the same port and the incoming connections are dispatched to one of those. Nginx use this option to enable multiple worker processes listen on the same port for load balancing. In Linux kernel, mutual exclusion is used for processes to compete the incoming connections while in our design monitor process is responsible for choosing a process to handle it by message passing.
@@ -24,7 +27,7 @@ Generally, each process in our design is treated as an endpoint in the network. 
 \end{figure}
 
 
-\subsubsection{Data transmission}
+\subsubsection{Data Transmission}
 \label{subsubsec:data_trans}
 
 To scale our system, as stated in section \ref{sec:architecture}, each processes transmit data directly without notifying monitor. As stated in section \ref{subsec:challenges}, memory footprint is critical to the overall performance of our system. For modern applications such as Nginx, asynchronous IO and epoll are widely used. The design of Linux kernel allocate a buffer for each of the file descriptor for these applications will lead to lots of cache miss due to the random access of different queues. Besides, in Linux, two cache migration are happened:1. set the bitmap of the epoll event 2. sender pushes the data into the buffer.
@@ -162,12 +165,8 @@ Tree
 
 Fork \& Close interleaving
 
-\subsection{Shared-Memory Queue}
-
-x86-TSO~\cite{sewell2010x86}, intel manual~\cite{intel-manual}
-
 \subsection{Process Multiplexing}
-\label{subsec:epoll}
+\label{subsec:process-mux}
 
 
 Message passing may wait too long.
@@ -220,6 +219,10 @@ After page remapping on sender \texttt{memcpy} and receiver \texttt{recv}, if th
 RDMA if the remote side supports socket.
 
  libvma (lightweight user-mode stack).
+
+
+One-sided  RDMA: credit-based ring buffer. Intra-server: valid-bit based ring buffer.
+
 
 Remember: if the other endpoint is not RDMA capable, use libvma.
 
