@@ -91,20 +91,19 @@ Our scalable socket design can be divided into three parts: a) \texttt{send} and
 
 In this section, we assume that a socket is already connected and the number of senders and receivers are constant. In order to avoid synchronization and achieve high scalability, we create lock-free shared-memory queues between every pair of sender and receiver. The queues form a bipartite graph between senders and receivers. Each receiver polls messages from all senders in round-robin order.
 %Figure \ref{fig:fork-bipartitegraph} shows a sample of the shared-memory buffers between senders and receivers for one connection.
-%In common cases with one active receiver, the performance could achieve that of one-to-one shared-memory communication.
 
-To ensure multiple receiver ordering and avoid synchronization, each sender designates one receiver with exclusive access to the socket. It is challenging for the sender to choose a receiver, since the chosen one may not call \texttt{recv}, while other receivers may be under starvation. Based on our observation that switching receivers is infrequent, each non-designated receiver sends a \textit{takeover} request to the sender when it tries to receive from the socket. To avoid starvation, the sender processes takeover requests in FIFO order.
+To ensure multiple receiver ordering and avoid synchronization, each sender designates one receiver with exclusive access to the socket. In common cases with one active receiver, the performance could achieve that of one-to-one shared-memory communication. It is challenging for the sender to choose a receiver, since the chosen one may not call \texttt{recv}, while other receivers may be under starvation. When a non-designated receiver tries to receive from the socket, it sends a \textit{takeover} request to the sender. To avoid starvation, the sender processes takeover requests in FIFO order.
 
-Challenges arise when there is remaining data in the queue when a different receiver sends ``takeover message''.  We need to ensure that all the old data is read by the newly receiver first, and then the new data of sender can be sent to the that receiver. Because multiple socket connections share a queue from sender to receiver, the new receiver cannot take over the queue from the old receiver directly. Instead, the sender first send a takeover request to the old receiver. Upon receiving of the takeover request, the old receiver returns all unconsumed messages in queue to sender, then sender forwards the messages to the new receiver. To tackle this problem, sender side first send a request to the old receiver to request it return all the unconsumed messages in queue to sender and sender retransmit them to new receiver. During migration of unconsumed messages, the sender blocks send operations to ensure message ordering.
+A challenge arise when there is remaining data in the queue when a receiver requests to take over the socket. We need to ensure that all the remaining data can be received by the new receiver. Because multiple sockets share a queue from sender to each receiver, and different sockets have different designated receivers, the new receiver cannot access the queue from the old receiver directly. Instead, the remaining data needs to migrate from the old queue to the new queue. When the sender processes a takeover request, it first forwards it to the current receiver. Upon receiving takeover request, the current receiver returns all remaining data in queue to sender, then sender forwards the data to the new receiver. During migration of remaining data, the sender blocks \texttt{send} operations and takeover requests to ensure message ordering.
 
-Another challenge is that when a receiver should send a takeover message. In order to let the receiver know whether itself is designated by the sender, the sender keeps a bit flag in the shared memory between it and each receiver.  Only one of these flags, which is in where sender gets the ``takeover message'' lastly is set to one while other flags are set to zero. When sender notices a ``takeover message'', it changes the flag linked with the new receiver to one and set the original flag to zero.
+Another challenge is that when a receiver should send a takeover request. In order to let the receiver know whether it is designated by the sender, the sender maintains a bit flag in the shared memory with each receiver. Only one of these flags is set to one, indicating that the receiver is designated. When the queue is empty and the receiver is not designated, the receiver sends a takeover request to sender. Before the receiver becomes designated, the takeover request is sent only once.
 
-\begin{figure}[t]
-	\centering
-	\includegraphics[width=0.3\textwidth]{images/fixme}
-	\caption{This figure shows a stable connection handled by multiple senders and receivers.}
-	\label{fig:fork-bipartitegraph}
-\end{figure}
+%\begin{figure}[t]
+%	\centering
+%	\includegraphics[width=0.3\textwidth]{images/fixme}
+%	\caption{This figure shows a stable connection handled by multiple senders and receivers.}
+%	\label{fig:fork-bipartitegraph}
+%\end{figure}
 
 \subsubsection{Fork and Thread creation}
 \label{subsubsec:fork_fork}
