@@ -63,52 +63,55 @@ Need a figure to show the lifecycle (message passing flow) of a socket connectio
 \label{subsec:fork}
 
 Process fork and thread creation are essential mechanisms to enable parallelism in modern applications. 
-However, as stated in \ref{subsec:challenges}, fork and thread creation makes socket a producer-consumer model, where senders and receivers contend on the shared queue. With a traditional mutual exclusion solution, the multi-process scalability of socket is limited.
+However, as stated in \ref{subsec:challenges}, fork and thread creation makes socket a producer-consumer model. With a traditional mutual exclusion solution, the multi-process scalability of socket is limited.
 
-To tackle this issue, we make the following observations:
+To this end, we maximize the common-case performance while keeping compatibility with Linux socket semantics.
+We make the following observations:
 \begin{enumerate}
 	\item Fork and thread creation are not frequent in high performance applications, compared to connection setup and data transmission.
-	\item It is uncommon that several processes receive concurrently from one shared socket. The reason might be streaming semantics of socket, making concurrent receivers hard to avoid receiving incomplete messages.
+	\item It is uncommon that several processes receive concurrently from one shared socket, because the streaming semantics of socket makes concurrent receivers hard to avoid receiving incomplete messages. For such producer-consumer scenarios, message brokers~\cite{hintjens2013zeromq,rabbitmq2017rabbitmq,kreps2011kafka} are typically used.
 \end{enumerate}
 
-Based on the observations above, our goal is to maximize the common-case performance while keep the maximum compatibility of the Linux socket semantics.
-Based on the second observation. We propose the following requirements to maximize the common-case performance:
+Based on the second observation, we propose the following requirements to maximize the common-case performance:
 \begin{enumerate}
  \item \textbf{Synchronization-free.} With multiple potential senders and receivers, if only one pair of sender and receiver is active, the throughput and latency should be comparable with that of a sender-receiver pair.
- \item \textbf{Scalability.} For multiple active senders and one receiver, if the receiver is not the bottleneck, the throughput is supposed to scale, rather than dropping heavily due to mutual exclusion.
- \item \textbf{Self-stabilization.} Previous access patterns shall not have follow-up effect on current performance. Corner-case operations may slow down the system temporarily, but after that the throughput is supposed to converge to common-case.
+ \item \textbf{Multi-sender scalability.} Multiple processes may send data (\textit{e.g.} log) concurrently through a shared socket. For multiple active senders and one receiver, if receiver is not a bottleneck, the throughput is supposed to scale, rather than dropping heavily due to mutual exclusion.
+ \item \textbf{Self-stabilization.} Previous access patterns shall not have follow-up effect on current performance. For example, applications may implicitly transfer a socket from one process to another (\textit{e.g.} from master to worker). These operations may slow down the system temporarily, but after that the throughput is supposed to converge to common-case.
 \end{enumerate}
 
-For compatibility of Linux semantics, the fundamental requirements is the order of messages. To be specific:
+For compatibility with Linux semantics, we also need to ensure message ordering and liveness:
 \begin{enumerate}
-\item \textbf{Single receiver ordering.} For a specific consumer, the order of messages it from the same producer is supposed to be guaranteed.
-\item \textbf{Multiple receiver ordering.} The order of messages sent by one sender and received by multiple receiver should be guaranteed. e.g. For any messages D1, D2 sent by a sender S,  we guarantee that receiver R1 gets D1 and receiver R2 gets D2 if read called by R1 is prior to that by R2. 
-\item \textbf{Deadlock-free.} Our design shall not run into deadlock. i.e. The existence of data of a certain connection and the existence of pending read function call cannot occur simultaneity.
-\item \textbf{Starvation-free.} Starvation is not supposed to happen in our system. i.e. One sender transmit data to two consumer, but only one receiver can get the message while the other one keeps waiting.
+\item \textbf{Single receiver ordering.} For a specific pair of sender and receiver, the received messages have the same ordering as they were sent.
+\item \textbf{Multiple receiver ordering.} The order of \texttt{send} and \texttt{recv} operations for one sender and multiple receivers should be linearizable. If receiver $R_1$ already receives $D_1$, then receiver $R_2$ calls \texttt{recv} and gets $D_2$, we guarantee that $D_1$ is sent before $D_2$.
+\item \textbf{Deadlock-free.} If a socket buffer is not empty when \texttt{recv} is called by one or more receivers, at least one receiver should get data.
+\item \textbf{Starvation-free.} If a sender keeps sending, any receiver trying to \texttt{recv} will eventually get data.
 \end{enumerate}
 
-Briefly, our design of multiple processing can be divided to three parts: a) read and write operation b) fork and pthread\_create function call (i.e. new processes add to the existing connection). c) close function call (i.e. existing connection is closed, all the processes leave the connection).
+Our scalable socket design can be divided into three parts: a) \texttt{send} and \texttt{recv}, b) adding new senders and receivers (\texttt{fork} and \texttt{pthread\_create}) and c) connection termination (\texttt{close} and \texttt{shutdown}).
 
 
-\subsubsection{Read/Write Operation}
+\subsubsection{Send/Recv Operation}
 \label{subsubsec:fork_rdwr}
 
-In this paragraph, we assume that the connection is already setup and the number of processes involved in this connection is stable. In order to achieve high throughput, we leverage lock-free queue to enable one-one connection. For multiple process on one connection, in order to achieve high scalability, we create separate queues for each sender and receiver and the queues build a bipartite graph between the sender and the receiver.To solve the multi-receiver ordering requirement and the deadlock-free requirement, each sender of a socket designate one receiver with exclusive access to the buffer. The receiver round robin poll the messages from all the queues connected to senders. Figure \ref{fig:fork-bipartitegraph} shows a sample of the shared-memory buffers between senders and receivers for one connection. 
+In this section, we assume that a socket is already connected and the number of senders and receivers are constant. In order to avoid synchronization and achieve high scalability, we create lock-free shared-memory queues between every pair of sender and receiver. The queues form a bipartite graph between senders and receivers. Each receiver polls messages from all senders in round-robin order.
+%Figure \ref{fig:fork-bipartitegraph} shows a sample of the shared-memory buffers between senders and receivers for one connection.
 
-How to choose the specific receiver of the sender is a key challenge since the receiver chose by the sender may not handle the data in that connection while other receivers may under starvation. Based on our observation that usually only one receiver retrieves data from the sender side, we could simply let the sender transmit the data to the receiver who previously requested for it i.e. the receiver which calls read first send a ``takeover message'' to sender and sender begins to transmit byte stream to that receiver.  The main reason for takeover message is the multi-receiver ordering requirement and the deadlock-free requirement. In common cases, the performance could be achieved as high as one-one connection since the sender only send the data to one receiver and no contention happens in usual cases.
+To ensure multiple receiver ordering and avoid synchronization, each sender designates one receiver with exclusive access to the socket. In common cases with one active receiver, the performance could achieve that of one-to-one shared-memory communication. It is challenging for the sender to choose a receiver, since the chosen one may not call \texttt{recv}, while other receivers may be under starvation. When a non-designated receiver tries to receive from the socket, it sends a \textit{takeover} request to the sender. To avoid starvation, the sender processes takeover requests in FIFO order.
 
-However, in this design, in order to satisfy the order requirements, how to deal with the data already in the queue while a different receiver sends ``takeover message'' is especially challenging.  We need to ensure that all the old data is read by the newly receiver first, and then the new data of sender can be sent to the that receiver. Because multiple socket connections share a queue from sender to receiver, the new receiver cannot take over the queue from the old receiver directly. Instead, the sender first send a takeover request to the old receiver. Upon receiving of the takeover request, the old receiver returns all unconsumed messages in queue to sender, then sender forwards the messages to the new receiver. To tackle this problem, sender side first send a request to the old receiver to request it return all the unconsumed messages in queue to sender and sender retransmit them to new receiver. During migration of unconsumed messages, the sender blocks send operations to ensure message ordering.
+A challenge arise when there is remaining data in the queue when a receiver requests to take over the socket. We need to ensure that all the remaining data can be received by the new receiver. Because multiple sockets share a queue from sender to each receiver, and different sockets have different designated receivers, the new receiver cannot access the queue from the old receiver directly. Instead, the remaining data needs to migrate from the old queue to the new queue. When the sender processes a takeover request, it first forwards it to the current receiver. Upon receiving takeover request, the current receiver returns all remaining data in queue to sender, then sender forwards the data to the new receiver. During migration of remaining data, the sender blocks \texttt{send} operations and takeover requests to ensure message ordering.
 
-Another challenge is that when a receiver should send a takeover message. In order to let the receiver know whether itself is designated by the sender, the sender keeps a bit flag in the shared memory between it and each receiver.  Only one of these flags, which is in where sender gets the ``takeover message'' lastly is set to one while other flags are set to zero. When sender notices a ``takeover message'', it changes the flag linked with the new receiver to one and set the original flag to zero.
+Another challenge is that when a receiver should send a takeover request. In order to let the receiver know whether it is designated by the sender, the sender maintains a bit flag in the shared memory with each receiver. Only one of these flags is set to one, indicating that the receiver is designated. When the queue is empty and the receiver is not designated, the receiver sends a takeover request to sender. Before the receiver becomes designated, the takeover request is sent only once.
 
-\begin{figure}[t]
-	\centering
-	\includegraphics[width=0.3\textwidth]{images/fixme}
-	\caption{This figure shows a stable connection handled by multiple senders and receivers.}
-	\label{fig:fork-bipartitegraph}
-\end{figure}
+%\begin{figure}[t]
+%	\centering
+%	\includegraphics[width=0.3\textwidth]{images/fixme}
+%	\caption{This figure shows a stable connection handled by multiple senders and receivers.}
+%	\label{fig:fork-bipartitegraph}
+%\end{figure}
 
 \subsubsection{Fork and Thread creation}
+\label{subsubsec:fork_fork}
+
 Fork is a procedure that new processes attach to existing connections. Logically, there are four different cases when fork happens for one process:
 \begin{enumerate}
 	\item The process itself is the sender side of the connection and it forks.
@@ -128,6 +131,7 @@ Our solution is to when the sender side forks, we preserve the old shared memory
 Things become much more complicated when cases 1,4 happens after cases 2,3 happening. After receiver forks, the unique sender is responsible for receiving ``takeover message'' and resend the data to new receivers. However, if sender forks following the receiver forks, according to the methods we mentioned above, there is no sender responsible for processing ``takeover message''. Our solution is that we require the receivers to poll the data from the old shared memory queue and compete for data. Since this case rarely happens, the performance of the overall design is not affected.
 
 \subsubsection{Connection Close}
+\label{subsubsec:fork_close}
 
 Close is the operation that all of the processes leave the connection. The synchronization is  especially challenging since all the processes are run in parallel. One challenge lies in file descriptors are managed by decentralized processes and are possibly reused. One process close a connection while the others are doing compute intensive tasks is a case. It is possible that the file descriptor of the old process is reused and a new connection is setup with the same file descriptor. The other process may notice the close of the old connection and also call close on its own side, which lead to the new connection setup by the previous process closed due to the match of same file descriptor. 
 
