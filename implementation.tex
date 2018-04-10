@@ -9,6 +9,7 @@ In order to support existing applications seamlessly, \libipc leverages \textit{
 In our system, we use the range of file descriptor number to identify whether the system call should be hook to \libipc to avoid problems related to file descriptors not related to socket.
 
 \subsection{High performance lockless ring-buffer}
+\label{subsec:lockless-queue}
 
 For our lockless queue i.e. ring buffer, each slots have a \textit{isvalid} label. Both of the sender side and the receiver side have a pointer pointed to the first slots available for write/read. As stated in section \ref{subsubsec:data_trans}, in order to enable picking the data from the middle of the queue, each slot has an additional \textit{isdeleted} label. When picked from the middle of the queue, \textit{isdeleted} is set. After the receiver pop the first item from the queue, it check the \textit{isdeleted} label and set the pointer to the next element which \textit{isdeleted} is not set and \textit{isvalid} is set.
 
