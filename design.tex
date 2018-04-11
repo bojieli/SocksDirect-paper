@@ -4,10 +4,7 @@
 \subsection{Scaling to Billions of Connections}
 \label{subsec:socket-api}
 
-As discussed 
-
-Thread can access file descriptors created by other threads. Resolution: give each thread a unique file descriptor space (similar to thread stack). If a thread access a file descriptor owned by another thread, process it like pthread\_create.
-
+The key to socket scalability is to minimize synchronization and memory sharing by making communications explicit via message passing. Because multiple threads in a process share memory space, we treat each thread as a separated process and use thread-specific storage to save states in \libipc. In the following text, unless explicitly mentioned, we refer to both processes and threads as processes.
 
 
 \subsubsection{Connection Management}
@@ -99,8 +96,7 @@ For compatibility with Linux semantics, we also need to ensure message ordering 
 \item \textbf{Starvation-free.} If a sender keeps sending, any receiver trying to \texttt{recv} will eventually get data.
 \end{enumerate}
 
-Our scalable socket design can be divided into three parts: a) \texttt{send} and \texttt{recv}, b) adding new senders and receivers (\texttt{fork} and \texttt{pthread\_create}) and c) connection termination (\texttt{close} and \texttt{shutdown}).
-
+Our scalable socket design can be divided into four parts: a) \texttt{send} and \texttt{recv}, b) adding new senders and receivers (\texttt{fork} and \texttt{pthread\_create}), c) connection creation and d) connection termination (\texttt{close} and \texttt{shutdown}).
 
 \subsubsection{Send/Recv Operation}
 \label{subsubsec:fork_rdwr}
@@ -121,7 +117,7 @@ Another challenge is that when a receiver should send a takeover request. Each r
 %	\label{fig:fork-bipartitegraph}
 %\end{figure}
 
-\subsubsection{Fork and Thread creation}
+\subsubsection{Fork and Thread Creation}
 \label{subsubsec:fork_fork}
 
 Fork is a procedure that new processes attach to existing connections. Logically, there are four different cases when fork happens for one process:
@@ -134,13 +130,20 @@ Fork is a procedure that new processes attach to existing connections. Logically
 
 The general process of fork is that after monitor is notified of the fork, it creates shared memory between the newly created process and all the processes which previously have connections with the parent process. The key challenge lies in the fork is that how to deal with the existing data in the connection to guarantee the order requirements.
 
-For the cases 2 and 3, we could adopt the idea of ``takeover message'' as stated in \ref{subsubsec:fork_rdwr}. Each of the forked new process creates a new queue for its old connection. When the receiver side call read for the connection, a ``takeover message'' is emit and the sender designate the new process as the exclusive receiver and poll all the data in the old queue to the receiver which sends ``takeover message''.
+For the cases 2 and 3, we could adopt the idea of ``takeover message'' as stated in Sec.~\ref{subsubsec:fork_rdwr}. Each of the forked new process creates a new queue for its old connection. When the receiver side call read for the connection, a ``takeover message'' is emit and the sender designate the new process as the exclusive receiver and poll all the data in the old queue to the receiver which sends ``takeover message''.
 
 However, It is more complicated for case 1 and case 4. We cannot leverage the ``takeover message'' trick since the two senders may emit data in parallel and we cannot guarantee all the data sent prior to fork is consumed before to that following the fork by new processes. It is not efficient to block all the senders before old data is consumed either.
 
 Our solution is to when the sender side forks, we preserve the old shared memory and create two new shared memory for each receiver and connection them to the new sender processes separately. All the receiver side is notified of the folk and keep a tree data structure of all the shared memories.The two new sender transmit all the new messages to the newly created shared memory separately. When the receiver tries to retrieve data, it first try the old shared memory, if it is empty, it will remove the old shared memory and promote the child of this memory for the read request. 
 
 Things become much more complicated when cases 1,4 happens after cases 2,3 happening. After receiver forks, the unique sender is responsible for receiving ``takeover message'' and resend the data to new receivers. However, if sender forks following the receiver forks, according to the methods we mentioned above, there is no sender responsible for processing ``takeover message''. Our solution is that we require the receivers to poll the data from the old shared memory queue and compete for data. Since this case rarely happens, the performance of the overall design is not affected.
+
+\subsubsection{Connection Creation}
+\label{subsubsec:fork_new}
+
+A connection created after \texttt{fork} cannot be accessed by its parent or child process, while a connection created by a thread can be accessed by all threads in the same process. Each connection is identified by a file descriptor, which is an integer assigned by \libipc. To minimize state sharing, \libipc assigns a unique file descriptor space to each thread, so each thread can allocate file descriptors locally and determine which thread a file descriptor belongs to. During connection creation, \libipc does not share the file descriptor eagerly with other threads, because most threads in existing applications do not use connections created by other threads.
+
+If the application accesses a thread-local file descriptor, \libipc processes it locally. Otherwise, \libipc sends a message to the owner thread and requests sharing the file descriptor. This procedure is exactly the same as sharing existing connections during thread creation (Sec.~\ref{subsubsec:fork_fork}). The sharing procedure needs only once per connection and thread. Sharing existing connections eagerly during thread creation is an optimization. First, children threads are more likely to use existing connections than siblings. Second, batch processing improves performance.
 
 \subsubsection{Connection Close}
 \label{subsubsec:fork_close}
@@ -168,9 +171,10 @@ Fork \& Close interleaving
 \subsection{Process Multiplexing}
 \label{subsec:process-mux}
 
+To minimize context switch, \sys{} runs in user mode and uses cooperative multitasking to multiplex processes on CPU cores. Coordination and delegation based on message passing also requires processes to respond messages promptly. However, processes may execute application code without calling \libipc for a long time or may block on a kernel system call.
 
-Message passing may wait too long.
-Signal mechanism. Signal process after waiting until timeout.
+To this end, message passing initiators first poll the receive queue for a while. If no reply, it sends a Linux \texttt{signal} to the receptor and wake up the process. The signal handler, registered by \libipc, first determines whether the process is executing application or \libipc code. If in application, the signal handler processes emergent messages immediately, then return control to the application. Otherwise, the signal handler does nothing and \libipc will check emergent messages before returning control to the application. Because \libipc is designed to be fast and non-blocking, message passing initiators will soon receive the response. This signal mechanism is analogous to interrupts in operating systems.
+
 
 Monitor detect process death (via control socket SIGHUP) and notify endpoints.
 
