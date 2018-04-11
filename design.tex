@@ -96,7 +96,7 @@ For compatibility with Linux semantics, we also need to ensure message ordering 
 \item \textbf{Starvation-free.} If a sender keeps sending, any receiver trying to \texttt{recv} will eventually get data.
 \end{enumerate}
 
-Our scalable socket design can be divided into four parts: a) \texttt{send} and \texttt{recv}, b) adding new senders and receivers (\texttt{fork} and \texttt{pthread\_create}), c) connection creation and d) connection termination (\texttt{close} and \texttt{shutdown}).
+Our scalable socket design can be divided into four parts: a) \texttt{send} and \texttt{recv}, b) adding new senders and receivers (\texttt{fork} and \texttt{pthread\_create}), c) connection creation and d) connection close.
 
 \subsubsection{Send/Recv Operation}
 \label{subsubsec:fork_rdwr}
