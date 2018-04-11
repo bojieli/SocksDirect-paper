@@ -168,7 +168,7 @@ Tree
 
 Fork \& Close interleaving
 
-\subsection{Process Multiplexing}
+\subsection{Cooperative Multitasking}
 \label{subsec:process-mux}
 
 To minimize context switch, \sys{} runs in user mode and uses cooperative multitasking to multiplex processes on CPU cores. Coordination and delegation based on message passing also requires processes to respond messages promptly. However, processes may execute application code without calling \libipc for a long time or may block on a kernel system call.
@@ -220,6 +220,10 @@ After page remapping on sender \texttt{memcpy} and receiver \texttt{recv}, if th
 \section{Inter-Server Socket}
 \label{sec:rdma}
 
+Previous section discussed inter-process socket in a same server. For inter-server socket, we determine whether or not the peer supports RDMA. If so, we translate socket operations to RDMA \texttt{read} and \texttt{write} verbs. Otherwise, we use a hardware accelerated user-mode TCP/IP stack to communicate with standard TCP/IP endpoints.
+
+\subsection{Using RDMA Efficiently for Socket}
+
 RDMA if the remote side supports socket.
 
  libvma (lightweight user-mode stack).
@@ -229,6 +233,8 @@ One-sided  RDMA: credit-based ring buffer. Intra-server: valid-bit based ring bu
 
 
 Remember: if the other endpoint is not RDMA capable, use libvma.
+
+\subsection{Hardware Accelerated TCP/IP}
 
  It reserves the send buffer after \texttt{send} and releases it after send completion notification.
 The application also delegates non-blocking receive operations along with receive buffers, so the NIC can DMA received data directly to the receive buffers, then notify the application that data is ready.
