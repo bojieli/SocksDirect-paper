@@ -6,12 +6,12 @@ For implementation, \libipc is divided to two parts: monitor and userspace libra
 \label{subsec:syscall-hook}
 In order to support existing applications seamlessly, \libipc leverages \textit{LD\_PRELOAD} environment variable in Linux to load a shared library to applications, which replace the function of GNU LibC which are the wrappers of the system call. 
 
-In our system, we use the range of file descriptor number to identify whether the system call should be hook to \libipc to avoid problems related to file descriptors not related to socket.
+In our system, we use the range of file descriptor number to identify whether the system call should be hook to \libipc to avoid problems related to file descriptors not related to socket. Taken the idea of \cite{huang2017high}, in \libipc, FD number is allocated in a top-down way i.e. from $2^{31}-1$ while Linux assign the number from bottom to up i.e. from zero. We set $2^{30} - 1 $ as the threshold to distinguish whether the system call ought to be handled by \libipc.
 
 
-\textbf{
-Separate file descriptors in \sys and Linux. Linux use low FD space, \sys use high FD space (what FD space). Same as LOS~\cite{huang2017high}.
-}
+% \textbf{
+% Separate file descriptors in \sys and Linux. Linux use low FD space, \sys use % high FD space (what FD space). Same as LOS~\cite{huang2017high}.
+% }
 
 
 
