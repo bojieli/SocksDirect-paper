@@ -33,17 +33,17 @@ The key to socket scalability is to minimize memory sharing by making communicat
 	\hline
     listen & Local &
     \textit{fcntl} & Local &
-	\textit{write(v), read(v)} & P2P &
+	\textit{write(v)} & P2P &
  	\textit{execve} & NoPart \\
 	\hline
 	socketpair & Local &
 	(get,set)sockopt & Local &
-	\textit{close} & P2P &
+	\textit{read(v)} & P2P &
  	\textit{exit} & P2P \\
 	\hline
 	getsockname  & Local &
 	getpeername & P2P &
-	shutdown & P2P &
+	\textit{close}, shutdown & P2P &
 	\textit{sleep} & P2P \\
 	\hline
 	\textit{malloc} & Local &
