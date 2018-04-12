@@ -16,26 +16,6 @@ In our system, we use the range of file descriptor number to identify whether th
 
 
 \subsection{High performance lockless ring-buffer}
-\label{subsec:lockless-queue}
-
-
-
-\begin{itemize}
-	\item requirements: Shared memory, single writer and single reader.
-	\item each slot 16 bytes
-	\item Figure: two pointers, several isvalid items, data buffer
-	\item pointer: local
-	\item label -> flag
-	\item isvalid meaning
-	\item isdeleted: push clear bit, pick from middle (iterate from head to tail), pop (set pointer iterate...)
-	\item It is common -> cite systems with memory fence
-	\item data buffer: avoid memory fragmentation, fixed sized slots, chain, queue (lockless ring buffer)
-	\item mention zero copy
-\end{itemize}
-
-For our lockless queue i.e. ring buffer, each slots have a \textit{isvalid} label. Both of the sender side and the receiver side have a pointer pointed to the first slots available for write/read. As stated in section \ref{subsubsec:data_trans}, in order to enable picking the data from the middle of the queue, each slot has an additional \textit{isdeleted} label. When picked from the middle of the queue, \textit{isdeleted} is set. After the receiver pop the first item from the queue, it check the \textit{isdeleted} label and set the pointer to the next element which \textit{isdeleted} is not set and \textit{isvalid} is set.
-
-It is common that the operation of the shared memory is protected by the \textit{memory fence} instruction in order to avoid the reorder caused by out-of-order execution on modern X86 CPU, which has expensive cost since it locks the memory bus. We make the observation that only write may be delayed according to the manual of Intel \cite{sewell2010x86,intel-manual}. By carefully adjusting the order of the instructions and removing \textit{memory fence}, the throughput of lockless queue could achieve 30M per second. 
 
 
 % Inter-process communication through single-writer and single-reader lockless % shared-memory queue. The queue is a ring buffer.

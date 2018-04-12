@@ -65,7 +65,43 @@ Need a figure to show the lifecycle (message passing flow) of a socket connectio
 	\item emergency Q
 \end{itemize}
 
-    \textbf{Close \& ACK}
+\textbf{Close \& ACK}
+
+\subsection{High performance lockless queue}
+\label{subsec:lockless-queue}
+
+
+\begin{itemize}
+	\item requirements: Shared memory, single writer and single reader.
+	\item each slot 16 bytes
+	\item Figure: two pointers, several isvalid items, data buffer
+	\item pointer: local
+	\item label -> flag
+	\item isvalid meaning
+	\item isdeleted: push clear bit, pick from middle (iterate from head to tail), pop (set pointer iterate...)
+	\item It is common -> cite systems with memory fence
+	\item data buffer: avoid memory fragmentation, fixed sized slots, chain, queue (lockless ring buffer)
+	\item mention zero copy
+\end{itemize}
+
+As stated in section \ref{subsubsec:data_trans}, our lockless queue i.e. ring buffer is used for direct data transmission between two processes, and is used for message passing between process and the monitor. To recap, lockless queue in \libipc is used to support one-one connection in shared memory.
+
+The structure of lockless queue shows in figure \ref{fig:locklessq-structure}. We leverage ring buffer as the data structure of the queue. Each slots of the queue is 16 bytes. Both sender and the receiver have a pointer stored locally. We denote the pointer of sender side as \textit{head}, and the receiver one as \textit{tail}. The sender pushes new items to the location pointed by head and increases the head while the receiver pops items according to its own tail and increases its tail.  In order to know whether the slot pointed by \textit{head} or \textit{tail} is available, we put a \textit{isvalid} flag in each of the slot. When sender pushes the item, the flag is set while when receiver pops the item, the flag is cleared.
+
+In order to support ``pick'' from the middle of the queue, we add an additional ``isdel'' flag to each slot. When ``pick'' happens, ``isdel'' is set and ``isvalid'' is not changed. When receiver tries to pop an item from ``tail'', it iterate the ring buffer from tail and check ``isdel'' flag. If it is set, ``isvalid'' is set to false and ``tail'' is increased.
+\begin{figure}[t]
+	\centering
+	\includegraphics[width=0.3\textwidth]{images/fixme}
+	\caption{This figure shows the structure of lockless queue (contains shared memory, 2 local ptr, isvalid flag and isdel flag).}
+	\label{fig:locklessq-structure}
+\end{figure}
+
+
+To support variable size of messages, we allocate a memory pool in shared memory and set the pointer in message queue to the element in memory pool. We divide memory pool to 1KB blocks. The IDs of the available blocks are organized in another queue and are pushed by receiver (Receiver pops the item and releases the memory) and are consumed by sender. If the size of message is larger 1KB, multiple blocks are used and chained as a linked list. By doing so, we could avoid memory fragmentation and reduce the memory management contention between sender and the receiver. 
+
+It is common that the operation of the shared memory is protected by the \textit{memory fence} instruction in order to avoid the reorder caused by out-of-order execution on modern X86 CPU, which has expensive cost since it locks the memory bus. We make the observation that only write may be delayed according to the manual of Intel \cite{sewell2010x86,intel-manual}. By carefully adjusting the order of the instructions and removing \textit{memory fence}, the throughput of lockless queue could achieve 30M per second. 
+
+
 
 
 \subsection{Scaling Shared Socket}
