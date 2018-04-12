@@ -4,7 +4,62 @@
 \subsection{Scaling to Billions of Connections}
 \label{subsec:socket-api}
 
-The key to socket scalability is to minimize memory sharing by making communications explicit via message passing. Because multiple threads in a process share memory space, we treat each thread as a separated process and use thread-specific storage to save states in \libipc. In the following text, unless explicitly mentioned, we refer to both processes and threads as processes.
+The key to socket scalability is to minimize memory sharing by making communications explicit via message passing. Because multiple threads in a process share memory space, we treat each thread as a separated process and use thread-specific storage to save states in \libipc. In the following text, unless explicitly mentioned, we refer to ``processes and threads'' as ``processes''.
+
+\begin{table*}[t]
+\centering
+\begin{tabular}{ll|ll|ll|ll}
+	\hline
+	\multicolumn{2}{c|}{Initialization} &
+	\multicolumn{2}{c|}{Connection Mgmt} &
+	\multicolumn{2}{c|}{Data Transmission} &
+	\multicolumn{2}{c}{Process Mgmt} \\
+	\hline
+	API & Cat. &
+	API & Cat. &
+	API & Cat. &
+	API & Cat. \\
+	\hline
+	\hline
+	socket & Local &
+	connect & NoPart &
+	send(to,msg,mmsg) & P2P &
+	\textit{fork} & NoPart \\
+	\hline
+	bind & NoPart &
+	accept(4) & NoPart &
+	recv(from,msg,mmsg) & P2P &
+	\textit{pthread\_create} & NoPart \\
+	\hline
+    listen & Local &
+    \textit{fcntl} & Local &
+	\textit{write(v), read(v)} & P2P &
+ 	\textit{execve} & NoPart \\
+	\hline
+	socketpair & Local &
+	(get,set)sockopt & Local &
+	\textit{close} & P2P &
+ 	\textit{exit} & P2P \\
+	\hline
+	getsockname  & Local &
+	getpeername & P2P &
+	shutdown & P2P &
+	\textit{sleep} & P2P \\
+	\hline
+	\textit{malloc} & Local &
+	\textit{dup(2,3)} & P2P &
+	\textit{select, poll} & Local &
+	\textit{kill}   & P2P \\
+	\hline
+	\textit{epoll\_create} & Local &
+	\textit{epoll\_ctl} & Local &
+	\textit{epoll\_(p)wait} & Local &
+	\textit{/proc fs} & NoPart \\
+	\hline
+\end{tabular}
+\caption{Local, peer-to-peer (P2P) and non-partitionable (NoPart) Linux APIs that are related to socket and intercepted by \libipc{}. APIs in \textit{italic} indicate usages more than socket.}
+\label{tab:socket-api}
+\end{table*}
 
 
 \subsubsection{Connection Management}
@@ -35,39 +90,8 @@ In order to support read/write operation without epoll i.e. not all the messages
 
 Generally, for data transmission. In the shared memory between two processes, \libipc prepares a multiplexed queue for all the connections with ability of popping items in the middle of it, an ``emergency queue'' for instant messages and a memory pool to store data.
 
-fd multiplexing
 
-How the socket works. A table show the process of using socket:
-
-\begin{itemize}
-	\item Process and thread creation. (fork, pthread\_create)
-	\item Socket initialization.
-	\item Connection setup.
-	\item Data transmission.
-\end{itemize}
-
-
-Data structure in each process. Data structure in the monitor process.
-
-Need a figure to show the lifecycle (message passing flow) of a socket connection. Three sub-figures:
-
-
-	 \textbf{Socket initialization.}
-	  
-	 \textbf{Connection setup. (accept scheduling)}
-	 
-	 \textbf{Data transmission.}
-	 
-	 Discuss epoll.
-\begin{itemize}
-	\item Pick from the middle of the Q
-	\item Starving (per fd slot)
-	\item emergency Q
-\end{itemize}
-
-\textbf{Close \& ACK}
-
-\subsection{High performance lockless queue}
+\subsection{Lockless Shared Memory Queue}
 \label{subsec:lockless-queue}
 
 
@@ -282,4 +306,4 @@ For multi-thread applications, \libipc{} uses thread-local storage for states an
 
 To improve multi-process scalability of TCP servers, we leverage Receive-Side Scaling (RSS) in modern NICs to distribute incoming connections to the NIC queues of listening processes. The monitor process configures NIC indirection table~\cite{mellanox} when a process binds an external IP address. Each process maintains the TCP connection locally. However, listeners may need to migrate new connections under load imbalance. To this end, each listener maintains a \textit{backlog} of received new connections which has not been \texttt{accept}ed by the application. When the backlog overflows, it forwards the new connection to the monitor. When an idle process calls \texttt{accept} while backlog is empty, it requests from the monitor. Then, the overloaded process will forward received packets of the migrated connection to the idle process via shared-memory queue.
 
-Supporting zero copy with existing applications requires removing two data copies on send and receive path. We remove data copy between application and \libipc{} in Sec.~\ref{subsec:zerocopy}. To remove data copy between \libipc{} and NIC, the payloads of sent and received packets need to align at 4~KiB page boundary. We leverage scatter-gather support in modern NICs~\cite{mellanox} to separate packet header from application payload. During initialization, \libipc{} queries IP and Ethernet MAC address from the kernel and constructs a packet header template. Upon socket \texttt{send}, \libipc{} copies the packet header template to a NIC send work request, then fills in the payload buffer address from application. In background, \libipc{} issues NIC receive work requests with a 54-byte buffer to hold exactly Ethernet, IP and TCP headers, followed by a page-aligned buffer to hold payload. Upon socket \texttt{recv}, the payload buffer is remapped to application.
+Supporting zero copy with existing applications requires removing two data copies on send and receive path. We remove data copy between application and \libipc{} in Sec.~\ref{subsec:zerocopy}. To remove data copy between \libipc{} and NIC, the payloads of sent and received packets need to align at 4~KiB page boundary. We leverage scatter-gather support in modern NICs~\cite{mellanox} to separate packet header from application payload. During initialization, \libipc{} queries IP and Ethernet MAC address from the kernel and constructs a packet header template. Upon socket \texttt{send}, \libipc{} copies the packet header template to a NIC send work request, then fills in the payload buffer address from application. In background, \libipc{} issues NIC receive work requests with a 54-byte buffer to hold exactly Ethernet, IPv4 and TCP headers, followed by a page-aligned buffer to hold payload. In corner cases where the received header length is not 54 bytes, \libipc{} reassembles the packet. Upon socket \texttt{recv}, the payload buffer is remapped to application.
