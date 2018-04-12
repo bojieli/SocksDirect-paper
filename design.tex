@@ -4,7 +4,7 @@
 \subsection{Scaling to Billions of Connections}
 \label{subsec:socket-api}
 
-The key to socket scalability is to minimize synchronization and memory sharing by making communications explicit via message passing. Because multiple threads in a process share memory space, we treat each thread as a separated process and use thread-specific storage to save states in \libipc. In the following text, unless explicitly mentioned, we refer to both processes and threads as processes.
+The key to socket scalability is to minimize memory sharing by making communications explicit via message passing. Because multiple threads in a process share memory space, we treat each thread as a separated process and use thread-specific storage to save states in \libipc. In the following text, unless explicitly mentioned, we refer to both processes and threads as processes.
 
 
 \subsubsection{Connection Management}
@@ -220,19 +220,20 @@ After page remapping on sender \texttt{memcpy} and receiver \texttt{recv}, if th
 \section{Inter-Server Socket}
 \label{sec:rdma}
 
-Previous section discussed inter-process socket in a same server. For inter-server socket, we determine whether or not the peer supports RDMA. If so, we translate socket operations to RDMA \texttt{read} and \texttt{write} verbs. Otherwise, we use a hardware accelerated user-mode TCP/IP stack to communicate with standard TCP/IP endpoints.
+Previous section discussed inter-process socket in a same server. For inter-server socket, we determine whether or not the peer supports RDMA. If so, we translate socket operations to RDMA \texttt{write} verbs. Otherwise, we use a hardware accelerated user-mode TCP/IP stack to communicate with standard TCP/IP endpoints.
 
 \subsection{Using RDMA Efficiently for Socket}
 
-RDMA if the remote side supports socket.
+As stated in Sec.~\ref{subsec:challenges}, if we intuitively map each socket connection to an RDMA connection, due to NIC cache miss, the performance would degrade with more than a few hundreds of active connections. So we need to multiplex socket connections via an RDMA connection. Mapping socket \texttt{send} and \texttt{recv} operations to two-sided RDMA \texttt{send} and \texttt{recv} verbs is also challenging due to mismatch in semantics.
 
- libvma (lightweight user-mode stack).
+Fortunately, our inter-process socket design can multiplex socket connections between two processes via a single shared-memory queue. To recap, a shared-memory queue consists of two ring buffers, one for metadata from sender to receiver, the other for free data slots from receiver to sender. To extend the design to inter-server socket, we only need to implement a ring buffer between each pair of communicating processes using RDMA verbs. The difference between intra-server and inter-server ring buffer is memory access latency. In our intra-server ring buffer design~\ref{sec:implementation}, sender checks \textit{isvalid} bit of each item in ring buffer to determine whether the queue is full, and receiver also checks \textit{isvalid} bit to determine whether the queue is empty. In RDMA setting, either sender or receiver needs to use RDMA to check \textit{isvalid} bit remotely, incurring one round-trip delay per operation.
 
+To avoid such delay, we design a \textit{credit-based ring buffer} for inter-server communication. Data of the ring buffer resides in receiver's main memory. Sender holds a tail pointer locally and receiver holds a head pointer locally. Sender maintains a number of \textit{credits}, indicating the number of unused items in ring buffer. When sender enqueues an item via RDMA \texttt{write}, it consumes a credit. When receiver dequeues an item, it increments a counter locally, and RDMA \texttt{write} a flag in sender's memory once the counter exceeds half the size of ring buffer. The sender regains credits upon detecting the flag. In this way, returning credits in batches amortizes RDMA messaging overhead for checking queue full. Because the only RDMA verb we use is \texttt{write}, the queue is wait-free on both sender and receiver.
 
-One-sided  RDMA: credit-based ring buffer. Intra-server: valid-bit based ring buffer.
+Achieving zero copy RDMA is trivial given our inter-process design in Sec.~\ref{subsec:zerocopy}. We use physical addresses in RDMA verbs to eliminate memory registration and address translation overhead, as recommended by NIC documentation~\cite{mellanox}. During connection initialization, the receiver prepares a huge-page buffer for receiving zero-copy messages. The sender manages a pool of free pages in the receive buffer. Upon socket \texttt{send}, \libipc calls the kernel to get non-encrypted physical address of send virtual address. \libipc also allocates pages from receive buffer as remote address for RDMA \texttt{write}. The metadata message in ring buffer includes physical pages in receive buffer. Upon socket \texttt{recv}, \libipc calls the kernel maps physical pages in metadata message to receive virtual address. For security, kernel validates that page numbers are in the huge-page receive buffer. Same as intra-server zero-copy communication, when the receiver stops using the receive buffer, it is returned to the sender.
 
+RDMA connection setup...
 
-Remember: if the other endpoint is not RDMA capable, use libvma.
 
 \subsection{Hardware Accelerated TCP/IP}
 
