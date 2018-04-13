@@ -21,55 +21,68 @@ The key to socket scalability is to minimize memory sharing by making communicat
 	API & Cat. \\
 	\hline
 	\hline
-	socket & Local &
-	connect & NoPart &
-	send(to,msg,mmsg) & P2P &
-	\textit{fork} & NoPart \\
+	\textbf{socket} & Local &
+	\textbf{connect} & NoPart &
+	\textbf{send(to,(m)msg)} & P2P &
+	\textit{(v)fork} & NoPart \\
 	\hline
 	bind & NoPart &
-	accept(4) & NoPart &
-	recv(from,msg,mmsg) & P2P &
+	\textbf{accept(4)} & P2P &
+	\textbf{recv(from,(m)msg)} & P2P &
 	\textit{pthread\_create} & NoPart \\
 	\hline
     listen & Local &
-    \textit{fcntl} & Local &
-	\textit{write(v)} & P2P &
- 	\textit{execve} & NoPart \\
+    \textbf{\textit{fcntl, ioctl}} & Local &
+	\textbf{\textit{write(v)}} & P2P &
+ 	\textit{clone} & NoPart \\
 	\hline
 	socketpair & Local &
-	(get,set)sockopt & Local &
-	\textit{read(v)} & P2P &
- 	\textit{exit} & P2P \\
+	\textbf{(get,set)sockopt} & Local &
+	\textbf{\textit{read(v)}} & P2P &
+ 	\textit{execve} & NoPart \\
 	\hline
 	getsockname  & Local &
+	\textbf{\textit{close}, shutdown} & P2P &
+	\textbf{\textit{memcpy}} & Local &
+	\textit{exit} & NoPart \\
+	\hline
+	\textbf{\textit{malloc}} & Local &
 	getpeername & P2P &
-	\textit{close}, shutdown & P2P &
+	\textit{(p)select} & Local &
 	\textit{sleep} & P2P \\
 	\hline
-	\textit{malloc} & Local &
-	\textit{dup(2,3)} & P2P &
-	\textit{select, poll} & Local &
-	\textit{kill}   & P2P \\
+	\textbf{\textit{realloc}} & Local &
+	\textit{dup(2)} & P2P &
+	\textit{(p)poll} & Local &
+	\textit{daemon} & P2P \\
 	\hline
 	\textit{epoll\_create} & Local &
-	\textit{epoll\_ctl} & Local &
-	\textit{epoll\_(p)wait} & Local &
-	\textit{/proc fs} & NoPart \\
+	\textbf{\textit{epoll\_ctl}} & Local &
+	\textbf{\textit{epoll\_(p)wait}} & Local &
+	\textit{sigaction} & Local \\
 	\hline
 \end{tabular}
-\caption{Local, peer-to-peer (P2P) and non-partitionable (NoPart) Linux APIs that are related to socket and intercepted by \libipc{}. APIs in \textit{italic} indicate usages more than socket.}
+\caption{Local, peer-to-peer (P2P) and non-partitionable (NoPart) Linux APIs that are related to socket and intercepted by \libipc{}. APIs in \textit{italic} indicate usages more than socket. APIs in \textbf{bold} are called more frequently than others.}
 \label{tab:socket-api}
 \end{table*}
 
+In the following, we will analyze Linux socket APIs in Table~\ref{tab:socket-api} and design a scalable socket architecture.
 
 \subsubsection{Connection Management}
 \label{subsubsec:connection_management}
 
-We take the idea of \cite{roghanchi2017ffwd} and use a dedicate monitor to avoid mutual exclusion in current Linux kernel. For instance, sockets provides \textit{SO\_REUSEPORT} as one flag when sockets created. When this flag is enabled, multiple process on one host could listen to the same port and the incoming connections are dispatched to one of those. Nginx use this option to enable multiple worker processes listen on the same port for load balancing. In Linux kernel, mutual exclusion is used for processes to compete the incoming connections while in our design monitor process is responsible for choosing a process to handle it by message passing.
+During socket initialization, \texttt{socket} creates an unique integer \textit{file descriptor} (FD) for each connection. In Linux kernel, FD allocation is processed with mutual exclusion in kernel space. In order to achieve high scalability, \libipc{} maintains a FD table in each process. The table is a vector of socket information with an allocation pointer, indexed by FD. Upon allocation, \libipc{} linearly moves the allocation pointer and finds the first idle FD. When the vector is more than half full, its size is doubled. This allows amortized O(1) allocation and O(1) lookup and deletion. 
+For multi-thread applications, since the FD namespace is shared, we partition the FD namespace to multiple ranges and each thread allocates FD in its range.
+Because per-FD information is local to a process, APIs on socket options are also local.
 
-In order to achieve high scalability, we separate scalable operations to different processes. In Linux kernel, file descriptor (fd) allocation is handled by mutual exclusion in kernel space. To avoid the overhead of contention, \libipc enable the file descriptor allocation by individual process and when a connection is setup, the other peer of the connection gets notified of the file descriptor number by message passing. Since we treat different threads in one process as different processes, we allocate file descriptor of different ranges to each of them to avoid collision. Since file descriptor is managed separately by each process, it is possible that a file descriptor is reused after the connection is closed. Our solution is that resources of a file descriptor is not released until an ACK is received for the close operation.
+Next we look at connection setup. The server first \texttt{bind} a socket to an IP and port, where conflicts need to be detected. So \texttt{bind} is non-partitionable when port is specified. To this end, we take the idea of delegation~\cite{roghanchi2017ffwd} and use a dedicated monitor process to avoid mutual exclusion.
+In addition, socket provides \texttt{SO\_REUSEPORT} option. When this option is enabled, multiple processes on one host can \texttt{bind} to the same port and incoming connections are dispatched to the listeners. Nginx~\cite{nginx} uses this option to load balance connections to multiple worker processes. This is why \texttt{connect} is considered non-partitionable. In Linux kernel, clients send connection requests to a \textit{backlog} and listeners compete for incoming connections with mutual exclusion. In our design, monitor process forwards connection requests to listeners in a round-robin order, and the \textit{backlog} is maintained in each listener. If monitor finds that it is the first time for client and listener to communicate, it creates a shared-memory queue for the process pair and sends the credentials to both processes. When a listener \texttt{accept}s a connection, it sends a message to sender via peer-to-peer shared-memory queue and the socket is established. Figure~\ref{fig:conn-setup-close} shows the process of connection setup and close. We can see that connection setup needs three inter-process delays.
 
-Generally, each process in our design is treated as an endpoint in the network. Figure \ref{fig:conn-setup-close} shows the process of connection setup and close. When \textit{socket} is called, the process itself allocate per fd resources. When \textit{listen} is called, monitor is notified of port occupation. During the \textit{connect} operation, monitor first chooses one of the processes listen on this port then coordinates the creation of the shared memory between the two processes and notifies each other of the new connection. When \textit{close} happens, both of the endpoint notify each other and monitor is responsible to destroy the shared memory between them. 
+Connection close is a peer-to-peer operation because 
+
+%In order to achieve high scalability, we separate scalable operations to different processes. To avoid the overhead of contention, \libipc enable the file descriptor allocation by individual process and when a connection is setup, the other peer of the connection gets notified of the file descriptor number by message passing. Since we treat different threads in one process as different processes, we allocate file descriptor of different ranges to each of them to avoid collision. Since file descriptor is managed separately by each process, it is possible that a file descriptor is reused after the connection is closed. Our solution is that resources of a file descriptor is not released until an ACK is received for the close operation.
+
+%Generally, each process in our design is treated as an endpoint in the network. Figure \ref{fig:conn-setup-close} shows the process of connection setup and close. When \textit{socket} is called, the process itself allocate per fd resources. When \textit{listen} is called, monitor is notified of port occupation. During the \textit{connect} operation, monitor first chooses one of the processes listen on this port then coordinates the creation of the shared memory between the two processes and notifies each other of the new connection. When \textit{close} happens, both of the endpoint notify each other and monitor is responsible to destroy the shared memory between them. 
 
 \begin{figure}[t]
 	\centering
@@ -304,6 +317,6 @@ With a large number of concurrent connections, per-connection states in TCP/IP p
 
 For multi-thread applications, \libipc{} uses thread-local storage for states and file descriptors to eliminate locks. Each thread owns exclusive work request and completion queues to communicate with the NIC. In order to avoid TCP state sharing among threads, \libipc{} designates one thread with exclusive access to each TCP socket. If other threads access the file descriptor, it sends a takeover message to the owner thread, as in Sec.~\ref{subsubsec:fork_rdwr}.
 
-To improve multi-process scalability of TCP servers, we leverage Receive-Side Scaling (RSS) in modern NICs to distribute incoming connections to the NIC queues of listening processes. The monitor process configures NIC indirection table~\cite{mellanox} when a process binds an external IP address. Each process maintains the TCP connection locally. However, listeners may need to migrate new connections under load imbalance. To this end, each listener maintains a \textit{backlog} of received new connections which has not been \texttt{accept}ed by the application. When the backlog overflows, it forwards the new connection to the monitor. When an idle process calls \texttt{accept} while backlog is empty, it requests from the monitor. Then, the overloaded process will forward received packets of the migrated connection to the idle process via shared-memory queue.
+To improve multi-process scalability of TCP servers, we leverage Receive-Side Scaling (RSS) in modern NICs to distribute incoming and outgoing connections to the NIC queues of listening processes. For outgoing connections, \libipc{} chooses a source port such that received packets will be distributed to its own queue. For incoming processes, the monitor process configures NIC indirection table~\cite{mellanox} when a process binds a non-local IP address. Each process maintains TCP connections locally. However, listeners may need to migrate new connections under load imbalance. To this end, each listener maintains a \textit{backlog} of received new connections which has not been \texttt{accept}ed by the application. When the backlog overflows, it forwards the new connection to the monitor. When an idle process calls \texttt{accept} while backlog is empty, it requests from the monitor. Then, the overloaded process will forward received packets of the migrated connection to the idle process via shared-memory queue.
 
 Supporting zero copy with existing applications requires removing two data copies on send and receive path. We remove data copy between application and \libipc{} in Sec.~\ref{subsec:zerocopy}. To remove data copy between \libipc{} and NIC, the payloads of sent and received packets need to align at 4~KiB page boundary. We leverage scatter-gather support in modern NICs~\cite{mellanox} to separate packet header from application payload. During initialization, \libipc{} queries IP and Ethernet MAC address from the kernel and constructs a packet header template. Upon socket \texttt{send}, \libipc{} copies the packet header template to a NIC send work request, then fills in the payload buffer address from application. In background, \libipc{} issues NIC receive work requests with a 54-byte buffer to hold exactly Ethernet, IPv4 and TCP headers, followed by a page-aligned buffer to hold payload. In corner cases where the received header length is not 54 bytes, \libipc{} reassembles the packet. Upon socket \texttt{recv}, the payload buffer is remapped to application.
