@@ -1,19 +1,25 @@
 \section{Evaluation}
 \label{sec:evaluation}
 
+Testbed settings..
+
 \subsection{Microbenchmarks}
 
-IPC-bench~\cite{ipc-bench}
+Use IPC-bench~\cite{ipc-bench} to benchmark Linux performance.
 
-Linux socket vs \sys performance comparison： latency, throughput
+Linux socket vs \sys (intra-server socket, RDMA and libvma) performance comparison
+
+Scenarios: connection setup and data transmission
+
+Metrics: Latency, throughput
 
 \subsection{Web Application}
 
-Nginx~\cite{nginx}, Nodejs~\cite{nodejs}, Redis~\cite{redis}, memcached~\cite{memcached}
+Nginx~\cite{nginx}, Nodejs~\cite{nodejs} and memcached~\cite{memcached}
 
 \begin{itemize}
-	\item Many short-lived connections. Nginx $\rightarrow$ Nodejs, Nodejs access Redis once.
-	\item Each connection, backend interact extensively. (Nodejs access Redis multiple round trips.)
+	\item Many short-lived connections. Nginx $\rightarrow$ Nodejs, Nodejs access memcached once.
+	\item Each connection, backend interact extensively. (Nodejs access memcached multiple round trips.)
 	\item Long connection to download a large in-memory file. (test zero copy)
 \end{itemize}
 
@@ -21,14 +27,22 @@ Nginx~\cite{nginx}, Nodejs~\cite{nodejs}, Redis~\cite{redis}, memcached~\cite{me
 
 Network functions~\cite{li2016clicknp}, ClickOS~\cite{martins2014clickos}
 
-Firewall (no packet change), NAT (change a packet field), Tunnel endpoint (add/remove packet header, change length)
+Scenarios: Firewall (no packet change), NAT (change a packet field), Tunnel endpoint (add/remove packet header, change length)
 
-Latency, throughput
+Metrics: Latency, throughput
 
 \subsection{Real-time Stream Processing}
 
 Apache Flink~\cite{carbone2015apache} (need to turn off durability on disk)
 
+Scenario: Word Count (distributed system with one source, two mappers and one reducer)
+
+Metrics: Latency, throughput
+
 \subsection{Machine Learning}
 
 Tensorflow~\cite{abadi2016tensorflow}
+
+Scenario: (Distributed Tensorflow) Parameter server and worker on a same server.
+
+Metrics: Time per iteration
