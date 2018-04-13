@@ -65,22 +65,21 @@ The Multikernel design: replaces locks in kernel with message passing, but does 
 	\label{fig:mutual-exclusion}
 \end{figure}
 
-\textbf{Multi-core scalability.}
-The common wisdom is that user-space network stacks do not provide multiplexing and isolation among applications, therefore dataplane operating systems either demonstrate good performance with kernel-based network stacks~\cite{belay2014ix,tsai2017lite} or delegate socket processing to a virtual switch running on dedicated cores~\cite{martins2014clickos,roghanchi2017ffwd,huang2017high}.
-Our goal is to achieve multi-core scalability for both connection setup and data transmission.
-For connection setup, we need to coordinate \texttt{listen} port numbers, load balance \texttt{connect} requests and allocate resources.
-For data transmission, modern commodity NICs support multiple queues with receive flow steering~\cite{herbertrfs,libvma,openonload}, so connection multiplexing and isolation can be offloaded to the NIC.
-%The event polling API (\texttt{epoll}) also calls for event notification in user space.
+\textbf{Scalable user-space stack with process isolation.}
+To ensure isolation among processes, one category of dataplane operating systems~\cite{belay2014ix,tsai2017lite} use kernel-based network stacks. However, non-batched system calls have context switch overhead, while batched system calls increase latency. Another line of work~\cite{martins2014clickos,roghanchi2017ffwd,huang2017high} delegate socket processing to a virtual switch running on dedicated cores. The throughput of virtual switch becomes a bottleneck. Our goal is to achieve kernel bypass with process isolation, while not delegating every operation to a centralized coordinator.
 
-\textbf{Mutual exclusion for shared socket.}
-The main challenge for Linux socket scalability is that a socket connection may be shared by multiple processes and threads. Threads in a same process share all socket connections. When a process forks, the parent and child processes share the sockets created before fork. The processes and threads sharing a socket forms a multi-producer and multi-consumer model. Logically, senders enqueue data into a shared FIFO, and receivers dequeue an application-specified number of bytes from the FIFO. Linux protects concurrent operations with mutual exclusion.
+%During connection setup, we need to coordinate \texttt{listen} port numbers, load balance \texttt{connect} requests and allocate resources.
+%For data transmission, modern commodity NICs support multiple queues with receive flow steering~\cite{herbertrfs,mellanox}, so connection multiplexing and isolation can be offloaded to the NIC. Our goal is to achieve multi-core scalability for both connection setup and data transmission.
+
+\textbf{Avoid synchronization for shared socket send and receive.}
+A socket connection may be shared by multiple processes and threads. Threads in a same process share all socket connections. When a process forks, the parent and child processes share the sockets created before fork. The processes and threads sharing a socket forms a multi-producer and multi-consumer model. Logically, senders enqueue data into a shared FIFO, and receivers dequeue an application-specified number of bytes from the FIFO. Linux protects concurrent operations with mutual exclusion.
 
 Ideally, inter-process message passing requires only one cache migration~\cite{roghanchi2017ffwd}. However, as shown in Figure~\ref{fig:mutual-exclusion}, the Compare-And-Swap (CAS) instruction for mutual exclusion, even in non-contended case, is significantly slower than cache migration. Kernel mutex and user-mode futex are even slower than CAS. Mutual exclusion becomes a bottleneck. In addition, both mutual exclusion and contended memory write are not scalable to multiple cores~\cite{boyd2014optimizing}. To this end, we need a scalable socket architecture to eliminate mutual exclusion in most cases.
 
-\textbf{Reduce per-socket memory footprint.}
-Each process may connect to multiple Internet hosts and data center servers. In Linux, each socket connection has dedicated send and receive buffers, and each buffer is at least one page (4~KiB). With millions of concurrent connections, the socket buffers consumes tens of gigabytes of memory, most of which is empty~\cite{lin2016scalable}. Accessing many buffers randomly also leads to non-cached memory accesses, which is slower than sequential access to a single buffer~\cite{li2017kv}. Our goal is to share socket buffers among connections to amortize memory footprint and improve locality of reference.
+\textbf{Minimize per-socket memory footprint.}
+Each process may connect to multiple Internet hosts and data center servers. In Linux, each socket connection has dedicated send and receive buffers, and each buffer is at least one page (4~KiB). With one million concurrent connections, the socket buffers consumes tens of gigabytes of memory, most of which is empty~\cite{lin2016scalable}. Accessing many buffers randomly also leads to non-cached memory accesses, which is slower than sequential access to a single buffer~\cite{li2017kv}. Our goal is to support billions of concurrent connections in a server.
 
-\textbf{Zero copy.}
+\textbf{Zero copy for large data buffers.}
 Historically, \texttt{send} was designed as a blocking operation, so the send buffer may be overwritten by the application after \texttt{send} operation.
 Non-blocking \texttt{send} preserves this semantics, so the network stack needs to copy data to an internal buffer, then send the internal buffer in background after \texttt{send} returns.
 For the \texttt{recv} operation, application provides a buffer and read the data after \texttt{recv} returns.
@@ -88,7 +87,7 @@ If we implement \texttt{recv} as a lazy operation, \textit{i.e.}, the data is bu
 Otherwise, as in most socket implementations, we send data to the receiver before \texttt{recv}. Because the receiver's network stack cannot predict the user-provided \texttt{recv} address, it needs to buffer received data internally, then copy the data when \texttt{recv} is called.
 Our goal is to achieve zero copy in most large data transfers without change to applications.
 
-\textbf{Translate socket to RDMA.}
+\textbf{Use RDMA efficiently for inter-server socket.}
 The event polling API in Linux is \textit{reactive}, in the sense that the applications knows a socket connection is ready for \texttt{send} or \texttt{recv}, then issues the operation.
 On the contrary, RDMA API is \textit{proactive}. The application delegates RDMA operations to the NIC hardware, and receives notification when they are completed.
 Translating socket API to RDMA requires bridging the reactive and proactive semantics.
