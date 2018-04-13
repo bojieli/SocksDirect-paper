@@ -4,7 +4,7 @@
 \subsection{Scaling to Billions of Connections}
 \label{subsec:socket-api}
 
-The key to socket scalability is to minimize memory sharing by making communications explicit via message passing. Because multiple threads in a process share memory space, we treat each thread as a separated process and use thread-specific storage to save states in \libipc. In the following text, unless explicitly mentioned, we refer to ``processes and threads'' as ``processes''.
+The key to socket scalability is to minimize memory sharing by making communications explicit via message passing. Because multiple threads in a process share memory space, we treat each thread as a separated process and use thread-specific storage to save states in \libipc. In the following text, unless explicitly mentioned, we refer to a ``process or thread'' as a ``process''.
 
 \begin{table*}[t]
 \centering
@@ -71,33 +71,43 @@ In the following, we will analyze Linux socket APIs in Table~\ref{tab:socket-api
 \subsubsection{Connection Management}
 \label{subsubsec:connection_management}
 
+\begin{figure}[t]
+	\centering
+	\includegraphics[width=0.3\textwidth]{images/fixme}
+	\caption{The message flow of connection setup.}
+	\label{fig:conn-setup}
+\end{figure}
+
+\begin{figure}[t]
+	\centering
+	\includegraphics[width=0.3\textwidth]{images/fixme}
+	\caption{The message flow of connection close.}
+	\label{fig:conn-close}
+\end{figure}
+
 During socket initialization, \texttt{socket} creates an unique integer \textit{file descriptor} (FD) for each connection. In Linux kernel, FD allocation is processed with mutual exclusion in kernel space. In order to achieve high scalability, \libipc{} maintains a FD table in each process. The table is a vector of socket information with an allocation pointer, indexed by FD. Upon allocation, \libipc{} linearly moves the allocation pointer and finds the first idle FD. When the vector is more than half full, its size is doubled. This allows amortized O(1) allocation and O(1) lookup and deletion. 
 For multi-thread applications, since the FD namespace is shared, we partition the FD namespace to multiple ranges and each thread allocates FD in its range.
 Because per-FD information is local to a process, APIs on socket options are also local.
 
 Next we look at connection setup. The server first \texttt{bind} a socket to an IP and port, where conflicts need to be detected. So \texttt{bind} is non-partitionable when port is specified. To this end, we take the idea of delegation~\cite{roghanchi2017ffwd} and use a dedicated monitor process to avoid mutual exclusion.
-In addition, socket provides \texttt{SO\_REUSEPORT} option. When this option is enabled, multiple processes on one host can \texttt{bind} to the same port and incoming connections are dispatched to the listeners. Nginx~\cite{nginx} uses this option to load balance connections to multiple worker processes. This is why \texttt{connect} is considered non-partitionable. In Linux kernel, clients send connection requests to a \textit{backlog} and listeners compete for incoming connections with mutual exclusion. In our design, monitor process forwards connection requests to listeners in a round-robin order, and the \textit{backlog} is maintained in each listener. If monitor finds that it is the first time for client and listener to communicate, it creates a shared-memory queue for the process pair and sends the credentials to both processes. When a listener \texttt{accept}s a connection, it sends a message to sender via peer-to-peer shared-memory queue and the socket is established. Figure~\ref{fig:conn-setup-close} shows the process of connection setup and close. We can see that connection setup needs three inter-process delays.
+In addition, socket provides \texttt{SO\_REUSEPORT} option. When this option is enabled, multiple processes on one host can \texttt{bind} to the same port and incoming connections are dispatched to the listeners. Nginx~\cite{nginx} uses this option to load balance connections to multiple worker processes. This is why \texttt{connect} is considered non-partitionable. In Linux kernel, clients send connection requests to a \textit{backlog} and listeners compete for incoming connections with mutual exclusion. In our design, monitor process forwards connection requests to listeners in a round-robin order, and the \textit{backlog} is maintained in each listener. If monitor finds that it is the first time for client and listener to communicate, it creates a shared-memory queue for the process pair and sends the credentials to both processes. When a listener \texttt{accept}s a connection, it sends a message to sender via peer-to-peer shared-memory queue and the socket is established. Figure~\ref{fig:conn-setup} shows message flow of connection setup. We can see that connection setup takes three inter-process delays.
 
-Connection close is a peer-to-peer operation because 
+Connection close is a peer-to-peer operation because only the peer process needs to be notified. One challenge is when to delete the FD. If FD is deleted immediately after \texttt{close}, a new connection may reuse the FD, while the peer process may not have received the close event and sends data to the wrong connection. To ensure the peer does not use the connection before FD is deleted, we require a handshake between peers.
+Concretely, \texttt{close} is equivalent to \texttt{shutdown} both send and receive directions. When the application shuts down a direction, it sends a \textit{shutdown message} to the peer. Then the peer shuts down the corresponding direction and responds with a shutdown message. A process deletes a FD when it has received shutdown messages in both directions. Figure~\ref{fig:conn-close} shows message flow of connection close.
 
 %In order to achieve high scalability, we separate scalable operations to different processes. To avoid the overhead of contention, \libipc enable the file descriptor allocation by individual process and when a connection is setup, the other peer of the connection gets notified of the file descriptor number by message passing. Since we treat different threads in one process as different processes, we allocate file descriptor of different ranges to each of them to avoid collision. Since file descriptor is managed separately by each process, it is possible that a file descriptor is reused after the connection is closed. Our solution is that resources of a file descriptor is not released until an ACK is received for the close operation.
 
 %Generally, each process in our design is treated as an endpoint in the network. Figure \ref{fig:conn-setup-close} shows the process of connection setup and close. When \textit{socket} is called, the process itself allocate per fd resources. When \textit{listen} is called, monitor is notified of port occupation. During the \textit{connect} operation, monitor first chooses one of the processes listen on this port then coordinates the creation of the shared memory between the two processes and notifies each other of the new connection. When \textit{close} happens, both of the endpoint notify each other and monitor is responsible to destroy the shared memory between them. 
 
-\begin{figure}[t]
-	\centering
-	\includegraphics[width=0.3\textwidth]{images/fixme}
-	\caption{This figure shows the flow of connection setup and connection close.}
-	\label{fig:conn-setup-close}
-\end{figure}
-
 
 \subsubsection{Data Transmission}
 \label{subsubsec:data_trans}
 
-To scale our system, as stated in section \ref{sec:architecture}, each processes transmit data directly without notifying monitor. As stated in section \ref{subsec:challenges}, memory footprint is critical to the overall performance of our system. For modern applications such as Nginx, asynchronous IO and epoll are widely used. The design of Linux kernel allocate a buffer for each of the file descriptor for these applications will lead to lots of cache miss due to the random access of different queues. Besides, in Linux, two cache migration are happened:1. set the bitmap of the epoll event 2. sender pushes the data into the buffer.
+To scale the system with multiple cores, each process should be able to transmit data directly to the peer without notifying monitor. As shown in Table~\ref{tab:socket-api}, we design all APIs in data transmission to be peer-to-peer or local.
 
-In order to reduce memory usage and improve cache efficiency, \libipc choose to use one shared memory lockless-queue for all the connections between two processes. Since it reduces random memory access, the cache miss is reduced. For event-driven programming i.e. epoll, only one cache migration is required when receiver pulls the data from the shared memory.
+The key challenge in decentralized data transmission is multiplexing connections. First, as stated in Sec.~\ref{subsec:challenges}, memory footprint is critical for performance under high concurrency. Linux allocates a queue for each connection, which leads to lots of cache misses due to random access of different queues. Second, event-driven applications use \texttt{epoll} to know which connection is available for send or receive. If the event queue is separated from data queues, each \texttt{recv} operation involves two cache migrations for event and data.
+
+\libipc designs one lockless shared memory queue for all connections between a pair of processes. Since it reduces random memory access, the cache miss is reduced. For event-driven programming using \texttt{epoll}, each operation involves only one cache migration when receiver pulls the data from the shared memory.
 
 In order to support read/write operation without epoll i.e. not all the messages in the queue is polled by the receiver. We need to enable ``pop'' a message in the middle of the queue. To avoid starvation when all the slots in the queue is used, we need to assign a per-fd slot in case of the receiver blocks on the read operation of that fd. To tackle the variable size of messages, we allocate a dedicated memory pool for the data of the message and only the pointer of the message is stored in the lockless queue. In order to close the connection by receiver while sender is continually transmitting data, our design has a separate ``emergency queue'' to notify the sender the end of the connection.
 
