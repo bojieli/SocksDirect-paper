@@ -2,6 +2,7 @@
 \label{sec:background}
 
 \subsection{Socket: the Performance Bottleneck}
+\label{subsec:bottleneck}
 
 \begin{figure}[t]
 	\centering
@@ -30,6 +31,8 @@ Socket is a well-known bottleneck in fast data center networks \RED{(cite)}. In 
 For front-end systems, as shown in Figure~\ref{fig:socket-kernel-time}, 70\% -- 90\% CPU time is used in socket system calls. They maintain a large number of socket connections to Internet users. Establishing a socket connection takes $\approx$40$\mu$s CPU time, so a CPU core can only serve 25K new connections per second~\cite{lin2016scalable}.
 
 For back-end systems, as shown in Figure~\ref{fig:backend-performance}, the performance using socket is significantly worse than using RDMA or shared memory. This is because back-end systems interact frequently with other nodes and services, consequently the latency is vital for their performance. As shown in Figure~\ref{fig:socket-comparison}, socket latency between different processes in a same server is $\approx$10~$\mu$s, even much higher than inter-server RDMA latency ($\approx$2~$\mu$s).
+
+\textbf{Event-driven programming.}
 
 \textbf{Socket process: connection setup and data transmission.}
 
@@ -74,7 +77,7 @@ A socket connection may be shared by multiple processes and threads. Threads in 
 Ideally, inter-process message passing requires only one cache migration~\cite{roghanchi2017ffwd}. However, as shown in Figure~\ref{fig:mutual-exclusion}, the Compare-And-Swap (CAS) instruction for mutual exclusion, even in non-contended case, is significantly slower than cache migration. Kernel mutex and user-mode futex are even slower than CAS. Mutual exclusion becomes a bottleneck. In addition, both mutual exclusion and contended memory write are not scalable to multiple cores~\cite{boyd2014optimizing}. To this end, we need a scalable socket architecture to eliminate mutual exclusion in most cases.
 
 \textbf{Scale to billions of connections per server.}
-Each server may connect to a large number of hosts in Internet and data center. In Linux, each socket connection has dedicated send and receive buffers, and each buffer is at least one page (4~KiB). With one million concurrent connections, the socket buffers consumes tens of gigabytes of memory, most of which is empty~\cite{lin2016scalable}. Accessing many buffers randomly also leads to non-cached memory accesses, which is slower than sequential access to a single buffer~\cite{li2017kv}. To this end, we need to minimize per-socket memory footprint.
+Each server may connect to a large number of hosts in Internet and data center. In Linux, each socket connection has dedicated send and receive buffers, and each buffer is at least one page (4~KiB). The first problem is memory footprint. With one million concurrent connections, the socket buffers consumes tens of gigabytes of memory, most of which is empty~\cite{lin2016scalable}. In this regard, we need to minimize per-socket memory footprint. Second, accessing many buffers randomly also leads to non-cached memory accesses, which is slower than sequential access to a single buffer~\cite{li2017kv}. Third, event-driven applications use \texttt{epoll} to know which connection is available for send or receive. If the event queue is separated from data queues, each \texttt{recv} operation involves two cache migrations for event and data. In light of this, we need to reduce memory accesses per data transmission.
 
 In addition, during connection setup, we need to create file descriptors, load balance \texttt{connect} requests and allocate buffers. The semantics of these operations require serialized execution. Synchronization in Linux kernel limits socket scalability to multiple cores~\cite{lin2016scalable,han2012megapipe}. Each new connection also involves expensive \texttt{inode} and \texttt{dentry} creation in virtual file system (VFS)~\cite{boyd2010analysis}, which is rarely used. To speedup short-lived connections, connection setup must have high throughput.
 %For data transmission, modern commodity NICs support multiple queues with receive flow steering~\cite{herbertrfs,mellanox}, so connection multiplexing and isolation can be offloaded to the NIC. Our goal is to achieve multi-core scalability for both connection setup and data transmission.

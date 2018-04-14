@@ -89,7 +89,7 @@ During socket initialization, \texttt{socket} creates an unique integer \textit{
 For multi-thread applications, since the FD namespace is shared, we partition the FD namespace to multiple ranges and each thread allocates FD in its range.
 Because per-FD information is local to a process, APIs on socket options are also local.
 
-Next we look at connection setup. The server first \texttt{bind} a socket to an IP and port, where conflicts need to be detected. So \texttt{bind} is non-partitionable when port is specified. To this end, we take the idea of delegation~\cite{roghanchi2017ffwd} and use a dedicated monitor process to avoid mutual exclusion.
+Next we look at connection setup. The server first \texttt{bind} a socket to an IP and port, where conflicts need to be detected. So \texttt{bind} is non-partitionable when port is specified. In light of this, we take the idea of delegation~\cite{roghanchi2017ffwd} and use a dedicated monitor process to avoid mutual exclusion.
 In addition, socket provides \texttt{SO\_REUSEPORT} option. When this option is enabled, multiple processes on one host can \texttt{bind} to the same port and incoming connections are dispatched to the listeners. Nginx~\cite{nginx} uses this option to load balance connections to multiple worker processes. This is why \texttt{connect} is considered non-partitionable. In Linux kernel, clients send connection requests to a \textit{backlog} and listeners compete for incoming connections with mutual exclusion. In our design, monitor process forwards connection requests to listeners in a round-robin order, and the \textit{backlog} is maintained in each listener. If monitor finds that it is the first time for client and listener to communicate, it creates a shared-memory queue for the process pair and sends the credentials to both processes. When a listener \texttt{accept}s a connection, it sends a message to sender via peer-to-peer shared-memory queue and the socket is established. Figure~\ref{fig:conn-setup} shows message flow of connection setup. We can see that connection setup takes three inter-process delays.
 
 Connection close is a peer-to-peer operation because only the peer process needs to be notified. One challenge is when to delete the FD. If FD is deleted immediately after \texttt{close}, a new connection may reuse the FD, while the peer process may not have received the close event and sends data to the wrong connection. To ensure the peer does not use the connection before FD is deleted, we require a handshake between peers.
@@ -105,18 +105,30 @@ Concretely, \texttt{close} is equivalent to \texttt{shutdown} both send and rece
 
 To scale the system with multiple cores, each process should be able to transmit data directly to the peer without notifying monitor. As shown in Table~\ref{tab:socket-api}, we design all APIs in data transmission to be peer-to-peer or local.
 
-The key challenge in decentralized data transmission is multiplexing connections. First, as stated in Sec.~\ref{subsec:challenges}, memory footprint is critical for performance under high concurrency. Linux allocates a queue for each connection, which leads to lots of cache misses due to random access of different queues. Second, event-driven applications use \texttt{epoll} to know which connection is available for send or receive. If the event queue is separated from data queues, each \texttt{recv} operation involves two cache migrations for event and data.
+To reduce memory footprint and improve locality of memory accesses, we design one lockless shared memory queue to multiplex all connections between a pair of processes. Each data item in the queue is marked with its FD. Since we use one queue rather than multiple queues, we save per-socket memory footprint, and random memory access and cache miss are also reduced. Obviously, head-of-line blocking problem would arise. If we use a FIFO queue, the application would deadlock if it receives from a connection other than the head of queue. In this regard, the queue needs to support \textit{picking} a message with a specific FD in the middle of queue. To find a message with such FD, \libipc{} needs to iterate through the items in queue. It is natural to ask whether this queue traversal is efficient.
 
-\libipc designs one lockless shared memory queue for all connections between a pair of processes. Since it reduces random memory access, the cache miss is reduced. For event-driven programming using \texttt{epoll}, each operation involves only one cache migration when receiver pulls the data from the shared memory.
+To answer this question, we look at the access pattern of applications. High performance applications typically use an event-driven programming paradigm. Applications mentioned in Sec.~\ref{subsec:bottleneck} and asynchronous programming frameworks (\textit{e.g.} Boost ASIO, libevent, libev, Go, Erlang, Python \texttt{asyncio} and Node.js) can use Linux \texttt{epoll} to receive events, then process them sequentially. Some frameworks require the programmer to refactor sequential code into an event-driven style, while other frameworks rely on the compiler to maintain light-weight threads or coroutines. Consequently, applications process incoming events in a mostly FIFO order. With the shared queue design in \libipc{}, \texttt{epoll\_wait} returns all items in the queue (in level trigger mode), then the application calls \texttt{recv} from the connections one by one. \libipc{} examines the first item in the queue and returns it to the application. Because both \texttt{epoll\_wait} and \texttt{recv} accesses a same queue, each data transmission involves only one cache migration.
 
-In order to support read/write operation without epoll i.e. not all the messages in the queue is polled by the receiver. We need to enable ``pop'' a message in the middle of the queue. To avoid starvation when all the slots in the queue is used, we need to assign a per-fd slot in case of the receiver blocks on the read operation of that fd. To tackle the variable size of messages, we allocate a dedicated memory pool for the data of the message and only the pointer of the message is stored in the lockless queue. In order to close the connection by receiver while sender is continually transmitting data, our design has a separate ``emergency queue'' to notify the sender the end of the connection.
+There are two remaining problems caused by head-of-line blocking. First, if application does not receive from a FD for a long time, data items of the FD may fill up the queue and starve all other FDs. To avoid starvation, the buffer needs to store at least one byte of data per FD. Accordingly, we design a single byte \textit{overflow slot} per FD. Sender is blocked if the overflow slot is occupied, and only uses overflow slot if the queue is full. Receiver first receives from the overflow slot, then the queue.
 
-Generally, for data transmission. In the shared memory between two processes, \libipc prepares a multiplexed queue for all the connections with ability of popping items in the middle of it, an ``emergency queue'' for instant messages and a memory pool to store data.
+The second problem is to send control messages when the queue is full. For example, in order to close the receive direction while sending data, the shutdown message should not be blocked by unconsumed data in queue. To deliver control messages out-of-band, we design a \textit{emergency queue} alongside each data queue.
+
+%In order to support read/write operation without epoll i.e. not all the messages in the queue is polled by the receiver. We need to enable ``pop'' a message in the middle of the queue. To avoid starvation when all the slots in the queue is used, we need to assign a per-fd slot in case of the receiver blocks on the read operation of that fd. To tackle the variable size of messages, we allocate a dedicated memory pool for the data of the message and only the pointer of the message is stored in the lockless queue. In order to close the connection by receiver while sender is continually transmitting data, our design has a separate ``emergency queue'' to notify the sender the end of the connection.
+
+%Generally, for data transmission. In the shared memory between two processes, \libipc prepares a multiplexed queue for all the connections with ability of popping items in the middle of it, an ``emergency queue'' for instant messages and a memory pool to store data.
 
 
 \subsection{Lockless Shared Memory Queue}
 \label{subsec:lockless-queue}
 
+\begin{figure}[t]
+	\centering
+	\includegraphics[width=0.3\textwidth]{images/fixme}
+	\caption{This figure shows the structure of lockless queue (contains shared memory, 2 local ptr, isvalid flag and isdel flag).}
+	\label{fig:locklessq-structure}
+\end{figure}
+
+Previous section analyzed requirements of the shared-memory queue between a pair of communicating processes.
 
 \begin{itemize}
 	\item requirements: Shared memory, single writer and single reader.
@@ -131,22 +143,17 @@ Generally, for data transmission. In the shared memory between two processes, \l
 	\item mention zero copy
 \end{itemize}
 
-As stated in section \ref{subsubsec:data_trans}, our lockless queue i.e. ring buffer is used for direct data transmission between two processes, and is used for message passing between process and the monitor. To recap, lockless queue in \libipc is used to support one-one connection in shared memory.
+%As stated in section \ref{subsubsec:data_trans}, our lockless queue i.e. ring buffer is used for direct data transmission between two processes, and is used for message passing between process and the monitor. To recap, lockless queue in \libipc is used to support one-one connection in shared memory.
 
-The structure of lockless queue shows in figure \ref{fig:locklessq-structure}. We leverage ring buffer as the data structure of the queue. Each slots of the queue is 16 bytes. Both sender and the receiver have a pointer stored locally. We denote the pointer of sender side as \textit{head}, and the receiver one as \textit{tail}. The sender pushes new items to the location pointed by head and increases the head while the receiver pops items according to its own tail and increases its tail.  In order to know whether the slot pointed by \textit{head} or \textit{tail} is available, we put a \textit{isvalid} flag in each of the slot. When sender pushes the item, the flag is set while when receiver pops the item, the flag is cleared.
+%The structure of lockless queue is shown in Figure~\ref{fig:locklessq-structure}. We leverage ring buffer as the data structure of the queue. Each slots of the queue is 16 bytes. Both sender and the receiver have a pointer stored locally. We denote the pointer of sender side as \textit{head}, and the receiver one as \textit{tail}. The sender pushes new items to the location pointed by head and increases the head while the receiver pops items according to its own tail and increases its tail.  In order to know whether the slot pointed by \textit{head} or \textit{tail} is available, we put a \textit{isvalid} flag in each of the slot. When sender pushes the item, the flag is set while when receiver pops the item, the flag is cleared.
 
-In order to support ``pick'' from the middle of the queue, we add an additional ``isdel'' flag to each slot. When ``pick'' happens, ``isdel'' is set and ``isvalid'' is not changed. When receiver tries to pop an item from ``tail'', it iterate the ring buffer from tail and check ``isdel'' flag. If it is set, ``isvalid'' is set to false and ``tail'' is increased.
-\begin{figure}[t]
-	\centering
-	\includegraphics[width=0.3\textwidth]{images/fixme}
-	\caption{This figure shows the structure of lockless queue (contains shared memory, 2 local ptr, isvalid flag and isdel flag).}
-	\label{fig:locklessq-structure}
-\end{figure}
+%In order to support ``pick'' from the middle of the queue, we add an additional ``isdel'' flag to each slot. When ``pick'' happens, ``isdel'' is set and ``isvalid'' is not changed. When receiver tries to pop an item from ``tail'', it iterate the ring buffer from tail and check ``isdel'' flag. If it is set, ``isvalid'' is set to false and ``tail'' is increased.
 
 
-To support variable size of messages, we allocate a memory pool in shared memory and set the pointer in message queue to the element in memory pool. We divide memory pool to 1KB blocks. The IDs of the available blocks are organized in another queue and are pushed by receiver (Receiver pops the item and releases the memory) and are consumed by sender. If the size of message is larger 1KB, multiple blocks are used and chained as a linked list. By doing so, we could avoid memory fragmentation and reduce the memory management contention between sender and the receiver. 
 
-It is common that the operation of the shared memory is protected by the \textit{memory fence} instruction in order to avoid the reorder caused by out-of-order execution on modern X86 CPU, which has expensive cost since it locks the memory bus. We make the observation that only write may be delayed according to the manual of Intel \cite{sewell2010x86,intel-manual}. By carefully adjusting the order of the instructions and removing \textit{memory fence}, the throughput of lockless queue could achieve 30M per second. 
+%To support variable size of messages, we allocate a memory pool in shared memory and set the pointer in message queue to the element in memory pool. We divide memory pool to 1KB blocks. The IDs of the available blocks are organized in another queue and are pushed by receiver (Receiver pops the item and releases the memory) and are consumed by sender. If the size of message is larger 1KB, multiple blocks are used and chained as a linked list. By doing so, we could avoid memory fragmentation and reduce the memory management contention between sender and the receiver. 
+
+%It is common that the operation of the shared memory is protected by the \textit{memory fence} instruction in order to avoid the reorder caused by out-of-order execution on modern X86 CPU, which has expensive cost since it locks the memory bus. We make the observation that only write may be delayed according to the manual of Intel \cite{sewell2010x86,intel-manual}. By carefully adjusting the order of the instructions and removing \textit{memory fence}, the throughput of lockless queue could achieve 30M per second. 
 
 
 
@@ -155,9 +162,7 @@ It is common that the operation of the shared memory is protected by the \textit
 \label{subsec:fork}
 
 Process fork and thread creation are essential mechanisms to enable parallelism in modern applications. 
-However, as stated in \ref{subsec:challenges}, fork and thread creation makes socket a producer-consumer model. With a traditional mutual exclusion solution, the multi-process scalability of socket is limited.
-
-To this end, we maximize the common-case performance while keeping compatibility with Linux socket semantics.
+However, as stated in \ref{subsec:challenges}, fork and thread creation makes socket a producer-consumer model. With a traditional mutual exclusion solution, the multi-process scalability of socket is limited. Our solution is to maximize the common-case performance while keeping compatibility with Linux socket semantics.
 We make the following observations:
 \begin{enumerate}
 	\item Fork and thread creation are not frequent in high performance applications, compared to connection setup and data transmission.
@@ -254,9 +259,9 @@ Fork \& Close interleaving
 \subsection{Cooperative Multitasking}
 \label{subsec:process-mux}
 
-To minimize context switch, \sys{} runs in user mode and uses cooperative multitasking to multiplex processes on CPU cores. Coordination and delegation based on message passing also requires processes to respond messages promptly. However, processes may execute application code without calling \libipc for a long time or may block on a kernel system call.
+To minimize context switch, \sys{} runs in user mode and uses cooperative multitasking to multiplex processes on CPU cores. Coordination and delegation based on message passing also requires processes to respond messages promptly. However, processes may execute application code without calling \libipc for a long time or may block on a kernel system call. To tackle this issue, message passing initiators first poll the receive queue for a while. If no reply, it sends a Linux \texttt{signal} to the receptor and wake up the process.
 
-To this end, message passing initiators first poll the receive queue for a while. If no reply, it sends a Linux \texttt{signal} to the receptor and wake up the process. The signal handler, registered by \libipc, first determines whether the process is executing application or \libipc code. If in application, the signal handler processes emergent messages immediately, then return control to the application. Otherwise, the signal handler does nothing and \libipc will check emergent messages before returning control to the application. Because \libipc is designed to be fast and non-blocking, message passing initiators will soon receive the response. This signal mechanism is analogous to interrupts in operating systems.
+The signal handler, registered by \libipc, first determines whether the process is executing application or \libipc code. If in application, the signal handler processes emergent messages immediately, then return control to the application. Otherwise, the signal handler does nothing and \libipc will check emergent messages before returning control to the application. Because \libipc is designed to be fast and non-blocking, message passing initiators will soon receive the response. This signal mechanism is analogous to interrupts in operating systems.
 
 
 Monitor detect process death (via control socket SIGHUP) and notify endpoints.
@@ -276,7 +281,7 @@ Blocking operation: sched\_yield.
 
 The main challenge for zero copy is to maintain the semantics of socket API. The sender may write the send buffer after non-blocking \texttt{send}, and the receiver does not know the receive buffer before \texttt{recv}.
 Fortunately, the virtual memory provides a layer of indirection, so we can remap virtual address of a buffer to another physical page, if the data occupies entire 4~KiB pages.
-To this end, we wrap around \texttt{malloc} function and allocate 4~KiB aligned addresses for large allocations, so most buffers will align to page boundary.
+In this regard, we wrap around \texttt{malloc} function and allocate 4~KiB aligned addresses for large allocations, so most buffers will align to page boundary.
 If the size of send message is not a multiple of 4~KiB, the last chunk of data is copied on \texttt{send} and \texttt{recv}.
 
 As shown in Figure~\ref{fig:zerocopy}, for \texttt{send} operation, \libipc{} invokes the kernel to get an encrypted physical address of send buffer and send the address to receiver via user-mode shared-memory queue.
