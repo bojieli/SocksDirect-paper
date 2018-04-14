@@ -201,30 +201,36 @@ Another challenge is that when a receiver should send a takeover request. Each r
 \subsubsection{Fork and Thread Creation}
 \label{subsubsec:fork_fork}
 
-Fork is a procedure that new processes attach to existing connections. Logically, there are four different cases when fork happens for one process:
-\begin{enumerate}
-	\item The process itself is the sender side of the connection and it forks.
-	\item The process itself is the sender of the connection while one of the receiver folks.
-	\item The process itself is the receiver side of the connection and it forks.
-	\item The process itself is the receiver of the connection while one of the sender folks.
-\end{enumerate}
+The first challenge with fork and thread creation is how to identify and isolate parent and child processes. Replacing shared memory queues is essential for isolation between parent and child processes. When the application calls \texttt{fork}, \texttt{clone} or \texttt{pthread\_create}, \libipc{} first generates a secret for pairing, then invokes the corresponding system call. After fork, because the original shared memory is no longer trusted, parent and child independently creates a native Linux socket to the monitor and sends the secret (child inherits parent memory space and knows the secret). The monitor pairs the child process with the parent, and creates new shared memory to replace all inter-process shared-memory queues in both parent and child. Then monitor sends credentials of new queues to parent and child via native Linux sockets. Each peer process also receives credentials for new queues, duplicates per-FD states, then announces fork completion. From then on, parent and child processes have isolated queues to the monitor and peers.
 
-The general process of fork is that after monitor is notified of the fork, it creates shared memory between the newly created process and all the processes which previously have connections with the parent process. The key challenge lies in the fork is that how to deal with the existing data in the connection to guarantee the order requirements.
+A harder challenge comes from socket connection sharing between parent and child processes. Upon fork, each connection needs to add a sender to the sending direction and a receiver to the receiving direction. The challenging part is how to handle the remaining data in the original send and receive queues.
 
-For the cases 2 and 3, we could adopt the idea of ``takeover message'' as stated in Sec.~\ref{subsubsec:fork_rdwr}. Each of the forked new process creates a new queue for its old connection. When the receiver side call read for the connection, a ``takeover message'' is emit and the sender designate the new process as the exclusive receiver and poll all the data in the old queue to the receiver which sends ``takeover message''.
+%For each unidirectional queue, we discuss the behavior of related processes in four cases:
+%\begin{enumerate}
+%	\item A sender process itself forks.
+%	\item A receiver of a sender process forks.
+%	\item A receiver process itself forks.
+%	\item A sender of a receiver process forks.
+%\end{enumerate}
 
-However, It is more complicated for case 1 and case 4. We cannot leverage the ``takeover message'' trick since the two senders may emit data in parallel and we cannot guarantee all the data sent prior to fork is consumed before to that following the fork by new processes. It is not efficient to block all the senders before old data is consumed either.
+%The general process of fork is that after monitor is notified of the fork, it creates shared memory between the newly created process and all the processes which previously have connections with the parent process. The key challenge lies in the fork is that how to deal with the existing data in the connection to guarantee the order requirements.
 
-Our solution is to when the sender side forks, we preserve the old shared memory and create two new shared memory for each receiver and connection them to the new sender processes separately. All the receiver side is notified of the folk and keep a tree data structure of all the shared memories.The two new sender transmit all the new messages to the newly created shared memory separately. When the receiver tries to retrieve data, it first try the old shared memory, if it is empty, it will remove the old shared memory and promote the child of this memory for the read request. 
+First we look at the scenario where a receiver forks. Recall that only one receiver has exclusive access to a FD, as stated in Sec.~\ref{subsubsec:fork_rdwr}. The child process does not have receive permission after fork. The parent process inherits receive permission before fork. When a sender receives fork notification of its peer, it copies all data from original queue to new queue of the parent process, before announcing fork completion.
 
-Things become much more complicated when cases 1,4 happens after cases 2,3 happening. After receiver forks, the unique sender is responsible for receiving ``takeover message'' and resend the data to new receivers. However, if sender forks following the receiver forks, according to the methods we mentioned above, there is no sender responsible for processing ``takeover message''. Our solution is that we require the receivers to poll the data from the old shared memory queue and compete for data. Since this case rarely happens, the performance of the overall design is not affected.
+Next we look at a more complicated case where a sender forks. Senders are designed to emit data in parallel via different queues. We need to guarantee that all the data sent prior to \texttt{fork} is consumed before the data sent after \texttt{fork}. It is inefficient to block the senders until remaining data in the queue is consumed.
+Our solution is to detach the parent's shared memory queue and create two new queues for senders, one for parent and one for child. Both parent and child senders can transmit data to its new queue in parallel. When the receiver is notified of the fork, it keeps track of the original queue and consumes all data in it before activating new queues. Note that the parent or child may fork again before the original queue is drained. With this in mind, the receiver maintains a forest data structure to track dependency of queues. The root of each tree in the forest is the oldest queue to receive from. Each non-leaf node has two children indicating the new queue of parent and child processes. If a non-leaf root queue becomes empty, it will be removed, and the two children queues will be promoted to roots.
+
+There is one subtle issue remaining. After a sender forks, the receivers still need the takeover mechanism to arbitrate remaining messages in the original shared memory queue. However, both parent and child senders have dropped the original queue and will not respond to takeover requests. A similar situation occurs when a sender process dies. Our solution is to let the receivers use atomic operations to compete for remaining data in the original queue. Since this case rarely happens, the performance of the overall design is not affected.
+
+
+%Things become much more complicated when cases 1,4 happens after cases 2,3 happening. After receiver forks, the unique sender is responsible for receiving ``takeover message'' and resend the data to new receivers. However, if sender forks following the receiver forks, according to the methods we mentioned above, there is no sender responsible for processing ``takeover message''. Our solution is that we require the receivers to poll the data from the old shared memory queue and compete for data. Since this case rarely happens, the performance of the overall design is not affected.
 
 \subsubsection{Connection Creation}
 \label{subsubsec:fork_new}
 
-A connection created after \texttt{fork} cannot be accessed by its parent or child process, while a connection created by a thread can be accessed by all threads in the same process. Each connection is identified by a file descriptor, which is an integer assigned by \libipc. To minimize state sharing, \libipc assigns a unique file descriptor space to each thread, so each thread can allocate file descriptors locally and determine which thread a file descriptor belongs to. During connection creation, \libipc does not share the file descriptor eagerly with other threads, because most threads in existing applications do not use connections created by other threads.
+A connection created after \texttt{fork} cannot be accessed by its sibling process, while a connection created by a thread can be accessed by all threads in the same process. To minimize state sharing, \libipc assigns a unique \textit{file descriptor} (FD) space to each thread, so each thread can allocate FDs locally and determine which thread a FD belongs to. During connection creation, \libipc does not share the FD eagerly with other threads, because most threads in existing applications do not use connections created by other threads.
 
-If the application accesses a thread-local file descriptor, \libipc processes it locally. Otherwise, \libipc sends a message to the owner thread and requests sharing the file descriptor. This procedure is exactly the same as sharing existing connections during thread creation (Sec.~\ref{subsubsec:fork_fork}). The sharing procedure needs only once per connection and thread. Sharing existing connections eagerly during thread creation is an optimization. First, children threads are more likely to use existing connections than siblings. Second, batch processing improves performance.
+If the application accesses a thread-local FD, \libipc processes it locally. Otherwise, \libipc sends a message to the owner thread and requests sharing the FD. This procedure is exactly the same as sharing existing connections during thread creation (Sec.~\ref{subsubsec:fork_fork}). The sharing procedure needs only once per connection and thread. Sharing existing connections eagerly during thread creation is an optimization. First, children threads are more likely to use existing connections than siblings. Second, batch processing improves performance.
 
 \subsubsection{Connection Close}
 \label{subsubsec:fork_close}
@@ -258,6 +264,7 @@ The signal handler, registered by \libipc, first determines whether the process 
 
 
 Monitor detect process death (via control socket SIGHUP) and notify endpoints.
+TCP connection between each process and the monitor in Sec.~\ref{subsubsec:fork_fork}.
 
 Blocking operation: sched\_yield.
 
