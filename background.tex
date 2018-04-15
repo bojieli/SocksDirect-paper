@@ -55,48 +55,50 @@ Scalability analysis of Linux system calls~\cite{boyd2010analysis} suggests that
 
 Socket is the performance bottleneck for IPC in today’s cloud applications 
 
-Summarize performance impairments/requirements here. 
 
-Low latency 
+Performance requirements for intra-server IPC, inter-server RDMA and inter-server TCP/IP:
 
-Low CPU overhead 
-
-Scalable to multiple cores 
-
-Scalable to many connections 
+\begin{enumerate}
+\item Low latency 
+\item Low CPU overhead 
+\item Scalable to multiple cores 
+\item Scalable to many connections 
+\end{enumerate}
 
 \subsection{Alternative Approaches}
 \label{subsec:related}
 
-Kernel socket optimization 
+Kernel socket optimization (IX, FastSocket) 
 
+\begin{itemize}
+\item
 Violate goal 1: inter-core interrupts for IPC 
-
-Violate goal 2: context switch overhead, +latency for syscall batching 
-
+\item
+Violate goal 2: context switch overhead, +latency for syscall batching, still need memory copy 
+\item 
 Violate goal 4: Large memory footprint for many connections 
+\end{itemize}
 
 User-space stack 
 
-New abstraction (RDMA, lwip + DPDK etc.) 
+\begin{itemize}
+\item New abstraction (RDMA, lwip + DPDK etc.) 
+\begin{itemize}
+	\item Some works violate goal 3: data transmission via centralized virtual switch 
+\end{itemize}
+\item Compatible with socket (libvma, LOS etc.) 
+\begin{itemize}
+	\item Violate goal 2: memory copy 
+	\item Violate goal 3: thread synchronization for multi-thread applications 
+\end{itemize}
+\item Common problems: 
+\begin{itemize}
+	\item Designed for networking, does not support or optimize for IPC communication inside the same server 
+	\item Violate goal 4: Not optimized for many connections 
+\end{itemize}
+\end{itemize}
 
-Some works violate goal 3: data transmission via centralized virtual switch 
 
-Compatible with socket (libvma etc.) 
-
-Violate goal 2: memory copy 
-
-Violate goal 3: thread synchronization for multi-thread applications 
-
-Common problems: 
-
-Designed for networking, does not support or optimize for inter-process communication 
-
-Violate goal 4: Not optimized for many connections 
-
-List several related work on fast sockets. They are not compatible with existing applications. Many works propose to use user-level TCP/IP stack \RED{(cite)} or RDMA \RED{(cite)}...
-
-The Multikernel design: replaces locks in kernel with message passing, but does not remove context switch.
 
 
 \subsection{Challenges for High Performance Socket}
