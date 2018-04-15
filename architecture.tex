@@ -1,12 +1,21 @@
 \section{Architecture}
 \label{sec:architecture}
 
+
+\begin{figure}[t]
+	\centering
+	\includegraphics[width=0.3\textwidth]{images/fixme}
+	\caption{Architecture of \sys{}.}
+	\label{fig:architecture}
+\end{figure}
+
+
 To remove the overhead of context switch and centralized coordination while preserving the semantics and isolation of Linux system calls, we rethink the OS architecture and propose four design principles:
 
 \textbf{Performance-critical OS functions run in user-mode library.}
 Inspired by Library Operating System~\RED{(cite)} and user-mode network stacks~\RED{(cite)}, we move most OS functions from the kernel to user mode, \textit{i.e.}, file system and network sockets. We leverage multiple queues in contemporary NICs and NVMe SSDs to enable user-space direct access to network and storage. The kernel is still responsible for process creation, scheduling, virtual memory and device management, but no longer on the critical path of performance.
 
-To maintain compatibility with existing Linux applications, we design a user-mode library \libipc as a drop-in replacement of the system call wrappers in the GNU C library (glibc). \libipc implements file system and network socket functions in user mode, and adds a wrapper to other system calls to track process creation and memory allocation.
+To maintain compatibility with existing Linux applications, we design a user-mode library \libipc as a drop-in replacement of the system call wrappers in the GNU C library (glibc). \libipc implements file system and network socket functions in user mode, and adds a wrapper to other system calls to track process creation and memory allocation. Figure~\ref{fig:architecture} shows the architecture of \sys{}.
 
 \textbf{Processes as a peer-to-peer message passing system.}
 For multi-core and multi-server scalability, we use message passing for inter-process communication and minimize shared memory writes, thus avoiding synchronization. We categorize Linux socket operations into local, peer-to-peer and non-partitionable ones (Sec.\ref{subsec:socket-api}). We say an operation is \textit{local} if it only changes states local to a process (\textit{e.g.} assigning file descriptors). An operation is \textit{peer-to-peer} if the states are written by one processes and read by another process (\textit{e.g.} sending a message). We develop a high performance lockless shared memory queue to enable efficient peer-to-peer communication (Sec.\ref{subsec:lockless-queue}). Local and peer-to-peer operations are naturally scalable because their states are partitionable~\cite{partitionable}. For \textit{non-partitionable} operations (\textit{e.g.} load balancing new connections to listening processes), \libipc revisits the idea of \textit{monitor process}~\cite{hoare1974monitors} and delegates coordination to a monitor process. Delegation not only has higher throughput than synchronization~\cite{roghanchi2017ffwd}, but also ensures security and fairness.
@@ -16,10 +25,10 @@ For multi-core and multi-server scalability, we use message passing for inter-pr
 \textbf{Design for the common and prepare for the worst.}
 As stated in Sec.\ref{subsec:challenges}, sockets can be shared among threads and processes. To ensure correctness for concurrent access, mutual exclusion would sacrifice the common-case one-to-one communication performance. To avoid such synchronization overhead, \libipc creates a queue between each pair of sender and receiver processes, and ensures receive ordering and liveness in all scenarios (Sec.\ref{subsec:fork}).
 
-We use cooperative multitasking and polling to reduce inter-core interrupts, signaling and scheduling costs in the kernel. When all processes are busy and responsive to incoming messages, the system would achieve high performance. However, we should ensure worst-case liveness of the system. To reduce polling overhead, \libipc puts the process to sleep after being idle for some time. \libipc uses Linux signals to interrupt long-running application code and wake up sleeping or blocked processes. When a process with \libipc is dead, the monitor process detects and garbage collects it (Sec.\ref{subsec:process-mux}).
+We use cooperative multitasking and polling to reduce inter-core interrupts, signaling and scheduling costs in the kernel. When all processes are busy and responsive to incoming messages, the system would achieve high performance. However, we should ensure worst-case liveness of the system. To reduce polling overhead, \libipc puts the process to sleep after being idle for some time. \libipc uses Linux signals to interrupt long-running application code and wake up sleeping or blocked processes. When a process with \libipc is dead, the monitor detects and garbage collects it (Sec.\ref{subsec:process-mux}).
 
 \textbf{Utilize hardware for performance.}
-To achieve zero-copy for sending and receiving large buffers inside a same server, we utilize the virtual memory in CPU and modify page mapping on send and receive (Sec.\ref{subsec:zerocopy}). For inter-server communication, we first check if the peer supports RDMA. If so, to achieve zero-copy and kernel-bypass for inter-server communication, \libipc uses one-sided RDMA~\cite{mitchell2013using} to offload the network stack to NIC hardware. Otherwise, \libipc uses libvma~\cite{libvma} to implement socket and TCP in user-space, while offload connection multiplexing to the NIC (Sec.\ref{sec:rdma}). For storage, \libipc utilizes SPDK~\cite{spdk} to create a hardware queue for each process (Sec.\ref{sec:implementation}).
+To achieve zero-copy for sending and receiving large buffers inside a same server, we utilize the virtual memory of CPU and modify page mapping on \texttt{memcpy}, \texttt{send} and \texttt{recv} (Sec.\ref{subsec:zerocopy}). For inter-server communication between RDMA capable servers, \libipc{} uses one-sided RDMA~\cite{mitchell2013using,kaminsky2016design} to offload the network stack to NIC hardware (Sec.\ref{subsec:rdma}). To communicate with standard TCP/IP endpoints, we use a light-weight user-space TCP/IP stack~\cite{dunkels2001design}, while leverage connection multiplexing and scatter-gather of the NIC (Sec.\ref{subsec:lwip}). In all three cases above, \libipc{} achieves zero copy and kernel bypass. %For storage, \libipc utilizes SPDK~\cite{spdk} to create a hardware queue for each process (Sec.\ref{sec:implementation}).
 
 
 %\RED{Why do we take the idea of Library OS? Every design choice should have rationale, otherwise the paper would look like a technical report.}
