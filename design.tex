@@ -44,7 +44,7 @@ The key to socket scalability is to minimize memory sharing by making communicat
 	getsockname  & Local &
 	\textbf{\textit{close}, shutdown} & P2P &
 	\textbf{\textit{memcpy}} & Local &
-	\textit{exit} & NoPart \\
+	\textit{exit} & P2P \\
 	\hline
 	\textbf{\textit{malloc}} & Local &
 	getpeername & P2P &

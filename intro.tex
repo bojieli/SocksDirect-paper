@@ -1,2 +1,13 @@
 \section{Introduction}
 \label{sec:intro}
+
+Most applications use the socket API for inter-process communication inside a same server and across data center network, in addition to serving Internet users. The overhead of Linux socket becomes salient given the rapid growth of network speed and number of CPU cores per server. We benchmark communication intensive applications (\textit{e.g.} Nginx and memcached) and find that 70\% to 90\% of CPU time is spent in the OS kernel. When more CPU cores are utilized, they even spend a larger portion of time in the kernel~\cite{boyd2010analysis}. The latency is also a problem. The round-trip time (RTT) between two RDMA servers can be as low as 2~$\mu$s~\cite{kaminsky2016design}, while TCP socket RTT between two processes inside a same server is above 10~$\mu$s.
+
+There has been extensive work aiming to release the bare metal performance of multi-core CPU and data center network. One line of research propose new abstractions for inter-process and inter-server communication. Most of them use shared memory for processes that communicate within a server, and design user-space network stacks or leverage RDMA for inter-server communication. Although they demonstrate high performance, existing socket applications need modifications to use the new abstractions. Furthermore, these stacks are not optimized for a large number of concurrent or short-lived connections, which is an important workload to serve Internet users.
+
+Another line of research optimize the kernel code or design user-space compatible stacks for higher socket performance. The kernel optimization approach does not eliminate context switch overhead, while system call batching introduces extra latency. User-space stacks are mostly designed for inter-server connections. With the trend of multi-cores and many-cores, we expect multiple applications or containers to be hosted on each server, where inter-process communication (IPC) inside server has more significance.
+
+We design \sys{}, a high performance socket architecture that is compatible with existing applications, while scalable to many cores and connections. The semantics of socket was designed for networking and IPC in millisecond scale, when memory copy, context switch, synchronization, cache miss and cache migration were all considered inexpensive~\cite{barroso2017attack}. An efficient socket architecture for microsecond-scale networking and IPC requires minimizing all overheads above, while preserving the semantics.
+
+
+The major component of \sys{} is a user-space library \libipc{} that intercepts Linux socket APIs and implements socket operations. Similar to other user-space socket designs, accelerating socket is as simple as loading \libipc{} for existing applications.
