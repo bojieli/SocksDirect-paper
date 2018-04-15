@@ -93,7 +93,7 @@ Next we look at connection setup. The server first \texttt{bind} a socket to an 
 In addition, socket provides \texttt{SO\_REUSEPORT} option. When this option is enabled, multiple processes on one host can \texttt{bind} to the same port and incoming connections are dispatched to the listeners. Nginx~\cite{nginx} uses this option to load balance connections to multiple worker processes. This is why \texttt{connect} is considered non-partitionable. In Linux kernel, clients send connection requests to a \textit{backlog} and listeners compete for incoming connections with mutual exclusion. In our design, monitor process forwards connection requests to listeners in a round-robin order, and the \textit{backlog} is maintained in each listener. If monitor finds that it is the first time for client and listener to communicate, it creates a shared-memory queue for the process pair and sends the credentials to both processes. When a listener \texttt{accept}s a connection, it sends a message to sender via peer-to-peer shared-memory queue and the socket is established. Figure~\ref{fig:conn-setup} shows message flow of connection setup. We can see that connection setup takes three inter-process delays.
 
 Connection close is a peer-to-peer operation because only the peer process needs to be notified. One challenge is when to delete the FD. If FD is deleted immediately after \texttt{close}, a new connection may reuse the FD, while the peer process may not have received the close event and sends data to the wrong connection. To ensure the peer does not use the connection before FD is deleted, we require a handshake between peers.
-Concretely, \texttt{close} is equivalent to \texttt{shutdown} both send and receive directions. When the application shuts down a direction, it sends a \textit{shutdown message} to the peer. Then the peer shuts down the corresponding direction and responds with a shutdown message. A process deletes a FD when it has received shutdown messages in both directions. Figure~\ref{fig:conn-close} shows message flow of connection close.
+Because socket is bidirectional, \texttt{close} is equivalent to \texttt{shutdown} on both send and receive directions. When the application shuts down a direction, it sends a \textit{shutdown message} to the peer. Then the peer shuts down the corresponding direction and responds with a shutdown message. A process deletes a FD when it has received shutdown messages in both directions. Figure~\ref{fig:conn-close} shows message flow of connection close.
 
 %In order to achieve high scalability, we separate scalable operations to different processes. To avoid the overhead of contention, \libipc enable the file descriptor allocation by individual process and when a connection is setup, the other peer of the connection gets notified of the file descriptor number by message passing. Since we treat different threads in one process as different processes, we allocate file descriptor of different ranges to each of them to avoid collision. Since file descriptor is managed separately by each process, it is possible that a file descriptor is reused after the connection is closed. Our solution is that resources of a file descriptor is not released until an ACK is received for the close operation.
 
@@ -235,25 +235,18 @@ If the application accesses a thread-local FD, \libipc processes it locally. Oth
 \subsubsection{Connection Close}
 \label{subsubsec:fork_close}
 
-Close is the operation that all of the processes leave the connection. The synchronization is  especially challenging since all the processes are run in parallel. One challenge lies in file descriptors are managed by decentralized processes and are possibly reused. One process close a connection while the others are doing compute intensive tasks is a case. It is possible that the file descriptor of the old process is reused and a new connection is setup with the same file descriptor. The other process may notice the close of the old connection and also call close on its own side, which lead to the new connection setup by the previous process closed due to the match of same file descriptor. 
+%Close is the operation that all of the processes leave the connection. The synchronization is  especially challenging since all the processes are run in parallel. One challenge lies in file descriptors are managed by decentralized processes and are possibly reused. One process close a connection while the others are doing compute intensive tasks is a case. It is possible that the file descriptor of the old process is reused and a new connection is setup with the same file descriptor. The other process may notice the close of the old connection and also call close on its own side, which lead to the new connection setup by the previous process closed due to the match of same file descriptor. 
 
-To satisfy the synchronization requirements, the close function call is all completed by message passing. The caller of close need to wait for ACK from all the other peers before release resources. i.e. the status of the connection.
+%To satisfy the synchronization requirements, the close function call is all completed by message passing. The caller of close need to wait for ACK from all the other peers before release resources. i.e. the status of the connection.
 
-Another challenge lies in the close of a connection is that close is a broadcast operation while send/receive is sent to a specific process. Besides, fork and close are immutable operations while the scalability requirements of the system impose the constraint that all the operations run asynchronously. As a result, a rule to determine the partial order is required.
+When a process calls \texttt{close} or \texttt{shutdown}, all its peers cannot send or receive to the process. In this sense, closing a shared socket is a multicast operation to notify the peers. A challenge arise when \texttt{close} is interleaved with \texttt{fork}. Since \texttt{fork} and \texttt{close} do not commute~\cite{clements2015scalable}, we need a rule to determine their partial order. We make the choice that the ordering is determined by the initiator of \texttt{close}. If a process calls \texttt{close} before receiving fork notification, it will piggyback close notification with fork completion to both parent and child processes.
 
-In \libipc, we make the choice that the order of fork and close is determined at the start point of the fork operation and the end point (after receiving all the ACKs). By making this choice, when a process waiting fork close ACK encounters fork message, it could send a separate close request to newly created process, which guarantees all the processes closed.
-  
-Key point: Coordination in shared socket.
+Another challenge is caused by FD reuse after close. As stated in Sec.~\ref{subsec:socket-api}, a FD is deleted after receiving shutdown message of both directions. With multiple processes sharing a connection, after one process calls \texttt{close}, others can still use the connection. Consequently, a process deletes a FD after receiving shutdown messages of both directions from all peers of the FD.
 
-Clock pointer (simple)
+%Another challenge lies in the close of a connection is that close is a broadcast operation while send/receive is sent to a specific process. Besides, fork and close are immutable operations while the scalability requirements of the system impose the constraint that all the operations run asynchronously. As a result, a rule to determine the partial order is required.
 
-Takeover (compare with \ref{subsec:socket-api})
+%In \libipc, we make the choice that the order of fork and close is determined at the start point of the fork operation and the end point (after receiving all the ACKs). By making this choice, when a process waiting fork close ACK encounters fork message, it could send a separate close request to newly created process, which guarantees all the processes closed.
 
-Read Lock
-
-Tree
-
-Fork \& Close interleaving
 
 \subsection{Cooperative Multitasking}
 \label{subsec:process-mux}
