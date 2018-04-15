@@ -9,7 +9,7 @@ Another line of research optimize the kernel code or design user-space compatibl
 
 We design \sys{}, a high performance socket architecture that is compatible with existing applications, while scalable to many cores and connections. The semantics of socket was designed for networking and IPC in millisecond scale, when memory copy, context switch, synchronization, cache miss and cache migration were all considered inexpensive~\cite{barroso2017attack}. An efficient socket architecture for microsecond-scale networking and IPC requires minimizing all overheads above, while preserving the semantics.
 
-The key to multi-core scalability is avoiding synchronization and state sharing. We regard processes as a peer-to-peer system that uses message passing for IPC. Across 49 
+The key to multi-core scalability is avoiding synchronization and state sharing. We regard processes as a peer-to-peer system that uses message passing for IPC. Each thread is regarded as a separate process. We further minimize message passing by partitioning socket states to each process. ...
 
 Several scalability challenges come from semantics of socket. First, a connection is shared by processes and threads after \texttt{fork} and thread creation. This multi-producer and multi-consumer FIFO model. 
 

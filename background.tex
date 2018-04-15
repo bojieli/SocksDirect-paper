@@ -53,6 +53,47 @@ For intra-server transmission, data is copied three times: from the send applica
 Scalability analysis of Linux system calls~\cite{boyd2010analysis} suggests that many socket operations are not commutable. The Linux kernel needs to acquire global locks for socket connection setup and a per-socket lock for each socket operation. The synchronization overhead limits scalability of Linux socket.
 
 
+Socket is the performance bottleneck for IPC in today’s cloud applications 
+
+Summarize performance impairments/requirements here. 
+
+Low latency 
+
+Low CPU overhead 
+
+Scalable to multiple cores 
+
+Scalable to many connections 
+
+\subsection{Alternative Approaches}
+\label{subsec:related}
+
+Kernel socket optimization 
+
+Violate goal 1: inter-core interrupts for IPC 
+
+Violate goal 2: context switch overhead, +latency for syscall batching 
+
+Violate goal 4: Large memory footprint for many connections 
+
+User-space stack 
+
+New abstraction (RDMA, lwip + DPDK etc.) 
+
+Some works violate goal 3: data transmission via centralized virtual switch 
+
+Compatible with socket (libvma etc.) 
+
+Violate goal 2: memory copy 
+
+Violate goal 3: thread synchronization for multi-thread applications 
+
+Common problems: 
+
+Designed for networking, does not support or optimize for inter-process communication 
+
+Violate goal 4: Not optimized for many connections 
+
 List several related work on fast sockets. They are not compatible with existing applications. Many works propose to use user-level TCP/IP stack \RED{(cite)} or RDMA \RED{(cite)}...
 
 The Multikernel design: replaces locks in kernel with message passing, but does not remove context switch.

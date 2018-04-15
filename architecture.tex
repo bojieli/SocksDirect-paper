@@ -2,6 +2,66 @@
 \label{sec:architecture}
 
 
+\begin{table*}[t]
+	\centering
+	\begin{tabular}{ll|ll|ll|ll}
+		\hline
+		\multicolumn{2}{c|}{Initialization} &
+		\multicolumn{2}{c|}{Connection Mgmt} &
+		\multicolumn{2}{c|}{Data Transmission} &
+		\multicolumn{2}{c}{Process Mgmt} \\
+		\hline
+		API & Cat. &
+		API & Cat. &
+		API & Cat. &
+		API & Cat. \\
+		\hline
+		\hline
+		\textbf{socket} & Local &
+		\textbf{connect} & NoPart &
+		\textbf{send(to,(m)msg)} & P2P-NB &
+		\textit{(v)fork} & NoPart \\
+		\hline
+		bind & NoPart &
+		\textbf{accept(4)} & P2P-B &
+		\textbf{recv(from,(m)msg)} & $\approx$Local &
+		\textit{pthread\_create} & NoPart \\
+		\hline
+		listen & Local &
+		\textbf{\textit{fcntl, ioctl}} & Local &
+		\textbf{\textit{write(v)}} & P2P-NB &
+		\textit{clone} & NoPart \\
+		\hline
+		socketpair & Local &
+		\textbf{(get,set)sockopt} & Local &
+		\textbf{\textit{read(v)}} & $\approx$Local &
+		\textit{execve} & NoPart \\
+		\hline
+		getsockname  & Local &
+		\textbf{\textit{close}, shutdown} & P2P-NB &
+		\textbf{\textit{memcpy}} & Local &
+		\textit{exit} & P2P-NB \\
+		\hline
+		\textbf{\textit{malloc}} & Local &
+		getpeername & Local &
+		\textit{(p)select} & $\approx$Local &
+		\textit{sleep} & P2P-NB \\
+		\hline
+		\textbf{\textit{realloc}} & Local &
+		\textit{dup(2)} & P2P-NB &
+		\textit{(p)poll} & $\approx$Local &
+		\textit{daemon} & P2P-NB \\
+		\hline
+		\textit{epoll\_create} & Local &
+		\textbf{\textit{epoll\_ctl}} & Local &
+		\textbf{\textit{epoll\_(p)wait}} & $\approx$Local &
+		\textit{sigaction} & Local \\
+		\hline
+	\end{tabular}
+	\caption{Linux APIs that are related to socket and intercepted by \libipc{}. Categories include local, mostly local ($\approx$Local), peer-to-peer non-blocking (P2P-NB), peer-to-peer blocking wait (P2P-B) and non-partitionable (NoPart). APIs in \textit{italic} indicate usages more than socket. APIs in \textbf{bold} are called more frequently than others.}
+	\label{tab:socket-api}
+\end{table*}
+
 \begin{figure}[t]
 	\centering
 	\includegraphics[width=0.3\textwidth]{images/fixme}
@@ -18,7 +78,7 @@ Inspired by Library Operating System~\RED{(cite)} and user-mode network stacks~\
 To maintain compatibility with existing Linux applications, we design a user-mode library \libipc as a drop-in replacement of the system call wrappers in the GNU C library (glibc). \libipc implements file system and network socket functions in user mode, and adds a wrapper to other system calls to track process creation and memory allocation. Figure~\ref{fig:architecture} shows the architecture of \sys{}.
 
 \textbf{Processes as a peer-to-peer message passing system.}
-For multi-core and multi-server scalability, we use message passing for inter-process communication and minimize shared memory writes, thus avoiding synchronization. We categorize Linux socket operations into local, peer-to-peer and non-partitionable ones (Sec.\ref{subsec:socket-api}). We say an operation is \textit{local} if it only changes states local to a process (\textit{e.g.} assigning file descriptors). An operation is \textit{peer-to-peer} if the states are written by one processes and read by another process (\textit{e.g.} sending a message). We develop a high performance lockless shared memory queue to enable efficient peer-to-peer communication (Sec.\ref{subsec:lockless-queue}). Local and peer-to-peer operations are naturally scalable because their states are partitionable~\cite{partitionable}. For \textit{non-partitionable} operations (\textit{e.g.} load balancing new connections to listening processes), \libipc revisits the idea of \textit{monitor process}~\cite{hoare1974monitors} and delegates coordination to a monitor process. Delegation not only has higher throughput than synchronization~\cite{roghanchi2017ffwd}, but also ensures security and fairness.
+For multi-core and multi-server scalability, we use message passing for inter-process communication and minimize shared memory writes, thus avoiding synchronization. In Table~\ref{tab:socket-api}, we categorize Linux socket operations into local, peer-to-peer and non-partitionable ones. We say an operation is \textit{local} if it only changes states local to a process (\textit{e.g.} assigning file descriptors). An operation is \textit{peer-to-peer} if the states are written by one processes and read by another process (\textit{e.g.} sending a message). We develop a high performance lockless shared memory queue to enable efficient peer-to-peer communication (Sec.\ref{subsec:lockless-queue}). Some peer-to-peer operations require blocking to wait for response from the peer, while others can return after a non-blocking write to the inter-process queue. We design to minimize blocking wait. Local and peer-to-peer operations are naturally scalable because their states are partitionable~\cite{partitionable}. For \textit{non-partitionable} operations (\textit{e.g.} load balancing new connections to listening processes), \libipc revisits the idea of \textit{monitor process}~\cite{hoare1974monitors} and delegates coordination to a monitor process. Delegation not only has higher throughput than synchronization~\cite{roghanchi2017ffwd}, but also ensures security and fairness.
 
 %We develop a high performance lockless shared memory queue  to enable two application processes or one application process and the monitor process to communicate with each other directly. The Linux kernel provides memory isolation among different shared-memory queues. To reduce memory footprint and polling overhead, all socket connections between two processes are multiplexed through one lockless queue. In most cases, event polling and notifications are done locally (Sec.\ref{subsec:epoll}). As a result, only process initialization and connection setup are coordinated by the monitor.
 

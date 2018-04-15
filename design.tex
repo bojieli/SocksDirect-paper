@@ -6,67 +6,7 @@
 
 The key to socket scalability is to minimize memory sharing by making communications explicit via message passing. Because multiple threads in a process share memory space, we treat each thread as a separated process and use thread-specific storage to save states in \libipc. In the following text, unless explicitly mentioned, we refer to a ``process or thread'' as a ``process''.
 
-\begin{table*}[t]
-\centering
-\begin{tabular}{ll|ll|ll|ll}
-	\hline
-	\multicolumn{2}{c|}{Initialization} &
-	\multicolumn{2}{c|}{Connection Mgmt} &
-	\multicolumn{2}{c|}{Data Transmission} &
-	\multicolumn{2}{c}{Process Mgmt} \\
-	\hline
-	API & Cat. &
-	API & Cat. &
-	API & Cat. &
-	API & Cat. \\
-	\hline
-	\hline
-	\textbf{socket} & Local &
-	\textbf{connect} & NoPart &
-	\textbf{send(to,(m)msg)} & P2P &
-	\textit{(v)fork} & NoPart \\
-	\hline
-	bind & NoPart &
-	\textbf{accept(4)} & P2P &
-	\textbf{recv(from,(m)msg)} & P2P &
-	\textit{pthread\_create} & NoPart \\
-	\hline
-    listen & Local &
-    \textbf{\textit{fcntl, ioctl}} & Local &
-	\textbf{\textit{write(v)}} & P2P &
- 	\textit{clone} & NoPart \\
-	\hline
-	socketpair & Local &
-	\textbf{(get,set)sockopt} & Local &
-	\textbf{\textit{read(v)}} & P2P &
- 	\textit{execve} & NoPart \\
-	\hline
-	getsockname  & Local &
-	\textbf{\textit{close}, shutdown} & P2P &
-	\textbf{\textit{memcpy}} & Local &
-	\textit{exit} & P2P \\
-	\hline
-	\textbf{\textit{malloc}} & Local &
-	getpeername & P2P &
-	\textit{(p)select} & Local &
-	\textit{sleep} & P2P \\
-	\hline
-	\textbf{\textit{realloc}} & Local &
-	\textit{dup(2)} & P2P &
-	\textit{(p)poll} & Local &
-	\textit{daemon} & P2P \\
-	\hline
-	\textit{epoll\_create} & Local &
-	\textbf{\textit{epoll\_ctl}} & Local &
-	\textbf{\textit{epoll\_(p)wait}} & Local &
-	\textit{sigaction} & Local \\
-	\hline
-\end{tabular}
-\caption{Local, peer-to-peer (P2P) and non-partitionable (NoPart) Linux APIs that are related to socket and intercepted by \libipc{}. APIs in \textit{italic} indicate usages more than socket. APIs in \textbf{bold} are called more frequently than others.}
-\label{tab:socket-api}
-\end{table*}
-
-In the following, we will analyze Linux socket APIs in Table~\ref{tab:socket-api} and design a scalable socket architecture.
+%In the following, we will analyze Linux socket APIs in Table~\ref{tab:socket-api} and design a scalable socket architecture.
 
 \subsubsection{Connection Management}
 \label{subsubsec:connection_management}
