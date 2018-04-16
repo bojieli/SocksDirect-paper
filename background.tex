@@ -68,6 +68,43 @@ Performance requirements for intra-server IPC, inter-server RDMA and inter-serve
 \subsection{Alternative Approaches}
 \label{subsec:related}
 
+
+\begin{table*}[t]
+	\centering
+\scalebox{0.9}{
+	\begin{tabular}{l|ccc|ccc|ccc|}
+		\hline
+			& \multicolumn{3}{c|}{Data-plane OS} & \multicolumn{3}{c|}{Socket-like API} & \multicolumn{3}{c|}{Socket Compatible} \\
+		\hline
+		 	& Arrakis & IX & FreeFlow & MegaPipe & netmap & StackMap & FastSocket & libvma & SocksDirect \\
+		\hline
+		\hline
+		Kernel Bypass & \yes &  & \yes & & \yes & \yes & & \yes & \yes \\
+		\hline
+		Zero Copy & \yes & \yes & \yes & \yes & & & & & \yes \\
+		\hline
+		Low Latency & \yes & \yes & \yes & \yes & \yes & \yes & & \yes & \yes \\
+		\hline
+		\hline
+		Multi-core Scalability & \yes & \yes & \yes & \yes & \yes & \yes & \yes & & \yes \\
+		\hline
+		Connection Scalability & & & & & & & \yes &  & \yes \\
+		\hline
+		\hline
+		NIC-bypass IPC & & & \yes & & & & \yes & & \yes \\
+		\hline
+		RDMA as Transport & & & \yes & & & & & \yes & \yes \\
+		\hline
+		\hline
+		Process Isolation & \yes & \yes & \yes & \yes & \yes & \yes & \yes & \yes & \yes \\
+		\hline
+	\end{tabular}
+}
+	\caption{Comparison of alternative socket implementations.}
+	\label{tab:related-work}
+\end{table*}
+
+
 Kernel socket optimization (IX, FastSocket) 
 
 \begin{itemize}
