@@ -24,7 +24,7 @@
 		\hline
 		bind & NoPart &
 		\textbf{accept(4)} & P2P-B &
-		\textbf{recv(from,(m)msg)} & $\approx$Local &
+		\textbf{recv(from,(m)msg)} & P2P-NB &
 		\textit{pthread\_create} & NoPart \\
 		\hline
 		listen & Local &
@@ -34,7 +34,7 @@
 		\hline
 		socketpair & Local &
 		\textbf{(get,set)sockopt} & Local &
-		\textbf{\textit{read(v)}} & $\approx$Local &
+		\textbf{\textit{read(v)}} & P2P-NB &
 		\textit{execve} & NoPart \\
 		\hline
 		getsockname  & Local &
