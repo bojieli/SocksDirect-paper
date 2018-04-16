@@ -12,7 +12,12 @@ Linux socket vs \sys (intra-server socket, RDMA and libvma) performance comparis
 Scenarios: connection setup and data transmission
 
 Metrics: Latency, throughput
-
+\begin{figure}[t]
+	\centering
+	\input{eval/microbenchmark/conn-setup-tput.tex}
+	\caption{Test 1.}
+	\label{fig:eval-messagesize}
+\end{figure}
 \subsection{Web Application}
 
 Nginx~\cite{nginx}, Nodejs~\cite{nodejs} and memcached~\cite{memcached}
