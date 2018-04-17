@@ -11,12 +11,12 @@
 	\label{fig:socket-kernel-time}
 \end{figure}
 
-\begin{figure}[t]
-	\centering
-	\includegraphics[width=0.3\textwidth]{images/fixme}
-	\caption{Performance of back-end systems using inter-server socket, intra-server socket, inter-server RDMA and intra-server shared memory.}
-	\label{fig:backend-performance}
-\end{figure}
+%\begin{figure}[t]
+%	\centering
+%	\includegraphics[width=0.3\textwidth]{images/fixme}
+%	\caption{Performance of back-end systems using inter-server socket, intra-server socket, inter-server RDMA and intra-server shared memory.}
+%	\label{fig:backend-performance}
+%\end{figure}
 
 \begin{figure}[t]
 	\centering
@@ -30,7 +30,7 @@ Socket is a well-known bottleneck in fast data center networks \RED{(cite)}. In 
 
 For front-end systems, as shown in Figure~\ref{fig:socket-kernel-time}, 70\% -- 90\% CPU time is used in socket system calls. They maintain a large number of socket connections to Internet users. Establishing a socket connection takes $\approx$40$\mu$s CPU time, so a CPU core can only serve 25K new connections per second~\cite{lin2016scalable}.
 
-For back-end systems, as shown in Figure~\ref{fig:backend-performance}, the performance using socket is significantly worse than using RDMA or shared memory. This is because back-end systems interact frequently with other nodes and services, consequently the latency is vital for their performance. As shown in Figure~\ref{fig:socket-comparison}, socket latency between different processes in a same server is $\approx$10~$\mu$s, even much higher than inter-server RDMA latency ($\approx$2~$\mu$s).
+For back-end systems, the performance using socket is significantly worse than using RDMA or shared memory. This is because back-end systems interact frequently with other nodes and services, consequently the latency is vital for their performance. As shown in Figure~\ref{fig:socket-comparison}, socket latency between different processes in a same server is $\approx$10~$\mu$s, even much higher than inter-server RDMA latency ($\approx$2~$\mu$s).
 
 \textbf{Event-driven programming.}
 
