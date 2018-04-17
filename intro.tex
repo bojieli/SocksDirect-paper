@@ -11,8 +11,7 @@ For inter-server communication, most works leverage a user-space stack to achiev
 
 %One line of research optimize the kernel code or design user-space compatible stacks for higher socket performance. The kernel optimization approach does not eliminate context switch overhead, while system call batching introduces extra latency. User-space stacks are mostly designed for inter-server connections. With the trend of containerized micro-services, we expect an increasing number of applications or containers to be hosted on each server, where inter-process communication (IPC) inside server has more significance.
 
-
- 
+\textbf{The above part is motivation and related work.}
 
 
 We design \sys{}, a high performance socket architecture that is compatible with existing applications, while scalable to many cores and connections. The semantics of socket was designed for networking and IPC in millisecond scale, when memory copy, context switch, synchronization, cache miss and cache migration were all considered inexpensive~\cite{barroso2017attack}. An efficient socket architecture for microsecond-scale networking and IPC requires minimizing all overheads above, while preserving the semantics.
