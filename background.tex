@@ -25,18 +25,19 @@
 	\label{fig:socket-comparison}
 \end{figure}
 
+Linux kernel socket is a well-known bottleneck for communication intensive applications. We stress test Nginx load balancer, memcached and Redis key-value stores with one request per TCP connection or a stream of requests on pre-established TCP connections. As shown in Figure~\ref{fig:socket-kernel-time}, 50\% to 90\% CPU time is consumed in the kernel, mostly dealing with socket system calls. Connection setup is especially slow, causing one request per connection shows much lower throughput. If we were able to mitigate the overhead associated with sockets, application performance would be 2x to 10x. As another example, we replaced socket with RDMA and enabled zero copy gRPC in distributed Tensorflow~\cite{abadi2016tensorflow}, and training a VGG network shows 5x speedup.
 
-Socket is a well-known bottleneck in fast data center networks \RED{(cite)}. In a data center, we categorize systems that process queries from Internet users to be \textit{front-end} (\textit{e.g.} DNS server, load balancer and Web service), and the other systems (\textit{e.g.} database, stream processing and machine learning) to be \textit{back-end}.
+%Socket is a well-known bottleneck in fast data center networks \RED{(cite)}. In a data center, we categorize systems that process queries from Internet users to be \textit{front-end} (\textit{e.g.} DNS server, load balancer and Web service), and the other systems (\textit{e.g.} database, stream processing and machine learning) to be \textit{back-end}.
 
-For front-end systems, as shown in Figure~\ref{fig:socket-kernel-time}, 70\% -- 90\% CPU time is used in socket system calls. They maintain a large number of socket connections to Internet users. Establishing a socket connection takes $\approx$40$\mu$s CPU time, so a CPU core can only serve 25K new connections per second~\cite{lin2016scalable}.
+%For front-end systems, as shown in Figure~\ref{fig:socket-kernel-time}, 70\% -- 90\% CPU time is used in socket system calls. They maintain a large number of socket connections to Internet users. Establishing a socket connection takes $\approx$40$\mu$s CPU time, so a CPU core can only serve 25K new connections per second~\cite{lin2016scalable}.
 
-For back-end systems, the performance using socket is significantly worse than using RDMA or shared memory. This is because back-end systems interact frequently with other nodes and services, consequently the latency is vital for their performance. As shown in Figure~\ref{fig:socket-comparison}, socket latency between different processes in a same server is $\approx$10~$\mu$s, even much higher than inter-server RDMA latency ($\approx$2~$\mu$s).
+%For back-end systems, the performance using socket is significantly worse than using RDMA or shared memory. This is because back-end systems interact frequently with other nodes and services, consequently the latency is vital for their performance. As shown in Figure~\ref{fig:socket-comparison}, socket latency between different processes in a same server is $\approx$10~$\mu$s, even much higher than inter-server RDMA latency ($\approx$2~$\mu$s).
 
-\textbf{Event-driven programming.}
+%\textbf{Event-driven programming.}
 
-\textbf{Socket process: connection setup and data transmission.}
+%\textbf{Socket process: connection setup and data transmission.}
 
-There has been much work~\cite{peter2016arrakis,lin2016scalable} to analyze the source of socket processing overhead.
+The source of Linux socket overhead has been extensively analyzed~\cite{peter2016arrakis,lin2016scalable}.
 
 \textbf{Context switch.}
 Socket APIs are implemented in kernel space and thus require context switch for each socket operation. To protect against side-channel attacks based on speculative execution~\cite{Kocher2018spectre} and caching~\cite{Lipp2018meltdown}, system calls become more expensive~\cite{kpti}.
@@ -65,7 +66,7 @@ Performance requirements for intra-server IPC, inter-server RDMA and inter-serve
 \item Scalable to many connections 
 \end{enumerate}
 
-\subsection{Alternative Approaches}
+\subsection{Existing Approaches}
 \label{subsec:related}
 
 

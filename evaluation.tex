@@ -18,6 +18,16 @@ Metrics: Latency, throughput
 	\caption{Test 1.}
 	\label{fig:eval-messagesize}
 \end{figure}
+
+\subsection{Network Function}
+
+Network functions~\cite{li2016clicknp}, ClickOS~\cite{martins2014clickos}
+
+Scenarios: Firewall (no packet change), NAT (change a packet field), Tunnel endpoint (add/remove packet header, change length)
+
+Metrics: Latency, throughput
+
+
 \subsection{Web Application}
 
 Nginx~\cite{nginx}, Nodejs~\cite{nodejs} and memcached~\cite{memcached}
@@ -28,26 +38,19 @@ Nginx~\cite{nginx}, Nodejs~\cite{nodejs} and memcached~\cite{memcached}
 	\item Long connection to download a large in-memory file. (test zero copy)
 \end{itemize}
 
-\subsection{Network Function}
 
-Network functions~\cite{li2016clicknp}, ClickOS~\cite{martins2014clickos}
+%\subsection{Real-time Stream Processing}
 
-Scenarios: Firewall (no packet change), NAT (change a packet field), Tunnel endpoint (add/remove packet header, change length)
+%Apache Flink~\cite{carbone2015apache} (need to turn off durability on disk)
 
-Metrics: Latency, throughput
+%Scenario: Word Count (distributed system with one source, two mappers and one reducer)
 
-\subsection{Real-time Stream Processing}
+%Metrics: Latency, throughput
 
-Apache Flink~\cite{carbone2015apache} (need to turn off durability on disk)
+%\subsection{Machine Learning}
 
-Scenario: Word Count (distributed system with one source, two mappers and one reducer)
+%Tensorflow~\cite{abadi2016tensorflow}
 
-Metrics: Latency, throughput
+%Scenario: (Distributed Tensorflow) Parameter server and worker on a same server.
 
-\subsection{Machine Learning}
-
-Tensorflow~\cite{abadi2016tensorflow}
-
-Scenario: (Distributed Tensorflow) Parameter server and worker on a same server.
-
-Metrics: Time per iteration
+%Metrics: Time per iteration

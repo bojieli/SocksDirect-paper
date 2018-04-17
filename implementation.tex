@@ -21,5 +21,10 @@ In our system, we use the range of file descriptor number to identify whether th
 \textbf{Accelerate access to local storage.}
 Use SPDK and user-mode file system (cite). How to multiplex processes in accessing a file system? (1) directory and metadata go to monitor, (2) read/write within allocated area of a file: process self, (3) append or read/write outside allocated area: handled by master process of a shared file. Monitor pre-allocate free blocks to processes (batch allocation and free).
 
+\section{Discussion}
+\label{sec:discussion}
+
+\textbf{The ideal socket API.} \sys{} naturally supports message passing. Zero copy.
+
 \textbf{Limitations.}
 Ordering of multiple senders (linux is sequentially consistent). Applications that do not use GNU libc. Linux AIO and Windows I/O completion ports. /proc fs.
