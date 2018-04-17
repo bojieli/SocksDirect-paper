@@ -25,7 +25,7 @@ The key to socket scalability is to minimize memory sharing by making communicat
 	\label{fig:conn-close}
 \end{figure}
 
-During socket initialization, \texttt{socket} creates an unique integer \textit{file descriptor} (FD) for each connection. In Linux kernel, FD allocation is processed with mutual exclusion in kernel space. In order to achieve high scalability, \libipc{} maintains a FD table in each process. The table is a vector of socket information with an allocation pointer, indexed by FD. Upon allocation, \libipc{} linearly moves the allocation pointer and finds the first idle FD. When the vector is more than half full, its size is doubled. This allows amortized O(1) allocation and O(1) lookup and deletion. 
+During socket initialization, \texttt{socket} creates an unique integer \textit{file descriptor} (FD) for each connection. In Linux kernel, FD allocation is processed with mutual exclusion in kernel space. Although Linux file system requires allocating the lowest file descriptor, this property is rarely used by applications~\cite{han2012megapipe,huang2017high}. In order to achieve high scalability, we relax the semantics and maintains a FD table in each process. The table is a vector of socket information with an allocation pointer, indexed by FD. Upon allocation, \libipc{} linearly moves the allocation pointer and finds the first idle FD. When the vector is more than half full, its size is doubled. This allows amortized O(1) allocation and O(1) lookup and deletion. 
 For multi-thread applications, since the FD namespace is shared, we partition the FD namespace to multiple ranges and each thread allocates FD in its range.
 Because per-FD information is local to a process, APIs on socket options are also local.
 

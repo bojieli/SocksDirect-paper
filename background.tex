@@ -18,6 +18,14 @@
 %	\label{fig:backend-performance}
 %\end{figure}
 
+
+%\begin{figure}[t]
+%	\centering
+%	\includegraphics[width=0.3\textwidth]{images/fixme}
+%	\caption{Latency comparison of mutual exclusion mechanisms (CAS, mutex, futex) and cache migration.}
+%	\label{fig:mutual-exclusion}
+%\end{figure}
+
 \begin{figure}[t]
 	\centering
 	\includegraphics[width=0.3\textwidth]{images/fixme}
@@ -25,7 +33,7 @@
 	\label{fig:socket-comparison}
 \end{figure}
 
-Linux kernel socket is a well-known bottleneck for communication intensive applications. We stress test Nginx load balancer, memcached and Redis key-value stores with one request per TCP connection or a stream of requests on pre-established TCP connections. As shown in Figure~\ref{fig:socket-kernel-time}, 50\% to 90\% CPU time is consumed in the kernel, mostly dealing with socket system calls. Connection setup is especially slow, causing one request per connection shows much lower throughput. If we were able to mitigate the overhead associated with sockets, application performance would be 2x to 10x. As another example, we replaced socket with RDMA and enabled zero copy gRPC in distributed Tensorflow~\cite{abadi2016tensorflow}, and training a VGG network shows 5x speedup.
+Linux kernel socket is a well-known bottleneck for communication intensive applications. We stress test Nginx load balancer, memcached and Redis key-value stores with one request per TCP connection or a stream of requests on pre-established TCP connections. As shown in Figure~\ref{fig:socket-kernel-time}, 50\%$\sim$90\% CPU time is consumed in the kernel, mostly dealing with socket system calls. Connection setup is especially slow, causing the one request per connection scenario shows much lower throughput. If we were able to mitigate the overhead associated with sockets, application performance would be 2x$\sim$10x. As another example, we replaced socket with RDMA and enabled zero copy gRPC in distributed Tensorflow~\cite{abadi2016tensorflow}, and training a VGG network shows 5x speedup.
 
 %Socket is a well-known bottleneck in fast data center networks \RED{(cite)}. In a data center, we categorize systems that process queries from Internet users to be \textit{front-end} (\textit{e.g.} DNS server, load balancer and Web service), and the other systems (\textit{e.g.} database, stream processing and machine learning) to be \textit{back-end}.
 
@@ -37,25 +45,31 @@ Linux kernel socket is a well-known bottleneck for communication intensive appli
 
 %\textbf{Socket process: connection setup and data transmission.}
 
-The source of Linux socket overhead has been extensively analyzed~\cite{peter2016arrakis,lin2016scalable}.
+The source of Linux socket overhead has been analyzed extensively~\cite{peter2016arrakis,lin2016scalable}.
 
 \textbf{Context switch.}
-Socket APIs are implemented in kernel space and thus require context switch for each socket operation. To protect against side-channel attacks based on speculative execution~\cite{Kocher2018spectre} and caching~\cite{Lipp2018meltdown}, system calls become more expensive~\cite{kpti}.
-
-\textbf{Network stack.}
-In Linux socket, inter-server connections need to go through the TCP/IP stack, and receiving each packet takes $\approx$3$\mu$s CPU time~\cite{peter2016arrakis}. In addition, processes communicating within a same server still need to communicate through the network stack.
+Socket APIs are implemented in kernel space and thus require context switch for each socket operation. Recently, the KPTI patches~\cite{kpti} to protect against Spectre~\cite{Kocher2018spectre} and Meltdown~\cite{Lipp2018meltdown} attacks make system calls 4x expensive (from 48~ns to 180~ns on our server). Switching from one process to another cooperatively ($0.45\mu$s) is 2.5x expensive than a system call. Inter-process context switch based on semaphore, mutex or \texttt{futex} takes $2\sim4\mu$s, even 5x$\sim$8x slower than cooperative multitasking.
 
 \textbf{Data copy.}
-For inter-server data transmission, Linux kernel copies data four times: on the send side, from the application buffer to kernel socket buffer, then to NIC ring buffer; the receive side is similar.
-For intra-server transmission, data is copied three times: from the send application to kernel send buffer, then to kernel receive buffer and finally to the receive application.
-%However, each CPU core can only copy 5~GiB data per second, limiting throughput for applications that operate on large chunks of data~\cite{panda2016netbricks}.
+For inter-server data transmission, Linux kernel copies data four times: on the send side, from application to kernel socket buffer, then to NIC ring buffer; the receive side is similar. For intra-server, data is copied three times: from application to kernel send buffer, then to kernel receive buffer via loopback interface, and finally to another application. Each CPU core can copy $\approx$5~GiB data per second~\cite{panda2016netbricks}, that's why a kernel TCP connection is hard to saturate an 100~Gbps NIC.
 
 \textbf{Synchronization.}
-Scalability analysis of Linux system calls~\cite{boyd2010analysis} suggests that many socket operations are not commutable. The Linux kernel needs to acquire global locks for socket connection setup and a per-socket lock for each socket operation. The synchronization overhead limits scalability of Linux socket.
+During connection setup, we need to create file descriptors, load balance \texttt{connect} requests and allocate buffers. These operations are easy to implement with serialized execution. Linux kernel acquires global locks during connection setup and a per-socket lock for each socket operation, limiting socket scalability~\cite{boyd2010analysis,han2012megapipe,lin2016scalable}. In fact, even in non-contending scenarios, synchronization still introduces significant overhead. Mutual exclusion is typically implemented with Compare-And-Swap (CAS) instruction, which costs $100\sim200$~ns per lock and unlock. In comparison, inter-core message passing can be implemented with only one cache migration~\cite{roghanchi2017ffwd} (30~ns).
+
+\textbf{Virtual file system.}
+Each socket connection is a \textit{file descriptor} (FD) in Linux. First, each new connection involves expensive \texttt{inode} and \texttt{dentry} creation in the \texttt{proc} file system, which is not scalable and rarely used except for diagnostic and monitoring utilities. Second, socket operations need to pass through the virtual file system (VFS), which introduces CPU overhead and additional latency.
+
+\textbf{TCP Transport.}
+Linux TCP implementation has evolved to be complicated over the years to address performance and security concerns, as well as incorporate extensions~\cite{yasukata2016stackmap}. However, intra-server sockets do not need the ordering guarantee, loss recovery and congestion control offered by TCP. For intra-datacenter communication, the RDMA stack implements equivalent functionalities in NIC hardware, and an emerging line of work~\cite{zhu2015congestion,guo2016rdma,lu2017memory,mprdma} improve RDMA performance in a large scale data center network. In this work, we consider RDMA a mature technology to replace TCP whenever possible.
+
+\textbf{Memory footprint and cache miss.}
+In Linux, each socket connection has dedicated send and receive buffers, and each buffer is at least one page (4~KiB). With one million concurrent connections, the socket buffers consumes tens of gigabytes of memory, most of which is empty. Accessing many buffers randomly also leads to non-cached memory accesses, which is slower than sequential access to a single buffer~\cite{li2017kv}. In addition, event-driven applications use \texttt{epoll} to know which connections are ready for send or receive. If the event queue is separated from data queues, each \texttt{recv} operation involves two cache migrations for event and data. In light of this, we need to reduce memory accesses per data transmission.
 
 
-Socket is the performance bottleneck for IPC in today’s cloud applications 
+%For data transmission, modern commodity NICs support multiple queues with receive flow steering~\cite{herbertrfs,mellanox}, so connection multiplexing and isolation can be offloaded to the NIC. Our goal is to achieve multi-core scalability for both connection setup and data transmission.
 
+%\textbf{Network stack.}
+%Receiving each packet from NIC takes $\approx$3$\mu$s CPU time~\cite{peter2016arrakis}. Sockets within a same server still need to go through the network stack.
 
 Performance requirements for intra-server IPC, inter-server RDMA and inter-server TCP/IP:
 
@@ -66,7 +80,7 @@ Performance requirements for intra-server IPC, inter-server RDMA and inter-serve
 \item Scalable to many connections 
 \end{enumerate}
 
-\subsection{Existing Approaches}
+\subsection{Goals and Existing Approaches}
 \label{subsec:related}
 
 
@@ -139,30 +153,16 @@ User-space stack
 
 
 
-\subsection{Challenges for High Performance Socket}
+\subsection{Challenges for Compatibility}
 \label{subsec:challenges}
 
-\begin{figure}[t]
-	\centering
-	\includegraphics[width=0.3\textwidth]{images/fixme}
-	\caption{Latency comparison of mutual exclusion mechanisms (CAS, mutex, futex) and cache migration.}
-	\label{fig:mutual-exclusion}
-\end{figure}
+Previous sections discussed general challenges for fast and scalable sockets. The semantics of Linux socket introduces a few more challenges.
 
-\textbf{Scalable user-space stack with process isolation.}
-To ensure isolation among processes, one category of dataplane operating systems~\cite{belay2014ix,tsai2017lite} use kernel-based network stacks. However, non-batched system calls have context switch overhead, while batched system calls increase latency. Another line of work~\cite{martins2014clickos,roghanchi2017ffwd,huang2017high} delegate socket processing to a virtual switch running on dedicated cores. The throughput of virtual switch becomes a bottleneck. Our goal is to achieve kernel bypass with process isolation, while not delegating every operation to a centralized coordinator.
+%\textbf{Scalable user-space stack with process isolation.}
+%To ensure isolation among processes, one category of dataplane operating systems~\cite{belay2014ix,tsai2017lite} use kernel-based network stacks. However, non-batched system calls have context switch overhead, while batched system calls increase latency. Another line of work~\cite{martins2014clickos,roghanchi2017ffwd,huang2017high} delegate socket processing to a virtual switch running on dedicated cores. The throughput of virtual switch becomes a bottleneck. Our goal is to achieve kernel bypass with process isolation, while not delegating every operation to a centralized coordinator.
 
 \textbf{Avoid synchronization for sockets shared by multiple processes.}
-A socket connection may be shared by multiple processes and threads. Threads in a same process share all socket connections. When a process forks, the parent and child processes share the sockets created before fork. The processes and threads sharing a socket forms a multi-producer and multi-consumer model. Logically, senders enqueue data into a shared FIFO, and receivers dequeue an application-specified number of bytes from the FIFO. Linux protects concurrent operations with mutual exclusion.
-
-Ideally, inter-process message passing requires only one cache migration~\cite{roghanchi2017ffwd}. However, as shown in Figure~\ref{fig:mutual-exclusion}, the Compare-And-Swap (CAS) instruction for mutual exclusion, even in non-contended case, is significantly slower than cache migration. Kernel mutex and user-mode futex are even slower than CAS. Mutual exclusion becomes a bottleneck. In addition, both mutual exclusion and contended memory write are not scalable to multiple cores~\cite{boyd2014optimizing}. To this end, we need a scalable socket architecture to eliminate mutual exclusion in most cases.
-
-\textbf{Scale to billions of connections per server.}
-Each server may connect to a large number of hosts in Internet and data center. In Linux, each socket connection has dedicated send and receive buffers, and each buffer is at least one page (4~KiB). The first problem is memory footprint. With one million concurrent connections, the socket buffers consumes tens of gigabytes of memory, most of which is empty~\cite{lin2016scalable}. In this regard, we need to minimize per-socket memory footprint. Second, accessing many buffers randomly also leads to non-cached memory accesses, which is slower than sequential access to a single buffer~\cite{li2017kv}. Third, event-driven applications use \texttt{epoll} to know which connection is available for send or receive. If the event queue is separated from data queues, each \texttt{recv} operation involves two cache migrations for event and data. In light of this, we need to reduce memory accesses per data transmission.
-
-In addition, during connection setup, we need to create file descriptors, load balance \texttt{connect} requests and allocate buffers. The semantics of these operations require serialized execution. Synchronization in Linux kernel limits socket scalability to multiple cores~\cite{lin2016scalable,han2012megapipe}. Each new connection also involves expensive \texttt{inode} and \texttt{dentry} creation in virtual file system (VFS)~\cite{boyd2010analysis}, which is rarely used. To speedup short-lived connections, connection setup must have high throughput.
-%For data transmission, modern commodity NICs support multiple queues with receive flow steering~\cite{herbertrfs,mellanox}, so connection multiplexing and isolation can be offloaded to the NIC. Our goal is to achieve multi-core scalability for both connection setup and data transmission.
-
+Scalability analysis of Linux system calls~\cite{boyd2010analysis} suggests that many socket operations are not commutable. To be specific, a socket connection may be shared by multiple processes and threads. Threads in a same process share all socket connections. When a process forks, the parent and child processes share the sockets created before fork. The processes and threads sharing a socket forms a multi-producer and multi-consumer model. Logically, senders enqueue data into a shared FIFO, and receivers dequeue an application-specified number of bytes from the FIFO. Linux protects concurrent operations with mutual exclusion. To this end, we need a scalable socket architecture to eliminate mutual exclusion in most cases.
 
 
 \textbf{Zero copy for large data buffers.}
