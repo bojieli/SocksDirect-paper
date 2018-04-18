@@ -11,15 +11,13 @@ In this section, we highlight several techniques in implementation:
 In order to support existing applications seamlessly, \libipc leverages \textit{LD\_PRELOAD} environment variable in Linux to load a shared library to applications, which replace the function of GNU LibC which are the wrappers of the system call. 
 
 \textbf{Multiplex FD between kernel and \libipc{}.}
-In our system, we use the range of file descriptor number to identify whether the system call should be hook to \libipc to avoid problems related to file descriptors not related to socket. Taken the idea of \cite{huang2017high}, in \libipc, FD number is allocated in a top-down way i.e. from $2^{31}-1$ while Linux assign the number from bottom to up i.e. from zero. We set $2^{30} - 1 $ as the threshold to distinguish whether the system call ought to be handled by \libipc.
+In our system, we use the range of file descriptor number to identify whether the system call should be hook to \libipc to avoid problems related to file descriptors not related to socket. Taking the idea of LOS~\cite{huang2017high}, in \libipc, FD number is allocated in a top-down way i.e. from $2^{31}-1$ while Linux assign the number from bottom to up i.e. from zero. We set $2^{30} - 1 $ as the threshold to distinguish whether the system call ought to be handled by \libipc.
 
+\textbf{Multiplex events between kernel and \libipc{}.}
+The FD set of \texttt{epoll} may include both sockets and other FDs in Linux kernel. LOS~\cite{huang2017high} periodically invokes non-blocking \texttt{epoll\_wait} syscall with kernel FDs, which leads to a trade-off between delay and CPU overhead. Differently, \libipc{} creates a per-process \textit{epoll thread} which runs an infinite loop of blocking \texttt{epoll\_wait} syscall with kernel FDs. Whenever epoll thread receives a kernel event, it broadcasts the event to application threads. The \texttt{epoll\_wait} function in \libipc{} will return such kernel events in addition to socket events.
 
-% \textbf{
-% Separate file descriptors in \sys and Linux. Linux use low FD space, \sys use % high FD space (what FD space). Same as LOS~\cite{huang2017high}.
-% }
-
-\textbf{Accelerate access to local storage.}
-Use SPDK and user-mode file system (cite). How to multiplex processes in accessing a file system? (1) directory and metadata go to monitor, (2) read/write within allocated area of a file: process self, (3) append or read/write outside allocated area: handled by master process of a shared file. Monitor pre-allocate free blocks to processes (batch allocation and free).
+%\textbf{Accelerate access to local storage.}
+%Use SPDK and user-mode file system (cite). How to multiplex processes in accessing a file system? (1) directory and metadata go to monitor, (2) read/write within allocated area of a file: process self, (3) append or read/write outside allocated area: handled by master process of a shared file. Monitor pre-allocate free blocks to processes (batch allocation and free).
 
 \section{Discussion}
 \label{sec:discussion}
