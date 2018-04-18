@@ -35,6 +35,7 @@
 
 Linux kernel socket is a well-known bottleneck for communication intensive applications. We stress test Nginx load balancer, memcached and Redis key-value stores with one request per TCP connection or a stream of requests on pre-established TCP connections. As shown in Figure~\ref{fig:socket-kernel-time}, 50\%$\sim$90\% CPU time is consumed in the kernel, mostly dealing with socket system calls. Connection setup is especially slow, causing the one request per connection scenario shows much lower throughput. If we were able to mitigate the overhead associated with sockets, application performance would be 2x$\sim$10x. As another example, we replaced socket with RDMA and enabled zero copy gRPC in distributed Tensorflow~\cite{abadi2016tensorflow}, and training a VGG network shows 5x speedup.
 
+
 %Socket is a well-known bottleneck in fast data center networks \RED{(cite)}. In a data center, we categorize systems that process queries from Internet users to be \textit{front-end} (\textit{e.g.} DNS server, load balancer and Web service), and the other systems (\textit{e.g.} database, stream processing and machine learning) to be \textit{back-end}.
 
 %For front-end systems, as shown in Figure~\ref{fig:socket-kernel-time}, 70\% -- 90\% CPU time is used in socket system calls. They maintain a large number of socket connections to Internet users. Establishing a socket connection takes $\approx$40$\mu$s CPU time, so a CPU core can only serve 25K new connections per second~\cite{lin2016scalable}.
@@ -45,10 +46,13 @@ Linux kernel socket is a well-known bottleneck for communication intensive appli
 
 %\textbf{Socket process: connection setup and data transmission.}
 
-The source of Linux socket overhead has been analyzed extensively~\cite{peter2016arrakis,lin2016scalable}.
+The source of Linux socket overhead and scalability limitations has been analyzed extensively~\cite{peter2016arrakis,lin2016scalable}.
 
-\textbf{Context switch.}
-Socket APIs are implemented in kernel space and thus require context switch for each socket operation. Recently, the KPTI patches~\cite{kpti} to protect against Spectre~\cite{Kocher2018spectre} and Meltdown~\cite{Lipp2018meltdown} attacks make system calls 4x expensive (from 48~ns to 180~ns on our server). Switching from one process to another cooperatively ($0.45\mu$s) is 2.5x expensive than a system call. Inter-process context switch based on semaphore, mutex or \texttt{futex} takes $2\sim4\mu$s, even 5x$\sim$8x slower than cooperative multitasking.
+\textbf{Kernel crossing.}
+Socket APIs are implemented in kernel space and thus require kernel crossing for each socket operation. Recently, the KPTI patches~\cite{kpti} to protect against Spectre~\cite{Kocher2018spectre} and Meltdown~\cite{Lipp2018meltdown} attacks make kernel crossings 4x expensive (from 48~ns to 180~ns per system call on our testbed, settings in Sec.~\ref{sec:evaluation}). Together with additional cache invalidations, KPTI patches reduce kernel TCP socket 64-byte message throughput by 40\% (from 3.4M to 2.0M messages per second). These side-channel attacks also lead us to rethink Linux security model that the complicated network stack needs to be trusted and protected, yet share cores with applications.
+
+\textbf{Context switch and scheduling.}
+Switching from one process to another cooperatively ($0.45\mu$s) is 2.5x expensive than a system call. Inter-process context switch based on semaphore, mutex or \texttt{futex} takes $2\sim4\mu$s, even 5x$\sim$8x slower than cooperative multitasking. This additional latency attributes to event notification mechanism and scheduler queue manipulation in kernel. For two processes that pin on different cores, one-way TCP socket takes $\approx8\mu$s, half of which attributes to the same reason of semaphore delay. In this regard, low latency networking and IPC should use cooperative multitasking rather than kernel wakeup.
 
 \textbf{Data copy.}
 For inter-server data transmission, Linux kernel copies data four times: on the send side, from application to kernel socket buffer, then to NIC ring buffer; the receive side is similar. For intra-server, data is copied three times: from application to kernel send buffer, then to kernel receive buffer via loopback interface, and finally to another application. Each CPU core can copy $\approx$5~GiB data per second~\cite{panda2016netbricks}, that's why a kernel TCP connection is hard to saturate an 100~Gbps NIC.
@@ -63,61 +67,65 @@ Each socket connection is a \textit{file descriptor} (FD) in Linux. First, each 
 Linux TCP implementation has evolved to be complicated over the years to address performance and security concerns, as well as incorporate extensions~\cite{yasukata2016stackmap}. However, intra-server sockets do not need the ordering guarantee, loss recovery and congestion control offered by TCP. For intra-datacenter communication, the RDMA stack implements equivalent functionalities in NIC hardware, and an emerging line of work~\cite{zhu2015congestion,guo2016rdma,lu2017memory,mprdma} improve RDMA performance in a large scale data center network. In this work, we consider RDMA a mature technology to replace TCP whenever possible.
 
 \textbf{Memory footprint and cache miss.}
-In Linux, each socket connection has dedicated send and receive buffers, and each buffer is at least one page (4~KiB). With one million concurrent connections, the socket buffers consumes tens of gigabytes of memory, most of which is empty. Accessing many buffers randomly also leads to non-cached memory accesses, which is slower than sequential access to a single buffer~\cite{li2017kv}. In addition, event-driven applications use \texttt{epoll} to know which connections are ready for send or receive. If the event queue is separated from data queues, each \texttt{recv} operation involves two cache migrations for event and data. In light of this, we need to reduce memory accesses per data transmission.
+The vast number of WAN connections from Internet users require cloud systems to serve millions of connections efficiently~\cite{nishtala2013scaling,lin2016scalable,belay2017ix}, called the C10M problem~\cite{graham2013c10m}. In Linux, each socket connection has dedicated send and receive buffers, and each buffer is at least one page (4~KiB). With one million concurrent connections, the socket buffers consumes tens of gigabytes of memory, most of which is empty. Accessing many buffers randomly also leads to non-cached memory accesses, which is slower than sequential access to a single buffer~\cite{li2017kv}. In addition, event-driven applications use \texttt{epoll} to know which connections are ready for send or receive. If the event queue is separated from data queues, each \texttt{recv} operation involves two cache migrations for event and data. In light of this, we need to reduce memory accesses per data transmission.
 
 
 %For data transmission, modern commodity NICs support multiple queues with receive flow steering~\cite{herbertrfs,mellanox}, so connection multiplexing and isolation can be offloaded to the NIC. Our goal is to achieve multi-core scalability for both connection setup and data transmission.
 
 %\textbf{Network stack.}
-%Receiving each packet from NIC takes $\approx$3$\mu$s CPU time~\cite{peter2016arrakis}. Sockets within a same server still need to go through the network stack.
+%. Sockets within a same server still need to go through the network stack.
 
-Performance requirements for intra-server IPC, inter-server RDMA and inter-server TCP/IP:
-
-\begin{enumerate}
-\item Low latency 
-\item Low CPU overhead 
-\item Scalable to multiple cores 
-\item Scalable to many connections 
-\end{enumerate}
-
-\subsection{Goals and Existing Approaches}
+\subsection{Existing Approaches}
 \label{subsec:related}
+
+In this section, we outline performance requirements for socket applications and discuss existing approaches. First, \textit{low CPU overhead}. Kernel bypass and zero copy are two well-known techniques. Second, \textit{low latency}. This imply polling rather than interrupts, and bypassing kernel stack for inter-server sockets. Third, \textit{scalable to multiple cores}. This requires removing synchronization and centralized bottlenecks on the data path. Finally, \textit{scalable to many connections}.
 
 
 \begin{table*}[t]
 	\centering
 \scalebox{0.9}{
-	\begin{tabular}{l|ccc|ccc|ccc|}
+	\begin{tabular}{l|c|ccc|cc|ccc|}
 		\hline
-			& \multicolumn{3}{c|}{Data-plane OS} & \multicolumn{3}{c|}{Socket-like API} & \multicolumn{3}{c|}{Socket Compatible} \\
+		Category	& \multicolumn{1}{c|}{Linux Opt.} & \multicolumn{3}{c|}{New Kernel Stack} & \multicolumn{2}{c|}{User-space Packet} & \multicolumn{3}{c|}{User-space Socket} \\
 		\hline
-		 	& Arrakis & IX & FreeFlow & MegaPipe & netmap & StackMap & FastSocket & libvma & SocksDirect \\
+		System	& FastSocket & IX & MegaPipe & StackMap & Arrakis & FreeFlow & mTCP & libvma & SocksDirect \\
 		\hline
 		\hline
-		Kernel Bypass & \yes &  & \yes & & \yes & \yes & & \yes & \yes \\
+		Kernel Bypass & & & & & \yes & \yes & \yes & \yes & \yes \\
 		\hline
-		Zero Copy & \yes & \yes & \yes & \yes & & & & & \yes \\
+		Zero Copy & & \yes & & \yes & \yes & \yes & & & \yes \\
 		\hline
-		Low Latency & \yes & \yes & \yes & \yes & \yes & \yes & & \yes & \yes \\
+		Low Latency & & \yes & \yes & \yes & \yes & \yes & \yes & \yes & \yes \\
 		\hline
 		\hline
 		Multi-core Scalability & \yes & \yes & \yes & \yes & \yes & \yes & \yes & & \yes \\
 		\hline
-		Connection Scalability & & & & & & & \yes &  & \yes \\
+		Connection Scalability & \yes & \yes & \yes & \yes & & & \yes & & \yes \\
 		\hline
 		\hline
-		NIC-bypass IPC & & & \yes & & & & \yes & & \yes \\
+		NIC-bypass IPC & \yes & & \yes & \yes & & \yes & \yes & & \yes \\
 		\hline
-		RDMA as Transport & & & \yes & & & & & \yes & \yes \\
+		RDMA as Transport & & & & & & \yes & & \yes & \yes \\
 		\hline
+		\hline
+		Socket-like API & \yes & \yes & \yes & \yes & & & \yes & \yes & \yes \\
+		\hline
+		Linux Compatible & \yes & & & & & & & \yes & \yes \\
 		\hline
 		Process Isolation & \yes & \yes & \yes & \yes & \yes & \yes & \yes & \yes & \yes \\
 		\hline
 	\end{tabular}
 }
-	\caption{Comparison of alternative socket implementations.}
+	\caption{Comparison of high performance socket systems.}
 	\label{tab:related-work}
 \end{table*}
+
+Table~\ref{tab:related-work} compares several representative existing approaches. The first line of work optimizes kernel sockets.
+
+\textbf{To be done.}
+
+Arrakis~\cite{peter2016arrakis} and IX~\cite{belay2017ix} use NIC for both intra-server and inter-server communications. The hairpin latency from CPU to NIC is at least two PCIe delays, which is roughly 1$\mu$s~\cite{kaminsky2016design}, one order of magnitude higher than inter-core communication delay ($\leq0.1\mu$s). In addition, the data plane switching capacity of a NIC is constrained by PCIe bandwidth, an order of magnitude lower than the bus among CPU cores~\cite{li2017kv}. For inter-server communication, Arrakis~\cite{peter2016arrakis} and IX~\cite{belay2017ix} use packet-level interface of NIC and implement transport in software. Although this has more flexibility than the hardware-based transport in RDMA, NICs are becoming increasingly programmable, and the architecture of programmable NICs is a better fit for implementing transport protocols~\cite{kaufmann2015flexnic,smartnic,mellanox,cavium}. 
+
 
 
 Kernel socket optimization (IX, FastSocket) 
@@ -152,14 +160,13 @@ User-space stack
 
 
 
-
 \subsection{Challenges for Compatibility}
 \label{subsec:challenges}
 
-Previous sections discussed general challenges for fast and scalable sockets. The semantics of Linux socket introduces a few more challenges.
+Previous sections mainly focused on performance. To ensure compatibility with existing applications, the semantics of Linux socket introduces a few more challenges.
 
 %\textbf{Scalable user-space stack with process isolation.}
-%To ensure isolation among processes, one category of dataplane operating systems~\cite{belay2014ix,tsai2017lite} use kernel-based network stacks. However, non-batched system calls have context switch overhead, while batched system calls increase latency. Another line of work~\cite{martins2014clickos,roghanchi2017ffwd,huang2017high} delegate socket processing to a virtual switch running on dedicated cores. The throughput of virtual switch becomes a bottleneck. Our goal is to achieve kernel bypass with process isolation, while not delegating every operation to a centralized coordinator.
+%To ensure isolation among processes, one category of dataplane operating systems~\cite{belay2017ix,tsai2017lite} use kernel-based network stacks. However, non-batched system calls have context switch overhead, while batched system calls increase latency. Another line of work~\cite{martins2014clickos,roghanchi2017ffwd,huang2017high} delegate socket processing to a virtual switch running on dedicated cores. The throughput of virtual switch becomes a bottleneck. Our goal is to achieve kernel bypass with process isolation, while not delegating every operation to a centralized coordinator.
 
 \textbf{Avoid synchronization for sockets shared by multiple processes.}
 Scalability analysis of Linux system calls~\cite{boyd2010analysis} suggests that many socket operations are not commutable. To be specific, a socket connection may be shared by multiple processes and threads. Threads in a same process share all socket connections. When a process forks, the parent and child processes share the sockets created before fork. The processes and threads sharing a socket forms a multi-producer and multi-consumer model. Logically, senders enqueue data into a shared FIFO, and receivers dequeue an application-specified number of bytes from the FIFO. Linux protects concurrent operations with mutual exclusion. To this end, we need a scalable socket architecture to eliminate mutual exclusion in most cases.
