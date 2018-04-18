@@ -1,0 +1,3 @@
+size       libipc(intra) Arrakis IX freeflow libipc(inter) RDMA libvma fastsocket
+16B           2     1       1      1           2      1        1    1    
+4K            2     1       1      1           2      1        1    1
