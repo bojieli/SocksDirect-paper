@@ -187,5 +187,5 @@ On the contrary, RDMA API is \textit{proactive}. The application delegates RDMA 
 Translating socket API to RDMA requires bridging the reactive and proactive semantics.
 First, RDMA achieves zero copy by leaving buffer management to the application. SDP~\cite{socketsdirect} and rsockets~\cite{rsockets} are not compatible with Linux socket because the application still needs to manage send and receive buffers.
 Second, two-sided RDMA applications needs to predict the size and number of messages it expects to receive, and delegate enough \texttt{recv} operations to the NIC~\cite{huang2017high}.
-Third, a large number of concurrent RDMA connections would cause frequent NIC cache misses and degrade performance~\cite{mprdma,kaminsky2016design}.
+Third, because RDMA NIC caches connection states in limited memory, a large number of concurrent RDMA connections would cause frequent cache misses and degrade performance~\cite{mprdma,kaminsky2016design}.
 Our goal is to use RDMA efficiently for existing socket applications.
