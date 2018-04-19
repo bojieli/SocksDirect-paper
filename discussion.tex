@@ -1,7 +1,14 @@
 \section{Discussion}
 \label{sec:discussion}
 
-There are several scalability problems in using one or more dedicated cores accelerate distributed coordination.
-First, when the number of synchronization objects are large, \textit{e.g.}, one lock per record in databases and the access pattern is close to uniformly random, the throughput is bound by random access to non-cached memory, due to limited parallelism in a CPU core~\cite{lim2014mica}.
-Second, when one CPU core is not capable to coordinate the requests, synchronization objects are distributed to multiple coordination cores. However, load imbalance may occur for highly contended objects, \textit{e.g.}, sequencers, socket accept queues and locks for extremely popular database entries.
-Finally, when networking and synchronization is not the bottleneck, the dedicated cores are still polling, wasting energy and CPU resources.
+%\textbf{The ideal socket API.} \sys{} naturally supports message passing. Zero copy.
+
+\textbf{Limitations of RDMA.} First, RDMA is not suitable for WAN. Second, RDMA has scalability issue when one server connects to many servers. Software transport in CPU access connection states in host memory, while hardware RDMA transport caches connection states in NIC and swaps out to host memory when cache overflows. First, CPU cache miss costs less than 0.1$\mu$s, while NIC cache miss costs 0.5$\mu$s~\cite{kaminsky2016design}. Second, CPU memory bandwidth is an order of magnitude larger than NIC PCIe bandwidth. In light of this, a host should switch to software transport when it actively communicates with a large number of hosts. Fortunately, Modern NICs has an increasing size of memory and supports more active connections without performance degradation~\cite{kaminsky2016design}.
+
+\textbf{Multiple sender ordering.}
+Ordering of multiple senders (linux is sequentially consistent).
+
+\textbf{Remaining compatibility problems.}
+Applications that do not use GNU libc.
+Linux AIO and Windows I/O completion ports.
+/proc fs.

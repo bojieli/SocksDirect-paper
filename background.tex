@@ -123,8 +123,7 @@ In this section, we outline performance requirements for socket applications and
 Table~\ref{tab:related-work} categorizes and compares several representative existing approaches.
 
 \textbf{Linux kernel optimization.}
-
-
+FastSocket~\cite{lin2016scalable}, 
 
 \begin{itemize}
 	\item
@@ -142,6 +141,7 @@ Table~\ref{tab:related-work} categorizes and compares several representative exi
 Arrakis~\cite{peter2016arrakis} and IX~\cite{belay2017ix} use NIC for both intra-server and inter-server communications. The hairpin latency from CPU to NIC is at least two PCIe delays, which is roughly 1$\mu$s~\cite{kaminsky2016design}, one order of magnitude higher than inter-core communication delay ($\leq0.1\mu$s). In addition, the data plane switching capacity of a NIC is constrained by PCIe bandwidth, an order of magnitude lower than the bus among CPU cores~\cite{li2017kv}. For inter-server communication, Arrakis~\cite{peter2016arrakis} and IX~\cite{belay2017ix} use packet-level interface of NIC and implement transport in software. Although this has more flexibility than the hardware-based transport in RDMA, NICs are becoming increasingly programmable, and the architecture of programmable NICs is a better fit for implementing transport protocols~\cite{kaufmann2015flexnic,smartnic,mellanox,cavium}. 
 
 \textbf{User-space sockets.}
+Seastar~\cite{seastar}, F-stack~\cite{fstack}
 
 
 \begin{itemize}

@@ -21,17 +21,3 @@ The FD set of \texttt{epoll} may include both sockets and other \textit{kernel F
 %\textbf{Accelerate access to local storage.}
 %Use SPDK and user-mode file system (cite). How to multiplex processes in accessing a file system? (1) directory and metadata go to monitor, (2) read/write within allocated area of a file: process self, (3) append or read/write outside allocated area: handled by master process of a shared file. Monitor pre-allocate free blocks to processes (batch allocation and free).
 
-\section{Discussion}
-\label{sec:discussion}
-
-\textbf{The ideal socket API.} \sys{} naturally supports message passing. Zero copy.
-
-\textbf{Limitations of RDMA.} First, RDMA is not suitable for WAN. Second, RDMA has scalability issue when one server connects to many servers. Software transport in CPU access connection states in host memory, while hardware RDMA transport caches connection states in NIC and swaps out to host memory when cache overflows. First, CPU cache miss costs less than 0.1$\mu$s, while NIC cache miss costs 0.5$\mu$s~\cite{kaminsky2016design}. Second, CPU memory bandwidth is an order of magnitude larger than NIC PCIe bandwidth. In light of this, a host should switch to software transport when it actively communicates with a large number of hosts. Fortunately, Modern NICs has an increasing size of memory and supports more active connections without performance degradation~\cite{kaminsky2016design}.
-
-\textbf{Multiple sender ordering.}
-Ordering of multiple senders (linux is sequentially consistent).
-
-\textbf{Remaining compatibility problems.}
-Applications that do not use GNU libc.
-Linux AIO and Windows I/O completion ports.
-/proc fs.
