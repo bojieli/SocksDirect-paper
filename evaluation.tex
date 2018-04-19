@@ -17,7 +17,7 @@ Figure~\ref{fig:eval-cornum-ipc} shows throughput with different number of cores
 
 Table~\ref{tab:eval-context-switch} shows throughput and latency with a dispatcher process on core $A$, multiple worker processes on core $B$ and a reducer process on core $C$. Key points: a) When all workers are active, throughput is comparable with single worker. b) When only a fraction of workers are active, the idle workers do not impact performance. c) Latency increases with number of active workers, but still much lower than Linux.
 
-Figure X shows throughput and latency with \texttt{fork}. At time $T_0$, receiver forks, and the parent process keeps receiving. At time $T_1$, the child process begins to receives takes over the socket. At time $T_2$, sender forks, and only the parent sends. At time $T_3$, the child sender also starts sending.
+Figure \ref{fig:eval-fork-tput} shows throughput and latency with \texttt{fork}. At time $T_0$, receiver forks, and the parent process keeps receiving. At time $T_1$, the child process begins to receives takes over the socket. At time $T_2$, sender forks, and only the parent sends. At time $T_3$, the child sender also starts sending.
 
 \begin{figure}[htpb]
 	\centering
@@ -113,5 +113,11 @@ Figure X shows throughput and latency with \texttt{fork}. At time $T_0$, receive
 	\label{tab:eval-context-switch}
 \end{table}
 
+\begin{figure}[htpb]
+	\centering
+	\includegraphics[width=\columnwidth]{eval/microbenchmark/fork-tput.pdf}
+	\caption{Throughput of SocksDirect with fork happening}
+	\label{fig:eval-fork-tput}
+\end{figure}
 
 
