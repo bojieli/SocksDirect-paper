@@ -19,38 +19,38 @@
 		\hline
 		\textbf{socket} & Local &
 		\textbf{connect} & NoPart &
-		\textbf{send(to,(m)msg)} & P2P-NB &
+		\textbf{send(to,(m)msg)} & P2P &
 		\textit{(v)fork} & NoPart \\
 		\hline
 		bind & NoPart &
-		\textbf{accept(4)} & P2P-B &
-		\textbf{recv(from,(m)msg)} & P2P-NB &
+		\textbf{accept(4)} & P2P &
+		\textbf{recv(from,(m)msg)} & P2P &
 		\textit{pthread\_create} & NoPart \\
 		\hline
 		listen & Local &
 		\textbf{\textit{fcntl, ioctl}} & Local &
-		\textbf{\textit{write(v)}} & P2P-NB &
+		\textbf{\textit{write(v)}} & P2P &
 		\textit{clone} & NoPart \\
 		\hline
 		socketpair & Local &
 		\textbf{(get,set)sockopt} & Local &
-		\textbf{\textit{read(v)}} & P2P-NB &
+		\textbf{\textit{read(v)}} & P2P &
 		\textit{execve} & NoPart \\
 		\hline
 		getsockname  & Local &
-		\textbf{\textit{close}, shutdown} & P2P-NB &
+		\textbf{\textit{close}, shutdown} & P2P &
 		\textbf{\textit{memcpy}} & Local &
-		\textit{exit} & P2P-NB \\
+		\textit{exit} & P2P \\
 		\hline
 		\textbf{\textit{malloc}} & Local &
 		getpeername & Local &
 		\textit{(p)select} & $\approx$Local &
-		\textit{sleep} & P2P-NB \\
+		\textit{sleep} & P2P \\
 		\hline
 		\textbf{\textit{realloc}} & Local &
-		\textit{dup(2)} & P2P-NB &
+		\textit{dup(2)} & P2P &
 		\textit{(p)poll} & $\approx$Local &
-		\textit{daemon} & P2P-NB \\
+		\textit{daemon} & P2P \\
 		\hline
 		\textit{epoll\_create} & Local &
 		\textbf{\textit{epoll\_ctl}} & Local &
@@ -58,7 +58,7 @@
 		\textit{sigaction} & Local \\
 		\hline
 	\end{tabular}
-	\caption{Linux APIs that are related to socket and intercepted by \libipc{}. Categories include local, mostly local ($\approx$Local), peer-to-peer non-blocking (P2P-NB), peer-to-peer blocking wait (P2P-B) and non-partitionable (NoPart). APIs in \textit{italic} indicate usages more than socket. APIs in \textbf{bold} are called more frequently than others.}
+	\caption{Linux APIs that are related to socket and intercepted by \libipc{}. Categories include local, mostly local ($\approx$Local), peer-to-peer (P2P) and non-partitionable (NoPart). APIs in \textit{italic} indicate usages more than socket. APIs in \textbf{bold} are called more frequently than others.}
 	\label{tab:socket-api}
 \end{table*}
 
