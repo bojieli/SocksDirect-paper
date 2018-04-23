@@ -49,10 +49,10 @@ Linux kernel socket is a well-known bottleneck for communication intensive appli
 The source of Linux socket overhead and scalability limitations has been analyzed extensively~\cite{peter2016arrakis,lin2016scalable}.
 
 \textbf{Kernel crossing.}
-Socket APIs are implemented in kernel space and thus require kernel crossing for each socket operation. Recently, the KPTI patches~\cite{kpti} to protect against Spectre~\cite{Kocher2018spectre} and Meltdown~\cite{Lipp2018meltdown} attacks make kernel crossings 4x expensive (from 48~ns to 180~ns per system call on our testbed, settings in Sec.~\ref{sec:evaluation}). Together with additional cache invalidations, KPTI patches reduce kernel TCP socket 64-byte message throughput by 40\% (from 3.4M to 2.0M messages per second). These side-channel attacks also lead us to rethink Linux security model that the complicated network stack needs to be trusted and protected, yet share cores with applications.
+Socket APIs are implemented in kernel space and thus require kernel crossing for each socket operation. Recently, the KPTI patches~\cite{kpti} to protect against Spectre~\cite{Kocher2018spectre} and Meltdown~\cite{Lipp2018meltdown} attacks make kernel crossings 4x expensive (47~ns per system call on Linux 4.11 to 200~ns on Linux 4.16, testbed settings in Sec.~\ref{sec:evaluation}). Together with additional cache invalidations, KPTI patches reduce kernel TCP socket 64-byte message throughput by 40\% (from 3.4M to 2.0M messages per second). These side-channel attacks also lead us to rethink Linux security model that the complicated network stack needs to be trusted and protected, yet share cores with applications.
 
 \textbf{Context switch and scheduling.}
-Switching from one process to another cooperatively ($0.45\mu$s) is 2.5x expensive than a system call. Inter-process context switch based on semaphore, mutex or \texttt{futex} takes $2\sim4\mu$s, even 5x$\sim$8x slower than cooperative multitasking. This additional latency attributes to event notification mechanism and scheduler queue manipulation in kernel. For two processes that pin on different cores, one-way TCP socket takes $\approx8\mu$s, half of which attributes to the same reason of semaphore delay. In this regard, low latency networking and IPC should use cooperative multitasking rather than kernel wakeup.
+Switching from one process to another cooperatively ($0.52\mu$s) is 2.5x expensive than a system call. Inter-process context switch based on semaphore, mutex or \texttt{futex} takes $2.8\sim5.5\mu$s, even 5x$\sim$10x slower than cooperative multitasking. This additional latency attributes to event notification mechanism and scheduler queue manipulation in kernel. For two processes that pin on different cores, one-way TCP socket takes $\approx8\mu$s, half of which attributes to the same reason of semaphore delay. In this regard, low latency networking and IPC should use cooperative multitasking rather than kernel wakeup.
 
 \textbf{Data copy.}
 For inter-server data transmission, Linux kernel copies data four times: on the send side, from application to kernel socket buffer, then to NIC ring buffer; the receive side is similar. For intra-server, data is copied three times: from application to kernel send buffer, then to kernel receive buffer via loopback interface, and finally to another application. Each CPU core can copy $\approx$5~GiB data per second~\cite{panda2016netbricks}, that's why a kernel TCP connection is hard to saturate an 100~Gbps NIC.
@@ -105,10 +105,10 @@ In this section, we outline performance requirements for socket applications and
 		\hline
 		NIC-bypass IPC & \yes & & \yes & \yes & & \yes & \yes & & \yes \\
 		\hline
-		RDMA as Transport & & & & & & \yes & & \yes & \yes \\
+		RDMA as Transport & & & & & & \yes & & & \yes \\
 		\hline
 		\hline
-		Socket-like API & \yes & \yes & \yes & \yes & & & \yes & \yes & \yes \\
+		Socket-like API & \yes & & \yes & \yes & \yes & & \yes & \yes & \yes \\
 		\hline
 		Linux Compatible & \yes & & & & & & & \yes & \yes \\
 		\hline
@@ -137,8 +137,26 @@ FastSocket~\cite{lin2016scalable},
 \textbf{New kernel stacks.}
 
 
+\iffalse
+Kernel-bypass TCP/IPs
+	IX [OSDI’14], Arrakis [OSDI’14], UTCP [CCR’14], Sandstorm [SIGCOMM’14], mTCP [NSDI’14], Seastar
+
+Socket API enhancements
+	MegaPipe [OSDI’12], FlexSC [OSDI’10], KCM [Linux]
+
+Improving OS stack with fast packet I/O
+	mSwitch [SOSR’15]
+
+In-stack improvement
+	FastSocket [ASPLOS’16]
+
+Running kernel stack in user-space
+	Rump [AsiaBSDCon’09], NUSE [netdev’15]
+\fi
 
 Arrakis~\cite{peter2016arrakis} and IX~\cite{belay2017ix} use NIC for both intra-server and inter-server communications. The hairpin latency from CPU to NIC is at least two PCIe delays, which is roughly 1$\mu$s~\cite{kaminsky2016design}, one order of magnitude higher than inter-core communication delay ($\leq0.1\mu$s). In addition, the data plane switching capacity of a NIC is constrained by PCIe bandwidth, an order of magnitude lower than the bus among CPU cores~\cite{li2017kv}. For inter-server communication, Arrakis~\cite{peter2016arrakis} and IX~\cite{belay2017ix} use packet-level interface of NIC and implement transport in software. Although this has more flexibility than the hardware-based transport in RDMA, NICs are becoming increasingly programmable, and the architecture of programmable NICs is a better fit for implementing transport protocols~\cite{kaufmann2015flexnic,smartnic,mellanox,cavium}. 
+
+For large scale deployment, kernel-based stacks are much more complicated than user-space libraries~\cite{andromeda}.
 
 \textbf{User-space sockets.}
 Seastar~\cite{seastar}, F-stack~\cite{fstack}
