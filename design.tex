@@ -1,14 +1,14 @@
-\section{Inter-Process Socket in a Server}
+\section{Design}
 \label{sec:intra-server}
 
-\subsection{Scaling to Billions of Connections}
+\subsection{Scalable Connection Management}
 \label{subsec:socket-api}
 
 The key to socket scalability is to minimize memory sharing by making communications explicit via message passing. Because multiple threads in a process share memory space, we treat each thread as a separated process and use thread-specific storage to save states in \libipc. In the following text, unless explicitly mentioned, we refer to a ``process or thread'' as a ``process''.
 
 %In the following, we will analyze Linux socket APIs in Table~\ref{tab:socket-api} and design a scalable socket architecture.
 
-\subsubsection{Connection Management}
+\subsubsection{Managing Intra-Server Connections}
 \label{subsubsec:connection_management}
 
 \begin{figure}[t]
@@ -39,8 +39,28 @@ Because socket is bidirectional, \texttt{close} is equivalent to \texttt{shutdow
 
 %Generally, each process in our design is treated as an endpoint in the network. Figure \ref{fig:conn-setup-close} shows the process of connection setup and close. When \textit{socket} is called, the process itself allocate per fd resources. When \textit{listen} is called, monitor is notified of port occupation. During the \textit{connect} operation, monitor first chooses one of the processes listen on this port then coordinates the creation of the shared memory between the two processes and notifies each other of the new connection. When \textit{close} happens, both of the endpoint notify each other and monitor is responsible to destroy the shared memory between them. 
 
+\subsubsection{Multiplexing Connections via RDMA}
 
-\subsubsection{Data Transmission}
+\begin{figure}[t]
+	\centering
+	\includegraphics[width=0.3\textwidth]{images/fixme}
+	\caption{RDMA connection setup process.}
+	\label{fig:rdma}
+\end{figure}
+
+As stated in Sec.~\ref{subsec:challenges}, if we intuitively map each socket connection to an RDMA connection, due to NIC cache miss, the performance would degrade with more than a few hundreds of active connections. So we need to multiplex socket connections via an RDMA connection. %Mapping socket \texttt{send} and \texttt{recv} operations to two-sided RDMA \texttt{send} and \texttt{recv} verbs is also challenging due to mismatch in semantics.
+Fortunately, our inter-process socket design can multiplex socket connections between two processes via a single shared-memory queue. %To recap (Sec.~\ref{subsec:lockless-queue}), a shared-memory queue consists of three ring buffers, one for metadata from sender to receiver, one for control messages, and another for free data slots from receiver to sender.
+To extend our intra-server design to inter-server, the first challenge is that we have different monitor processes on each server. For connection setup, the monitor on listener server is responsible for coordination. When a client connects to a server for the first time, it creates a Linux native \textit{bootstrap socket} to the monitor on destination server. From then on, monitor identifies the client by peer IP and port of the bootstrap socket. Then client and monitor establish an RDMA connection. As shown in Figure~\ref{fig:rdma}, the remaining procedure is identical to intra-server, except that shared-memory queues are replaced by RDMA connections. For \texttt{fork} and other non-partitionable operations, a process needs to notify all monitors it connects to.
+
+\subsubsection{Scaling TCP Connections}
+
+To improve multi-process scalability of TCP servers, we leverage Receive-Side Scaling (RSS) in modern NICs to distribute incoming and outgoing connections to the NIC queues of listening processes. For outgoing connections, \libipc{} chooses a source port such that received packets will be distributed to its own queue. For incoming processes, the monitor process configures NIC indirection table~\cite{mellanox} when a process binds a non-local IP address. Each process maintains TCP connections locally. However, listeners may need to migrate new connections under load imbalance. To this end, each listener maintains a \textit{backlog} of received new connections which has not been \texttt{accept}ed by the application. When the backlog overflows, it forwards the new connection to the monitor. When an idle process calls \texttt{accept} while backlog is empty, it requests from the monitor. Then, the overloaded process will forward received packets of the migrated connection to the idle process via shared-memory queue.
+
+
+\subsection{Fast Inter-Process Channel}
+\label{subsec:inter-process-channel}
+
+\subsubsection{Socket Send, Receive and Event Polling}
 \label{subsubsec:data_trans}
 
 To scale the system with multiple cores, each process should be able to transmit data directly to the peer without notifying monitor. As shown in Table~\ref{tab:socket-api}, we design all APIs in data transmission to be peer-to-peer or local.
@@ -60,7 +80,7 @@ There is one more performance optimization. Round-robin polling of inter-process
 %Generally, for data transmission. In the shared memory between two processes, \libipc prepares a multiplexed queue for all the connections with ability of popping items in the middle of it, an ``emergency queue'' for instant messages and a memory pool to store data.
 
 
-\subsection{Lockless Shared Memory Queue}
+\subsubsection{Lockless Shared Memory Queue}
 \label{subsec:lockless-queue}
 
 \begin{figure}[t]
@@ -91,6 +111,12 @@ In order to support picking data for a specific FD, receiver needs to traverse n
 
 %It is common that the operation of the shared memory is protected by the \textit{memory fence} instruction in order to avoid the reorder caused by out-of-order execution on modern X86 CPU, which has expensive cost since it locks the memory bus. We make the observation that only write may be delayed according to the manual of Intel \cite{sewell2010x86,intel-manual}. By carefully adjusting the order of the instructions and removing \textit{memory fence}, the throughput of lockless queue could achieve 30M per second. 
 
+\subsubsection{Using RDMA for Inter-Server Ring Buffer}
+\label{subsec:rdma-ring-buffer}
+
+To communicate with RDMA capable peers, \libipc{} translates socket operations to one-sided RDMA \texttt{write} verbs. We implement a ring buffer between each pair of communicating processes using RDMA verbs. The difference between intra-server and inter-server ring buffer is memory access latency. In our intra-server ring buffer design, sender checks \textit{isvalid} bit of each item in ring buffer to determine whether the queue is full, and receiver also checks \textit{isvalid} bit to determine whether the queue is empty. In RDMA setting, either sender or receiver needs to use RDMA to check \textit{isvalid} bit remotely, incurring one round-trip delay per enqueue or dequeue.
+
+To avoid such delay, we design a \textit{credit-based ring buffer} for inter-server socket. Data of the ring buffer resides in receiver's main memory. Sender holds a tail pointer locally and receiver holds a head pointer locally. Sender maintains a number of \textit{credits}, indicating the number of unused items in ring buffer. When sender enqueues an item via RDMA \texttt{write}, it consumes a credit. When receiver dequeues an item, it increments a counter locally, and RDMA \texttt{write} a flag in sender's memory once the counter exceeds half the size of ring buffer. The sender regains credits upon detecting the flag. In this way, returning credits in batches amortizes RDMA messaging overhead for checking queue full. The only RDMA verb we use is one-sided posted \texttt{write}, so the ring buffer is wait-free on both sender and receiver. We did not use this design for intra-server because it doubles ring buffer size for a given queue capacity and affects memory locality.
 
 
 \subsection{Scaling Shared Socket}
@@ -233,6 +259,9 @@ Fortunately, the virtual memory provides a layer of indirection, so we can remap
 In this regard, we wrap around \texttt{malloc} and \texttt{realloc} functions and allocate 4~KiB aligned addresses for large allocations, so most buffers will align to page boundary.
 If the size of send message is not a multiple of 4~KiB, the last chunk of data is copied on \texttt{send} and \texttt{recv}.
 
+\subsubsection{Zero Copy for Intra-Server Socket}
+\label{subsec:zero-copy-intra}
+
 As shown in Figure~\ref{fig:zerocopy}, for \texttt{send} operation, \libipc{} invokes the kernel to get an encrypted physical address of send buffer and send the address to receiver via user-mode shared-memory queue.
 The address is encrypted to prevent unsolicited mapping of arbitrary pages.
 Because the sender may read the buffer after \texttt{send} or send the buffer to multiple receivers, the physical page cannot be remapped.
@@ -253,46 +282,32 @@ We add to the kernel a system call to convert virtual addresses in the pool and 
 \libipc{} also tracks the origin of received zero-copy buffers.
 After page remapping on sender \texttt{memcpy} and receiver \texttt{recv}, if the old physical page is from another process, \libipc{} sends a message to the origin process to return the buffer.
 
+\subsubsection{Zero Copy RDMA}
+\label{subsec:zero-copy-rdma}
 
-\section{Inter-Server Socket}
-\label{sec:inter-server}
+We use physical addresses in RDMA verbs to eliminate memory registration and address translation overhead, as recommended by NIC documentation~\cite{mellanox}. During connection initialization, the receiver prepares a huge-page buffer for receiving zero-copy messages. The sender manages a pool of free pages in the receive buffer. Upon socket \texttt{send}, \libipc calls the kernel to get non-encrypted physical address of send virtual address. \libipc also allocates pages from receive buffer as remote address for RDMA \texttt{write}. The metadata message in ring buffer includes physical pages in receive buffer. Upon socket \texttt{recv}, \libipc calls the kernel maps physical pages in metadata message to receive virtual address. For security, kernel validates that page numbers are in the huge-page receive buffer. Same as intra-server zero-copy communication, when the receiver stops using the receive buffer, it is returned to the sender.
 
-\textbf{Discuss how to modify libvma.}
+\subsubsection{Zero Copy TCP}
+\label{subsec:zero-copy-tcp}
 
-Previous section discussed inter-process socket in a same server. For inter-server socket, \libipc{} determines whether or not the peer supports RDMA. If so, \libipc{} translate socket operations to one-sided RDMA \texttt{write} verbs. Otherwise, \libipc{} calls a light-weight user-mode TCP/IP stack to communicate with standard TCP/IP endpoints. In both cases, we achieve zero copy and scalability with number of threads and number of connections.
-
-\subsection{Using RDMA Efficiently for Socket}
-\label{subsec:rdma}
-
-\begin{figure}[t]
-	\centering
-	\includegraphics[width=0.3\textwidth]{images/fixme}
-	\caption{RDMA connection setup process.}
-	\label{fig:rdma}
-\end{figure}
-
-As stated in Sec.~\ref{subsec:challenges}, if we intuitively map each socket connection to an RDMA connection, due to NIC cache miss, the performance would degrade with more than a few hundreds of active connections. So we need to multiplex socket connections via an RDMA connection. %Mapping socket \texttt{send} and \texttt{recv} operations to two-sided RDMA \texttt{send} and \texttt{recv} verbs is also challenging due to mismatch in semantics.
-Fortunately, our inter-process socket design can multiplex socket connections between two processes via a single shared-memory queue. %To recap (Sec.~\ref{subsec:lockless-queue}), a shared-memory queue consists of three ring buffers, one for metadata from sender to receiver, one for control messages, and another for free data slots from receiver to sender.
-To extend our intra-server design to inter-server, the first challenge is that we have different monitor processes on each server. For connection setup, the monitor on listener server is responsible for coordination. When a client connects to a server for the first time, it creates a Linux native \textit{bootstrap socket} to the monitor on destination server. From then on, monitor identifies the client by peer IP and port of the bootstrap socket. Then client and monitor establish an RDMA connection. As shown in Figure~\ref{fig:rdma}, the remaining procedure is identical to intra-server, except that shared-memory queues are replaced by RDMA connections. For \texttt{fork} and other non-partitionable operations, a process needs to notify all monitors it connects to.
-
-The second challenge is to implement a ring buffer between each pair of communicating processes using RDMA verbs. The difference between intra-server and inter-server ring buffer is memory access latency. In our intra-server ring buffer design, sender checks \textit{isvalid} bit of each item in ring buffer to determine whether the queue is full, and receiver also checks \textit{isvalid} bit to determine whether the queue is empty. In RDMA setting, either sender or receiver needs to use RDMA to check \textit{isvalid} bit remotely, incurring one round-trip delay per enqueue or dequeue.
-
-To avoid such delay, we design a \textit{credit-based ring buffer} for inter-server socket. Data of the ring buffer resides in receiver's main memory. Sender holds a tail pointer locally and receiver holds a head pointer locally. Sender maintains a number of \textit{credits}, indicating the number of unused items in ring buffer. When sender enqueues an item via RDMA \texttt{write}, it consumes a credit. When receiver dequeues an item, it increments a counter locally, and RDMA \texttt{write} a flag in sender's memory once the counter exceeds half the size of ring buffer. The sender regains credits upon detecting the flag. In this way, returning credits in batches amortizes RDMA messaging overhead for checking queue full. The only RDMA verb we use is one-sided posted \texttt{write}, so the ring buffer is wait-free on both sender and receiver. We did not use this design for intra-server because it doubles ring buffer size for a given queue capacity and affects memory locality.
-
-The second challenge is achieving zero copy RDMA. We use physical addresses in RDMA verbs to eliminate memory registration and address translation overhead, as recommended by NIC documentation~\cite{mellanox}. During connection initialization, the receiver prepares a huge-page buffer for receiving zero-copy messages. The sender manages a pool of free pages in the receive buffer. Upon socket \texttt{send}, \libipc calls the kernel to get non-encrypted physical address of send virtual address. \libipc also allocates pages from receive buffer as remote address for RDMA \texttt{write}. The metadata message in ring buffer includes physical pages in receive buffer. Upon socket \texttt{recv}, \libipc calls the kernel maps physical pages in metadata message to receive virtual address. For security, kernel validates that page numbers are in the huge-page receive buffer. Same as intra-server zero-copy communication, when the receiver stops using the receive buffer, it is returned to the sender.
+Supporting zero copy with existing applications requires removing two data copies on both send and receive path. We remove data copy between application and \libipc{} in Sec.~\ref{subsec:zerocopy}. To remove data copy between \libipc{} and NIC, the payloads of sent and received packets need to align at 4~KiB page boundary. We leverage scatter-gather support in modern NICs~\cite{mellanox} to separate packet header from application payload. During initialization, \libipc{} queries IP and Ethernet MAC address from the kernel and constructs a packet header template. Upon socket \texttt{send}, \libipc{} copies the packet header template to a NIC send work request, then fills in the payload buffer address from application. In background, \libipc{} issues NIC receive work requests with a 54-byte buffer to hold exactly Ethernet, IPv4 and TCP headers, followed by a page-aligned buffer to hold payload. In corner cases where the received header length is not 54 bytes, \libipc{} reassembles the packet. Upon socket \texttt{recv}, the payload buffer is remapped to application.
 
 
-\subsection{Light-weight TCP/IP in User Space}
-\label{subsec:lwip}
+%\subsection{Inter-Server Socket}
+%\label{sec:inter-server}
 
-\sys{} needs to communicate with standard TCP/IP endpoints without RDMA support. There has been extensive work on user-space socket and TCP/IP stack in both academia~\cite{dunkels2001design,rizzo2012netmap,huang2017high} and industry~\cite{libvma,openonload,dbl}. However, most of these works do not optimize for a large number of concurrent connections, require locks for multi-thread applications, and do not support zero copy without application modification.
+%Previous section discussed inter-process socket in a same server. For inter-server socket, \libipc{} determines whether or not the peer supports RDMA. If so, \libipc{} translate socket operations to one-sided RDMA \texttt{write} verbs. Otherwise, \libipc{} calls a light-weight user-mode TCP/IP stack to communicate with standard TCP/IP endpoints. In both cases, we achieve zero copy and scalability with number of threads and number of connections.
+
+
+%\subsection{Light-weight TCP/IP in User Space}
+%\label{subsec:lwip}
+
+%\sys{} needs to communicate with standard TCP/IP endpoints without RDMA support. There has been extensive work on user-space socket and TCP/IP stack in both academia~\cite{dunkels2001design,rizzo2012netmap,huang2017high} and industry~\cite{libvma,openonload,dbl}. However, most of these works do not optimize for a large number of concurrent connections, require locks for multi-thread applications, and do not support zero copy without application modification.
 
 %A network stack is logically composed of three layers: the socket API for applications, TCP/IP protocol for reliable transmission and packet send/receive interface with NIC hardware. Our intra-server socket design in Sec.~\ref{sec:intra-server} applies directly to inter-server socket API. 
 
-With a large number of concurrent connections, per-connection states in TCP/IP protocol stacks not only consumes host memory, but also reduces memory access locality. To save memory, light-weight TCP/IP stacks~\cite{dunkels2001design} do not pre-allocate send and receive buffers of TCP window size. But each connection still needs send and receive bitmaps to track out-of-order and lost packets, and selectively retransmit them. We modify LwIP~\cite{dunkels2001design} to incorporate MELO~\cite{lu2017memory}, a memory-efficient loss recovery mechanism that share bitmaps among connections. In this way, bitmap memory footprint is amortized to $\approx20$ bytes per connection.
+%With a large number of concurrent connections, per-connection states in TCP/IP protocol stacks not only consumes host memory, but also reduces memory access locality. To save memory, light-weight TCP/IP stacks~\cite{dunkels2001design} do not pre-allocate send and receive buffers of TCP window size. But each connection still needs send and receive bitmaps to track out-of-order and lost packets, and selectively retransmit them. We modify LwIP~\cite{dunkels2001design} to incorporate MELO~\cite{lu2017memory}, a memory-efficient loss recovery mechanism that share bitmaps among connections. In this way, bitmap memory footprint is amortized to $\approx20$ bytes per connection.
 
-For multi-thread applications, \libipc{} uses thread-local storage for states and file descriptors to eliminate locks. Each thread owns exclusive work request and completion queues to communicate with the NIC. In order to avoid TCP state sharing among threads, \libipc{} designates one thread with exclusive access to each TCP socket. If other threads access the file descriptor, it sends a takeover message to the owner thread, as in Sec.~\ref{subsubsec:fork_rdwr}.
+%For multi-thread applications, \libipc{} uses thread-local storage for states and file descriptors to eliminate locks. Each thread owns exclusive work request and completion queues to communicate with the NIC. In order to avoid TCP state sharing among threads, \libipc{} designates one thread with exclusive access to each TCP socket. If other threads access the file descriptor, it sends a takeover message to the owner thread, as in Sec.~\ref{subsubsec:fork_rdwr}.
 
-To improve multi-process scalability of TCP servers, we leverage Receive-Side Scaling (RSS) in modern NICs to distribute incoming and outgoing connections to the NIC queues of listening processes. For outgoing connections, \libipc{} chooses a source port such that received packets will be distributed to its own queue. For incoming processes, the monitor process configures NIC indirection table~\cite{mellanox} when a process binds a non-local IP address. Each process maintains TCP connections locally. However, listeners may need to migrate new connections under load imbalance. To this end, each listener maintains a \textit{backlog} of received new connections which has not been \texttt{accept}ed by the application. When the backlog overflows, it forwards the new connection to the monitor. When an idle process calls \texttt{accept} while backlog is empty, it requests from the monitor. Then, the overloaded process will forward received packets of the migrated connection to the idle process via shared-memory queue.
-
-Supporting zero copy with existing applications requires removing two data copies on both send and receive path. We remove data copy between application and \libipc{} in Sec.~\ref{subsec:zerocopy}. To remove data copy between \libipc{} and NIC, the payloads of sent and received packets need to align at 4~KiB page boundary. We leverage scatter-gather support in modern NICs~\cite{mellanox} to separate packet header from application payload. During initialization, \libipc{} queries IP and Ethernet MAC address from the kernel and constructs a packet header template. Upon socket \texttt{send}, \libipc{} copies the packet header template to a NIC send work request, then fills in the payload buffer address from application. In background, \libipc{} issues NIC receive work requests with a 54-byte buffer to hold exactly Ethernet, IPv4 and TCP headers, followed by a page-aligned buffer to hold payload. In corner cases where the received header length is not 54 bytes, \libipc{} reassembles the packet. Upon socket \texttt{recv}, the payload buffer is remapped to application.
+%To improve multi-process scalability of TCP servers, we leverage Receive-Side Scaling (RSS) in modern NICs to distribute incoming and outgoing connections to the NIC queues of listening processes. For outgoing connections, \libipc{} chooses a source port such that received packets will be distributed to its own queue. For incoming processes, the monitor process configures NIC indirection table~\cite{mellanox} when a process binds a non-local IP address. Each process maintains TCP connections locally. However, listeners may need to migrate new connections under load imbalance. To this end, each listener maintains a \textit{backlog} of received new connections which has not been \texttt{accept}ed by the application. When the backlog overflows, it forwards the new connection to the monitor. When an idle process calls \texttt{accept} while backlog is empty, it requests from the monitor. Then, the overloaded process will forward received packets of the migrated connection to the idle process via shared-memory queue.

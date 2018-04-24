@@ -1,7 +1,109 @@
 \section{Related Work}
 \label{sec:related}
 
-Several most closely related works have been discussed in Sec.~\ref{subsec:related}.
+
+\begin{table*}[t]
+	\centering
+	\scalebox{0.9}{
+		\begin{tabular}{l|c|ccc|cc|ccc|}
+			\hline
+			Category	& \multicolumn{1}{c|}{Linux Opt.} & \multicolumn{3}{c|}{New Kernel Stack} & \multicolumn{2}{c|}{User-space Packet} & \multicolumn{3}{c|}{User-space Socket} \\
+			\hline
+			System	& FastSocket & IX & MegaPipe & StackMap & Arrakis & FreeFlow & mTCP & libvma & SocksDirect \\
+			\hline
+			\hline
+			Kernel Bypass & & & & & \yes & \yes & \yes & \yes & \yes \\
+			\hline
+			Zero Copy & & \yes & & \yes & \yes & \yes & & & \yes \\
+			\hline
+			Low Latency & & \yes & \yes & \yes & \yes & \yes & \yes & \yes & \yes \\
+			\hline
+			\hline
+			Multi-core Scalability & \yes & \yes & \yes & \yes & \yes & \yes & \yes & & \yes \\
+			\hline
+			Connection Scalability & \yes & \yes & \yes & \yes & & & \yes & & \yes \\
+			\hline
+			\hline
+			NIC-bypass IPC & \yes & & \yes & \yes & & \yes & \yes & & \yes \\
+			\hline
+			RDMA as Transport & & & & & & \yes & & & \yes \\
+			\hline
+			\hline
+			Socket-like API & \yes & & \yes & \yes & \yes & & \yes & \yes & \yes \\
+			\hline
+			Linux Compatible & \yes & & & & & & & \yes & \yes \\
+			\hline
+			Process Isolation & \yes & \yes & \yes & \yes & \yes & \yes & \yes & \yes & \yes \\
+			\hline
+		\end{tabular}
+	}
+	\caption{Comparison of high performance socket systems.}
+	\label{tab:related-work}
+\end{table*}
+
+Table~\ref{tab:related-work} categorizes and compares several representative existing approaches.
+
+\textbf{Linux kernel optimization.}
+FastSocket~\cite{lin2016scalable}, 
+
+\begin{itemize}
+	\item
+	Violate goal 1: inter-core interrupts for IPC 
+	\item
+	Violate goal 2: context switch overhead, +latency for syscall batching, still need memory copy 
+	\item 
+	Violate goal 4: Large memory footprint for many connections 
+\end{itemize}
+
+\textbf{New kernel stacks.}
+
+
+\iffalse
+Kernel-bypass TCP/IPs
+IX [OSDI’14], Arrakis [OSDI’14], UTCP [CCR’14], Sandstorm [SIGCOMM’14], mTCP [NSDI’14], Seastar
+
+Socket API enhancements
+MegaPipe [OSDI’12], FlexSC [OSDI’10], KCM [Linux]
+
+Improving OS stack with fast packet I/O
+mSwitch [SOSR’15]
+
+In-stack improvement
+FastSocket [ASPLOS’16]
+
+Running kernel stack in user-space
+Rump [AsiaBSDCon’09], NUSE [netdev’15]
+\fi
+
+Arrakis~\cite{peter2016arrakis} and IX~\cite{belay2017ix} use NIC for both intra-server and inter-server communications. The hairpin latency from CPU to NIC is at least two PCIe delays, which is roughly 1$\mu$s~\cite{kaminsky2016design}, one order of magnitude higher than inter-core communication delay ($\leq0.1\mu$s). In addition, the data plane switching capacity of a NIC is constrained by PCIe bandwidth, an order of magnitude lower than the bus among CPU cores~\cite{li2017kv}. For inter-server communication, Arrakis~\cite{peter2016arrakis} and IX~\cite{belay2017ix} use packet-level interface of NIC and implement transport in software. Although this has more flexibility than the hardware-based transport in RDMA, NICs are becoming increasingly programmable, and the architecture of programmable NICs is a better fit for implementing transport protocols~\cite{kaufmann2015flexnic,smartnic,mellanox,cavium}. 
+
+For large scale deployment, kernel-based stacks are much more complicated than user-space libraries~\cite{andromeda}.
+
+\textbf{User-space sockets.}
+Seastar~\cite{seastar}, F-stack~\cite{fstack}
+
+
+\begin{itemize}
+	\item New abstraction (RDMA, lwip + DPDK etc.) 
+	\begin{itemize}
+		\item Some works violate goal 3: data transmission via centralized virtual switch 
+	\end{itemize}
+	\item Compatible with socket (libvma, LOS etc.) 
+	\begin{itemize}
+		\item Violate goal 2: memory copy 
+		\item Violate goal 3: thread synchronization for multi-thread applications 
+	\end{itemize}
+	\item Common problems: 
+	\begin{itemize}
+		\item Designed for networking, does not support or optimize for IPC communication inside the same server 
+		\item Violate goal 4: Not optimized for many connections 
+	\end{itemize}
+\end{itemize}
+
+
+SDP~\cite{socketsdirect} and rsockets~\cite{rsockets} are not compatible with Linux socket because the application still needs to manage send and receive buffers.
+
+
 
 PacketShader~\cite{han2010packetshader}
 F-stack~\cite{fstack}

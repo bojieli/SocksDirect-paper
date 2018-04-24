@@ -24,17 +24,17 @@
 		\hline
 		bind & NoPart &
 		\textbf{accept(4)} & P2P &
-		\textbf{recv(from,(m)msg)} & P2P &
+		\textbf{recv(from,(m)msg)} & $\approx$Local &
 		\textit{pthread\_create} & NoPart \\
 		\hline
-		listen & Local &
+		listen & NoPart &
 		\textbf{\textit{fcntl, ioctl}} & Local &
 		\textbf{\textit{write(v)}} & P2P &
 		\textit{clone} & NoPart \\
 		\hline
 		socketpair & Local &
 		\textbf{(get,set)sockopt} & Local &
-		\textbf{\textit{read(v)}} & P2P &
+		\textbf{\textit{read(v)}} & $\approx$Local &
 		\textit{execve} & NoPart \\
 		\hline
 		getsockname  & Local &
@@ -70,14 +70,14 @@
 \end{figure}
 
 
-To remove the overhead of context switch and centralized coordination while preserving the semantics and isolation of Linux system calls, we rethink the OS architecture and propose four design principles:
+To address the performance and compatibility challenges, we rethink the socket architecture and propose four design principles:
 
-\textbf{Performance-critical OS functions run in user-mode library.}
+\textbf{User-mode socket library as a drop-in replacement.}
 Inspired by Unikernels~\cite{madhavapeddy2013unikernels}, we move networking and IPC functions from the kernel to user space. Similar to existing works~\cite{peter2016arrakis,jeong2014mtcp,libvma}, we leverage multiple queues in modern NICs to enable user-space direct access to network. The kernel is still responsible for process creation, scheduling, virtual memory and device management, but no longer on the critical path of performance.
 
 To maintain compatibility with existing Linux applications, we design a user-mode library \libipc as a drop-in replacement of the system call wrappers in the GNU C library (glibc). \libipc{} implements network socket functions in user mode, and adds a wrapper to other system calls to track process creation and memory allocation. \libipc{} is not considered a secure domain, as it shares memory space with the application. Figure~\ref{fig:architecture} shows the architecture of \sys{}.
 
-\textbf{Processes as a distributed system.}
+\textbf{Consider processes as a distributed system.}
 For multi-core and multi-server scalability, we use message passing for inter-process communication and avoid state sharing, thus eliminating synchronization. We consider processes in a server as a distributed system, in the sense that a) processes share nothing but peer-to-peer communication channels, b) new processes may join at any time, c) a process may crash unexpectedly and d) no process is trusted in terms of security. Instead of relying security on the isolation between application and ``protected kernel code'', we design a protocol among processes and delegate privileged operations to a special \textit{monitor} process, analogous to the coordinator in a distributed system.
 
 To design the inter-process protocol with minimal message passing, in Table~\ref{tab:socket-api}, we categorize Linux socket operations into local, peer-to-peer and non-partitionable ones. We say an operation is \textit{local} if it only changes states local to a process (\textit{e.g.} assigning file descriptors). An operation is \textit{peer-to-peer} if the states are written by one processes and read by another process (\textit{e.g.} sending a message). We develop a high performance lockless shared memory queue to enable efficient peer-to-peer communication (Sec.\ref{subsec:lockless-queue}). Some peer-to-peer operations require blocking to wait for response from the peer, while others can return after a non-blocking write to the inter-process queue. We design to minimize blocking wait. Local and peer-to-peer operations are naturally scalable because their states are partitionable~\cite{partitionable}. For \textit{non-partitionable} operations (\textit{e.g.} load balancing new connections to listening processes), \libipc revisits the idea of \textit{monitor process}~\cite{hoare1974monitors} and delegates coordination to a monitor process. Delegation not only has higher throughput than synchronization~\cite{roghanchi2017ffwd}, but also ensures security and fairness.
