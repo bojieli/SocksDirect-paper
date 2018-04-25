@@ -80,11 +80,11 @@
 			\hline
 			Intra-server TCP (4.16) & 8.5 & 2.0 \\
 			\hline
-			Inter-server TCP socket & 10 & 0.3 \\
+			Inter-server TCP (4.16) & 9.5 & 0.3 \\
 			\hline
 			128~KiB memory copy & 15 & 0.07 \\
 			\hline
-			Create socket connection & 35 & 0.03 \\
+			Create TCP socket (4.16) & 35 & 0.03 \\
 			\hline
 		\end{tabular}
 	}
@@ -121,9 +121,9 @@ To ensure isolation among processes, one category of dataplane operating systems
 Switching from one process to another cooperatively ($0.52\mu$s) is 2.5x expensive than a system call. Inter-process context switch based on semaphore, mutex or \texttt{futex} takes $2.8\sim5.5\mu$s, even 5x$\sim$10x slower than cooperative multitasking. This additional latency attributes to event notification mechanism and scheduler queue manipulation in kernel. For two processes that pin on different cores, one-way TCP socket takes $\approx8\mu$s, half of which attributes to the same reason of semaphore delay. In this regard, low latency networking and IPC should use cooperative multitasking rather than kernel wakeup.
 
 \textbf{Synchronization.}
-Scalability analysis of Linux system calls~\cite{boyd2010analysis} suggests that many socket operations are not commutable. During connection setup, we need to create file descriptors, load balance \texttt{connect} requests and allocate buffers. In addition a socket connection may be shared by multiple processes and threads. Threads in a same process share all socket connections. When a process forks, the parent and child processes share the sockets created before fork. The processes and threads sharing a socket forms a multi-producer and multi-consumer model. Logically, senders enqueue data into a shared FIFO, and receivers dequeue an application-specified number of bytes from the FIFO.
+Scalability analysis of Linux system calls~\cite{boyd2010analysis,clements2015scalable} suggests that many socket operations are not commutable. During connection setup, we need to create file descriptors, load balance \texttt{connect} requests and allocate buffers. In addition a socket connection may be shared by multiple processes and threads. Threads in a same process share all socket connections. When a process forks, the parent and child processes share the sockets created before fork. The processes and threads sharing a socket forms a multi-producer and multi-consumer model. Logically, senders enqueue data into a shared FIFO, and receivers dequeue an application-specified number of bytes from the FIFO.
 
-Linux kernel acquires global locks during connection setup and a per-socket lock for each socket operation, limiting socket scalability~\cite{boyd2010analysis,han2012megapipe,lin2016scalable}. In fact, even in non-contending scenarios, synchronization still introduces significant overhead. Mutual exclusion is typically implemented with Compare-And-Swap (CAS) instruction, which costs $100\sim200$~ns per lock and unlock. In comparison, inter-core message passing can be implemented with only one cache migration~\cite{roghanchi2017ffwd} (30~ns).
+To this end, Linux kernel acquires global locks during connection setup and a per-socket lock for each socket operation, limiting socket scalability~\cite{boyd2010analysis,han2012megapipe,lin2016scalable}. In fact, even in non-contending scenarios, synchronization still introduces significant overhead. Mutual exclusion is typically implemented with Compare-And-Swap (CAS) instruction, which costs $100\sim200$~ns per lock and unlock. In comparison, inter-core message passing can be implemented with only one cache migration~\cite{roghanchi2017ffwd} (30~ns).
 
 \textbf{Memory copy.}
 For inter-server data transmission, Linux kernel copies data four times: on the send side, from application to kernel socket buffer, then to NIC ring buffer; the receive side is similar. For intra-server, data is copied three times: from application to kernel send buffer, then to kernel receive buffer via loopback interface, and finally to another application. Each CPU core can copy $\approx$5~GiB data per second~\cite{panda2016netbricks}, that's why a kernel TCP connection is hard to saturate an 100~Gbps NIC.
