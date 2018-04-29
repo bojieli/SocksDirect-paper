@@ -1,8 +1,8 @@
-\section{Challenges}
+\section{Background}
 \label{sec:background}
 
-%\subsection{Socket: the Performance Bottleneck}
-%\label{subsec:bottleneck}
+\subsection{Motivation}
+\label{subsec:motivation}
 
 \begin{figure}[t]
 	\centering
@@ -88,10 +88,9 @@
 	\label{tab:operation-performance}
 \end{table}
 
-
-Linux kernel socket is a well-known bottleneck for communication intensive applications. We stress test Nginx load balancer, memcached and Redis key-value stores with one request per TCP connection or a stream of requests on pre-established TCP connections. As shown in Figure~\ref{fig:socket-kernel-time}, 50\%$\sim$90\% CPU time is consumed in the kernel, mostly dealing with socket system calls. Connection setup is especially slow, causing the one request per connection scenario shows much lower throughput. If we were able to mitigate the overhead associated with sockets, application performance would be 2x$\sim$10x.
+Linux kernel socket is a well-known bottleneck for communication intensive applications. We stress test Nginx load balancer, memcached and Redis with one request per TCP connection or a stream of requests on pre-established TCP connections. As shown in Figure~\ref{fig:socket-kernel-time}, 50\%$\sim$90\% CPU time is consumed in the kernel, mostly dealing with socket system calls. The one request per connection scenario shows much lower throughput, because of overhead in connection creation.
+%If we were able to mitigate the overhead associated with sockets, application performance would be 2x$\sim$10x.
 %As another example, we replaced socket with RDMA and enabled zero copy gRPC in distributed Tensorflow~\cite{abadi2016tensorflow}, and training a VGG network shows 5x speedup.
-
 
 %Socket is a well-known bottleneck in fast data center networks \RED{(cite)}. In a data center, we categorize systems that process queries from Internet users to be \textit{front-end} (\textit{e.g.} DNS server, load balancer and Web service), and the other systems (\textit{e.g.} database, stream processing and machine learning) to be \textit{back-end}.
 
@@ -103,9 +102,19 @@ Linux kernel socket is a well-known bottleneck for communication intensive appli
 
 %\textbf{Socket process: connection setup and data transmission.}
 
+\textbf{Compatibility.}
+We design \sys to be compatible with existing applications using Linux socket. \textit{Process isolation} also needs to be preserved.
 
-To simplify deployment, we design \sys to be fully \textit{compatible} with existing applications using Linux socket. \textit{Process isolation} needs to be preserved. In addition, \sys has four performance goals. First, \textit{low latency}. Second, \textit{high throughput} (aka low CPU overhead). For inter-process connections within a server, the latency and throughput should be comparable with shared memory communication. For inter-server connections in a data center, we aim at performance close to RDMA. Third, the performance should be \textit{scalable to multiple cores}. Finally, the performance should not degrade with \textit{many concurrent connections}.
-In the following, we analyze challenges to meet the performance goals while preserving compatibility.
+\textbf{Intra-Server.}
+The emergence of containers and micro-services draws attention to intra-server communication~\cite{bailis2016introducing}. For manageability and fault isolation, developers break monolithic services into self-contained microservice containers, interconnected via container network. Following the trend of recent data-plane operating systems~\cite{peter2016arrakis,belay2017ix,freeflow}, \sys should optimize for both intra-server and inter-server socket.
+
+\textbf{Performance.}
+In addition, \sys has four performance goals. First, \textit{low latency}. Second, \textit{high throughput} (aka low CPU overhead). For inter-process connections within a server, the latency and throughput should be comparable with shared memory communication. For inter-server connections in a data center, we aim at performance close to RDMA. Third, the performance should be \textit{scalable to multiple cores}. Finally, the performance should not degrade with \textit{many concurrent connections} between two processes. Many user connections are forwarded from the load balancer to an application~\cite{lin2016scalable}. Some applications create a TCP socket to key-value store for each request they process~\cite{nishtala2013scaling}.
+
+
+
+\subsection{Challenges}
+\label{subsec:challenges}
 
 \textbf{Kernel crossing.}
 Socket APIs are implemented in kernel space and thus require kernel crossing for each socket operation. Recently, the KPTI patches~\cite{kpti} to protect against Spectre~\cite{Kocher2018spectre} and Meltdown~\cite{Lipp2018meltdown} attacks make kernel crossings 4x expensive (from 47~ns on Linux 4.11 to 200~ns on Linux 4.16 per system call). Together with additional cache invalidations, KPTI patches reduce TCP socket throughput by 40\% for 64-byte messages. These side-channel attacks also lead us to rethink the Linux security model in which the complicated network stack needs to be trusted and protected, while sharing cores with applications.
@@ -145,4 +154,4 @@ The main challenge to use RDMA is to bridge the semantics of socket and RDMA. Th
 On the contrary, RDMA API is \textit{proactive}. The application delegates RDMA operations to the NIC hardware, and receives notification when they are completed.
 To this end, two-sided RDMA applications need to predict the size and number of messages it expects to receive, and delegate enough \texttt{recv} operations to the NIC~\cite{huang2017high}.
 In addition, because RDMA NIC caches connection states in limited memory, a large number of concurrent RDMA connections would cause frequent cache misses and degrade performance~\cite{mprdma,kaminsky2016design}.
-Our goal is to use RDMA efficiently for existing socket applications.
+We aim to use RDMA efficiently for existing socket applications.
