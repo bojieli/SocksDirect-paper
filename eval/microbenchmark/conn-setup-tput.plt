@@ -10,7 +10,7 @@ set style line 6 pt 14 lc rgb "#ffff33" linewidth 1.5
 set style line 7 pt 13 lc rgb "#a65628" linewidth 1.5
 set style line 8 pt 13 lc rgb "#f781bf" linewidth 1.5
 set xlabel "Number of Cores"  font "Arial, 20"
-set ylabel "Tput(k connection/s)" font "Arial, 20" offset graph -0.02, 0
+set ylabel "Tput (k connection/s)" font "Arial, 20" offset graph -0.02, 0
 set xtics font "Arial, 18"
 set ytics font "Arial, 18"
 set key inside right center font "Arial, 18"

@@ -9,8 +9,8 @@ set style line 5 pt 10 lc rgb "#ff7f00" linewidth 1.5
 set style line 6 pt 14 lc rgb "#ffff33" linewidth 1.5
 set style line 7 pt 13 lc rgb "#a65628" linewidth 1.5
 set style line 8 pt 13 lc rgb "#f781bf" linewidth 1.5
-set xlabel "Message size(Bytes)"  font "Arial, 20"
-set ylabel "Tput(k read/s)" font "Arial, 20" offset graph -0.02, 0
+set xlabel "Message size (Bytes)"  font "Arial, 20"
+set ylabel "Tput (k read/s)" font "Arial, 20" offset graph -0.02, 0
 set xtics ("1B" 8, "8B" 64, "64B" 512, "4K" 4096, "32K" 32768, "256K" 262144) font "Arial, 18"
 set ytics font "Arial, 18"
 set key inside right top font "Arial, 18"
