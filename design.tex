@@ -13,15 +13,9 @@ Because multiple threads in a process share memory space, we treat each thread a
 \begin{figure}[t]
 	\centering
 	\includegraphics[width=0.3\textwidth]{images/fixme}
-	\caption{The message flow of connection setup.}
+	\caption{The message flow of connection creation and close.}
 	\label{fig:conn-setup}
-\end{figure}
-
-\begin{figure}[t]
-	\centering
-	\includegraphics[width=0.3\textwidth]{images/fixme}
-	\caption{The message flow of connection close.}
-	\label{fig:conn-close}
+	\vspace{-15pt}
 \end{figure}
 
 \parab{\texttt{Socket}.}
@@ -36,14 +30,14 @@ On the other hand, the client usually \texttt{bind}s without specifying IP and p
 \parab{\texttt{Connect} and \texttt{accept}.}
 When a client connects to a server for the first time, it creates a Linux native \textit{bootstrap socket} to the monitor on destination server. Monitor identifies the client by peer IP and port. If the client is within a same server, they establish a shared memory queue. Otherwise, they establish an RDMA connection. Later communications between client and monitor go through shared memory or RDMA.
 
-The monitor process distributes connection requests to listeners in a round-robin order, and the backlog is maintained in each listener. If monitor finds that it is the first time for client and listener to communicate, it creates a shared-memory queue for the process pair and sends the credentials to both processes. When a listener \texttt{accept}s a connection, it sends a message to sender via peer-to-peer shared-memory queue and the socket is established. Figure~\ref{fig:conn-setup} shows message flow of connection setup, which takes three inter-process delays.
+The monitor process distributes connection requests to listeners in a round-robin order, and the backlog is maintained in each listener. If monitor finds that it is the first time for client and listener to communicate, it creates a shared-memory queue for the process pair and sends the credentials to both processes. When a listener \texttt{accept}s a connection, it sends a message to sender via peer-to-peer shared-memory queue and the socket is established. As shown in Figure~\ref{fig:conn-setup}, connection creation takes three inter-process delays.
 
 Distributing connection to listeners may lead to starvation when a listener does not \texttt{accept}. We devise a \textit{work stealing} approach. When a listener \texttt{accept}s from empty backlog, it requests the monitor to steal from others' backlog. To avoid polling empty backlogs, each listener notifies the monitor when its backlog becomes empty. To avoid contention between a listener and monitor, the monitor sends a request to the listener rather than stealing from the backlog directly.
 
 \subsubsection{Connection Close}
 
 Connection close is a peer-to-peer operation because only the peer process needs to be notified. One challenge is when to delete the FD. If FD is deleted immediately after \texttt{close}, a new connection may reuse the FD, while the peer process may not have received the close event and sends data to the wrong connection. To ensure the peer does not use the connection before FD is deleted, we require a handshake between peers.
-Because socket is bidirectional, \texttt{close} is equivalent to \texttt{shutdown} on both send and receive directions. When the application shuts down a direction, it sends a \textit{shutdown message} to the peer. Then the peer shuts down the corresponding direction and responds with a shutdown message. A process deletes a FD when it has received shutdown messages in both directions. Figure~\ref{fig:conn-close} shows message flow of connection close.
+Because socket is bidirectional, \texttt{close} is equivalent to \texttt{shutdown} on both send and receive directions. When the application shuts down a direction, it sends a \textit{shutdown message} to the peer. Then the peer shuts down the corresponding direction and responds with a shutdown message. A process deletes a FD when it has received shutdown messages in both directions.
 
 %In order to achieve high scalability, we separate scalable operations to different processes. To avoid the overhead of contention, \libipc enable the file descriptor allocation by individual process and when a connection is setup, the other peer of the connection gets notified of the file descriptor number by message passing. Since we treat different threads in one process as different processes, we allocate file descriptor of different ranges to each of them to avoid collision. Since file descriptor is managed separately by each process, it is possible that a file descriptor is reused after the connection is closed. Our solution is that resources of a file descriptor is not released until an ACK is received for the close operation.
 
