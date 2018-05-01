@@ -8,7 +8,12 @@ Because multiple threads in a process share memory space, we treat each thread a
 
 %In the following, we will analyze Linux socket APIs in Table~\ref{tab:socket-api} and design a scalable socket architecture.
 
-\subsubsection{Managing Intra-Server Connections}
+\subsubsection{Initialization}
+
+
+For connection setup, the monitor on listener server is responsible for coordination. When a client connects to a server for the first time, it creates a Linux native \textit{bootstrap socket} to the monitor on destination server. From then on, monitor identifies the client by peer IP and port of the bootstrap socket. Then client and monitor establish an RDMA connection. The remaining procedure is identical to intra-server, except that shared-memory queues are replaced by RDMA connections. %For \texttt{fork} and other non-partitionable operations, a process needs to notify all monitors it connects to.
+
+\subsubsection{Connection Creation}
 \label{subsubsec:connection_management}
 
 \begin{figure}[t]
@@ -37,6 +42,8 @@ The monitor process distributes connection requests to listeners in a round-robi
 
 Distributing connection to listeners may lead to starvation when a listener does not \texttt{accept}. We devise a \textit{work stealing} approach. When a listener \texttt{accept}s from empty backlog, it requests the monitor to steal from others' backlog. To avoid polling empty backlogs, each listener notifies the monitor when its backlog becomes empty. To avoid contention between a listener and monitor, the monitor sends a request to the listener rather than stealing from the backlog directly.
 
+\subsubsection{Connection Close}
+
 Connection close is a peer-to-peer operation because only the peer process needs to be notified. One challenge is when to delete the FD. If FD is deleted immediately after \texttt{close}, a new connection may reuse the FD, while the peer process may not have received the close event and sends data to the wrong connection. To ensure the peer does not use the connection before FD is deleted, we require a handshake between peers.
 Because socket is bidirectional, \texttt{close} is equivalent to \texttt{shutdown} on both send and receive directions. When the application shuts down a direction, it sends a \textit{shutdown message} to the peer. Then the peer shuts down the corresponding direction and responds with a shutdown message. A process deletes a FD when it has received shutdown messages in both directions. Figure~\ref{fig:conn-close} shows message flow of connection close.
 
@@ -44,21 +51,7 @@ Because socket is bidirectional, \texttt{close} is equivalent to \texttt{shutdow
 
 %Generally, each process in our design is treated as an endpoint in the network. Figure \ref{fig:conn-setup-close} shows the process of connection setup and close. When \textit{socket} is called, the process itself allocate per fd resources. When \textit{listen} is called, monitor is notified of port occupation. During the \textit{connect} operation, monitor first chooses one of the processes listen on this port then coordinates the creation of the shared memory between the two processes and notifies each other of the new connection. When \textit{close} happens, both of the endpoint notify each other and monitor is responsible to destroy the shared memory between them. 
 
-\subsubsection{Multiplexing Connections via RDMA}
 
-\begin{figure}[t]
-	\centering
-	\includegraphics[width=0.3\textwidth]{images/fixme}
-	\caption{RDMA connection setup process.}
-	\label{fig:rdma}
-\end{figure}
-
-If we intuitively map each socket connection to an RDMA connection, due to NIC cache miss, the performance would degrade with more than a few hundreds of active connections. So we need to multiplex socket connections via an RDMA connection.
-For connection setup, the monitor on listener server is responsible for coordination. When a client connects to a server for the first time, it creates a Linux native \textit{bootstrap socket} to the monitor on destination server. From then on, monitor identifies the client by peer IP and port of the bootstrap socket. Then client and monitor establish an RDMA connection. As shown in Figure~\ref{fig:rdma}, the remaining procedure is identical to intra-server, except that shared-memory queues are replaced by RDMA connections. For \texttt{fork} and other non-partitionable operations, a process needs to notify all monitors it connects to.
-
-\subsubsection{Scaling TCP Connections}
-
-To improve multi-process scalability of TCP servers, we leverage Receive-Side Scaling (RSS) in modern NICs to distribute incoming and outgoing connections to the NIC queues of listening processes. For outgoing connections, \libipc{} chooses a source port such that received packets will be distributed to its own queue. For incoming connections, the monitor process configures NIC indirection table~\cite{mellanox} when a process binds a non-local IP address. Similar to intra-server, when load imbalance happens, idle listeners steal new connections via monitor. Because the NIC still distributes packets to the original listener, it forwards received packets via shared memory queue.
 
 
 \subsection{Data Transmission}
@@ -314,8 +307,10 @@ Upon socket \texttt{recv}, the payload buffer is remapped to application.
 %Previous section discussed inter-process socket in a same server. For inter-server socket, \libipc{} determines whether or not the peer supports RDMA. If so, \libipc{} translate socket operations to one-sided RDMA \texttt{write} verbs. Otherwise, \libipc{} calls a light-weight user-mode TCP/IP stack to communicate with standard TCP/IP endpoints. In both cases, we achieve zero copy and scalability with number of threads and number of connections.
 
 
-%\subsection{Light-weight TCP/IP in User Space}
-%\label{subsec:lwip}
+\subsection{Light-weight TCP/IP in User Space}
+\label{subsec:lwip}
+
+\sys{} needs to communicate with standard TCP/IP endpoints without RDMA support. We leverage Receive-Side Scaling (RSS) in modern NICs to distribute incoming and outgoing connections to the NIC queues of listening processes. For outgoing connections, \libipc{} chooses a source port such that received packets will be distributed to its own queue. For incoming connections, the monitor process configures NIC indirection table~\cite{mellanox} when a process binds an external IP address. Similar to intra-server, when load imbalance occurs, idle listeners steal new connections via monitor. Because the NIC still distributes packets to the original listener, it forwards received packets via shared memory queue.
 
 %\sys{} needs to communicate with standard TCP/IP endpoints without RDMA support. There has been extensive work on user-space socket and TCP/IP stack in both academia~\cite{dunkels2001design,rizzo2012netmap,huang2017high} and industry~\cite{libvma,openonload,dbl}. However, most of these works do not optimize for a large number of concurrent connections, require locks for multi-thread applications, and do not support zero copy without application modification.
 
