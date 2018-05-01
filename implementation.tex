@@ -7,13 +7,13 @@ In this section, we highlight several techniques in implementation:
 %\subsection{Seamless system call hook}
 %\label{subsec:syscall-hook}
 
-\textbf{LD\_PRELOAD to intercept Linux APIs.}
+\parab{LD\_PRELOAD to intercept Linux APIs.}
 In order to support existing applications seamlessly, \libipc leverages \textit{LD\_PRELOAD} environment variable in Linux to load a shared library to applications, which replace the function of GNU LibC which are the wrappers of the system call.
 
-\textbf{Multiplex FD between kernel and \libipc{}.}
+\parab{Multiplex FD between kernel and \libipc{}.}
 In our system, we use the range of file descriptor number to identify whether the system call should be hook to \libipc to avoid problems related to file descriptors not related to socket. Taking the idea of MegaPipe~\cite{han2012megapipe} and LOS~\cite{huang2017high}, in \libipc, we partition the FD space between \libipc and Linux kernel, \textit{i.e} from $2^{31}-1$ while Linux assign the number from bottom to up i.e. from zero. We set $2^{30} - 1 $ as the threshold to distinguish whether the system call ought to be handled by \libipc.
 
-\textbf{Multiplex events between kernel and \libipc{}.}
+\parab{Multiplex events between kernel and \libipc{}.}
 The FD set of \texttt{epoll} may include both sockets and other \textit{kernel FDs} handled by Linux kernel.
 %LOS~\cite{huang2017high} periodically invokes non-blocking \texttt{epoll\_wait} syscall with kernel FDs, which leads to a trade-off between delay and CPU overhead. Differently,
 \libipc{} creates a per-process \textit{epoll thread} which runs an infinite loop of blocking \texttt{epoll\_wait} syscall with kernel FDs. Whenever epoll thread receives a kernel event, it broadcasts the event to application threads via shared memory queues. The \texttt{epoll\_wait} function in \libipc{} will return such kernel events in addition to socket events. Note that Linux allows an event to be received by multiple threads sharing the FD.

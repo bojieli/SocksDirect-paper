@@ -1,17 +1,11 @@
 \section{Design}
 \label{sec:intra-server}
 
+Because multiple threads in a process share memory space, we treat each thread as a separated process and use thread-specific storage to save states in \libipc. In the following text, unless explicitly mentioned, we refer to a ``process or thread'' as a ``process''.
+
 \subsection{Connection Management}
 \label{subsec:socket-api}
 
-Because multiple threads in a process share memory space, we treat each thread as a separated process and use thread-specific storage to save states in \libipc. In the following text, unless explicitly mentioned, we refer to a ``process or thread'' as a ``process''.
-
-%In the following, we will analyze Linux socket APIs in Table~\ref{tab:socket-api} and design a scalable socket architecture.
-
-\subsubsection{Initialization}
-
-
-For connection setup, the monitor on listener server is responsible for coordination. When a client connects to a server for the first time, it creates a Linux native \textit{bootstrap socket} to the monitor on destination server. From then on, monitor identifies the client by peer IP and port of the bootstrap socket. Then client and monitor establish an RDMA connection. The remaining procedure is identical to intra-server, except that shared-memory queues are replaced by RDMA connections. %For \texttt{fork} and other non-partitionable operations, a process needs to notify all monitors it connects to.
 
 \subsubsection{Connection Creation}
 \label{subsubsec:connection_management}
@@ -30,15 +24,19 @@ For connection setup, the monitor on listener server is responsible for coordina
 	\label{fig:conn-close}
 \end{figure}
 
-During socket initialization, \texttt{socket} creates an unique integer \textit{file descriptor} (FD) for each connection. In Linux kernel, FD allocation is processed with mutual exclusion in kernel space. Although Linux file system requires allocating the lowest file descriptor, this property is rarely used by applications~\cite{han2012megapipe,huang2017high}. In order to achieve high scalability, we relax the semantics and maintains a FD table in each process. The table is a vector of socket information with an allocation pointer, indexed by FD. Upon allocation, \libipc{} linearly moves the allocation pointer and finds the first idle FD. When the vector is more than half full, its size is doubled. This allows amortized O(1) allocation and O(1) lookup and deletion.
+\parab{\texttt{Socket}.}
+To create a socket connection, an application first calls \texttt{socket} to get a \textit{file descriptor} (FD). Although Linux file system allocates the lowest available file descriptor, this property is rarely used by applications~\cite{han2012megapipe,huang2017high}. In order to achieve high scalability, we relax the semantics and maintains a FD table in each process. The table is a vector of socket information with an allocation pointer, indexed by FD. Upon allocation, \libipc{} linearly moves the allocation pointer and finds the first idle FD. When the vector is more than half full, its size is doubled. This allows amortized O(1) allocation and O(1) lookup and deletion.
 For multi-thread applications, since the FD namespace is shared, we partition the FD namespace to multiple ranges and each thread allocates FD in its range.
 %Because per-FD information is local to a process, APIs on socket options are also local.
 
-
-Next we look at connection setup. On one hand, the server \texttt{bind}s a socket with a specific IP and port, where conflicts need to be detected. In this case, \texttt{bind} is non-partitionable.
+\parab{\texttt{Bind} and \texttt{listen}.}
+On one hand, the server \texttt{bind}s a socket with a specific IP and port, where conflicts need to be detected. In this case, \texttt{bind} is non-partitionable.
 On the other hand, the client usually \texttt{bind}s without specifying IP and port, so we need to allocate a unique IP and port number to each connection. For scalability, we partition the loopback IP address space (127.0.0.0/8) and each process allocates port numbers in its range.
 
-The monitor process distributes connection requests to listeners in a round-robin order, and the backlog is maintained in each listener. If monitor finds that it is the first time for client and listener to communicate, it creates a shared-memory queue for the process pair and sends the credentials to both processes. When a listener \texttt{accept}s a connection, it sends a message to sender via peer-to-peer shared-memory queue and the socket is established. Figure~\ref{fig:conn-setup} shows message flow of connection setup. We can see that connection setup takes three inter-process delays.
+\parab{\texttt{Connect} and \texttt{accept}.}
+When a client connects to a server for the first time, it creates a Linux native \textit{bootstrap socket} to the monitor on destination server. Monitor identifies the client by peer IP and port. If the client is within a same server, they establish a shared memory queue. Otherwise, they establish an RDMA connection. Later communications between client and monitor go through shared memory or RDMA.
+
+The monitor process distributes connection requests to listeners in a round-robin order, and the backlog is maintained in each listener. If monitor finds that it is the first time for client and listener to communicate, it creates a shared-memory queue for the process pair and sends the credentials to both processes. When a listener \texttt{accept}s a connection, it sends a message to sender via peer-to-peer shared-memory queue and the socket is established. Figure~\ref{fig:conn-setup} shows message flow of connection setup, which takes three inter-process delays.
 
 Distributing connection to listeners may lead to starvation when a listener does not \texttt{accept}. We devise a \textit{work stealing} approach. When a listener \texttt{accept}s from empty backlog, it requests the monitor to steal from others' backlog. To avoid polling empty backlogs, each listener notifies the monitor when its backlog becomes empty. To avoid contention between a listener and monitor, the monitor sends a request to the listener rather than stealing from the backlog directly.
 
@@ -59,16 +57,19 @@ Because socket is bidirectional, \texttt{close} is equivalent to \texttt{shutdow
 
 To scale the system with multiple cores, each process should be able to transmit data directly to the peer without notifying monitor. As shown in Table~\ref{tab:socket-api}, we design all APIs in data transmission to be peer-to-peer or local.
 
+\parab{Multiplex connections in event-driven applications.}
 To reduce memory footprint and improve locality of memory accesses, we design one synchronization-free shared memory queue to multiplex all connections between a pair of processes. Each data item in the queue is marked with its FD. Since we use one queue rather than multiple queues, we save per-socket memory footprint, and random memory access and cache miss are also reduced. Obviously, head-of-line blocking problem would arise. If we use a FIFO queue, the application would deadlock if it receives from a connection other than the head of queue. In this regard, the queue needs to support picking a message with a specific FD in the middle of queue. To find a message with such FD, \libipc{} needs to iterate through the items in queue. It is natural to ask whether this queue traversal is efficient.
 
 To answer this question, we look at the access pattern of applications. Event-driven applications and programming frameworks (\textit{e.g.} Boost ASIO, libevent, libev, Go, Erlang, Python \texttt{asyncio} and Node.js) typically use Linux \texttt{epoll} to receive events, then process them sequentially.
 %Some frameworks require the programmer to refactor sequential code into an event-driven style, while other frameworks rely on the compiler to maintain light-weight threads or coroutines.
 Consequently, applications process incoming events in a mostly FIFO order. With the shared queue design in \libipc{}, \texttt{epoll\_wait} iterates through all items in the queue, and return all items whose FD is in epoll FD set (in level trigger mode). Note that the epoll FD set typically includes all active FDs and thus have a large population, while the number of pending events in the queue is much smaller. When applications call \texttt{recv}, \libipc{} would usually return the first item in the queue. Because both \texttt{epoll\_wait} and \texttt{recv} accesses a same queue, each data transmission involves only one cache migration.
 
+\parab{Head-of-line blocking.}
 There are two remaining problems caused by head-of-line blocking. First, if application does not receive from a FD for a long time, data items of the FD may fill up the queue and starve all other FDs. To avoid starvation, the buffer needs to store at least one byte of data per FD. Accordingly, we design a single byte \textit{overflow slot} per FD. Sender is blocked if the overflow slot is occupied, and only uses overflow slot if the queue is full. Receiver first receives from the overflow slot, then the queue.
 
 The second problem is to send control messages when the queue is full. For example, in order to close the receive direction while sending data, the shutdown message should not be blocked by unconsumed data in queue. To transfer control messages out-of-band, we add an \textit{emergency queue} alongside each data queue.
 
+\parab{Stop polling when idle.}
 There is one more performance optimization. Round-robin polling of inter-process queues introduce wasted CPU cycles when two processes do not communicate frequently. To this end, we enable each inter-process queue to switch between \textit{polling} and \textit{interrupt} modes, where \textit{interrupt messages} are forwarded by the monitor. The queue to monitor is always in polling mode. Concretely, receiver of each queue maintains a counter of consecutive empty polls. When it exceeds a threshold, the receiver sends a \textit{stop polling request} to sender and actually stops polling after receiving ACK. When sender writes to a sleeping queue, it sends an \textit{interrupt message} to the monitor.
 
 %In order to support read/write operation without epoll i.e. not all the messages in the queue is polled by the receiver. We need to enable ``pop'' a message in the middle of the queue. To avoid starvation when all the slots in the queue is used, we need to assign a per-fd slot in case of the receiver blocks on the read operation of that fd. To tackle the variable size of messages, we allocate a dedicated memory pool for the data of the message and only the pointer of the message is stored in the lockless queue. In order to close the connection by receiver while sender is continually transmitting data, our design has a separate ``emergency queue'' to notify the sender the end of the connection.
@@ -90,16 +91,18 @@ Previous section proposed requirements of the queue between a pair of communicat
 
 As shown in Figure~\ref{fig:locklessq-structure}, a queue is composed of three ring buffers and a data buffer pool in shared memory. Each ring buffer consists of equal-sized slots and enables unidirectional peer-to-peer communication. Two ring buffers are from sender to receiver, carrying socket \texttt{send} metadata and emergent control messages respectively. Another ring buffer is from receiver to sender, holding available slots in the data buffer pool. If data size of a \textit{send} operation is smaller than slot size, the data is piggybacked with metadata in ring buffer. Otherwise, data buffers are allocated and chained to a linked list to hold data of arbitrary size. We use a pool of constant-size data buffers to simplify buffer allocation.
 
-Most ring buffer designs use atomic operations to maintain \textit{head} and \textit{tail} pointers that are shared between two endpoints. To eliminate atomic operations, we design a \textit{credit based ring buffer}, and keep \textit{head} and \textit{tail} pointers locally in sender and receiver respectively.
+\parab{Credit-based ring buffer.}
+Most ring buffer designs use atomic operations to maintain \textit{head} and \textit{tail} pointers that are shared between two endpoints. To eliminate atomic operations, we keep \textit{head} and \textit{tail} pointers locally in sender and receiver, respectively.
 
 To tell whether the ring buffer is full, the sender maintains a number of \textit{credits}, indicating the number of unused items in ring buffer. When sender enqueues an item, it consumes a credit. When receiver dequeues an item, it increments a counter locally, and write a \textit{credit return flag} in sender's memory once the counter exceeds half the size of ring buffer. The sender regains credits upon detecting the flag.
 
 To enable the receiver to poll incoming data locally, metadata and data of the ring buffer resides in receiver's memory. Each slot in the ring buffer has a \textit{isvalid} flag. Sender sets \textit{isvalid} after writing the data. Receiver polls \textit{isvalid} to find a non-empty slot, then copies data from the slot, finally clears \textit{isvalid}.
 
+\parab{Consistency between data and metadata.}
 For intra-server communication, one may think that out-of-order execution may mandate the use of memory fence instructions. Actually, memory fence is unnecessary because modern processors provide stronger inter-core memory consistency. X86 processors from Intel and AMD provides total store ordering~\cite{sewell2010x86,intel-manual}, which implies that two writes are observed in the same order as they were written, and that reads are never postponed in out-of-order execution. In this way, only one cache migration is needed per send or receive operation. %Our synchronization-free ring buffer achieves $30~M$ messages per second throughput and $100~ns$ end-to-end latency, while a ring buffer based on memory fence has $10~M$ messages per second throughput.
-
 For inter-server communication, the only RDMA verb we use is one-sided posted \texttt{write}, so the ring buffer is wait-free on both sender and receiver.
 
+\parab{Pick from middle of queue.}
 In order to support picking data for a specific FD, receiver needs to traverse non-empty slots and dequeue a slot from any position in ring buffer. During traversal, receiver iterates slots from \textit{tail} until the first slot whose \textit{isvalid} is not set, which corresponds to the \textit{head}. Consequently, receiver cannot clear \textit{isvalid} when a non-tail slot is dequeued. Considering this, we add an additional \textit{isdel} flag to each slot. When a slot is dequeued, its \textit{isdel} flag is set. If the slot at \textit{tail} has \textit{isdel} set, we clear \textit{isvalid} and \textit{isdel}, increments \textit{tail} and repeats this step.
 
 
@@ -137,8 +140,8 @@ We make the following observations:
 Based on the second observation, we propose the following requirements to maximize the common-case performance:
 \begin{enumerate}
  \item \textbf{Synchronization-free.} With multiple potential senders and receivers, if only one pair of sender and receiver is active, the throughput and latency should be comparable with that of a sender-receiver pair.
- \item \textbf{Multi-sender scalability.} Multiple processes may send data (\textit{e.g.} log) concurrently through a shared socket. For multiple active senders and one receiver, if receiver is not a bottleneck, the throughput is supposed to scale, rather than dropping heavily due to mutual exclusion.
- \item \textbf{Self-stabilization.} Previous access patterns shall not have follow-up effect on current performance. For example, applications may implicitly transfer a socket from one process to another (\textit{e.g.} from master to worker). These operations may slow down the system temporarily, but after that the throughput is supposed to converge to common-case.
+ \item \textbf{Multi-sender scalability.} Multiple processes may send data (\textit{e.g.} log) concurrently through a shared socket. For multiple active senders and one receiver, if receiver is not a bottleneck, the throughput is supposed to scale.
+ \item \textbf{Self-stabilization.} Certain operations (\textit{e.g.} \texttt{fork}) may slow down the system temporarily, but after that the throughput should converge to common-case.
 \end{enumerate}
 
 For compatibility with Linux semantics, we also need to ensure message ordering and liveness:
@@ -161,13 +164,17 @@ Our scalable socket design can be divided into four parts: a) \texttt{send} and 
 	\label{fig:fork-takeover}
 \end{figure}
 
-In this section, we assume that a socket is already connected and the number of senders and receivers are constant. In order to avoid synchronization and achieve high scalability, we create lock-free shared-memory queues between every pair of sender and receiver. The queues form a bipartite graph between senders and receivers. Each receiver polls messages from all senders in round-robin order.
+\parab{Multiple concurrent senders.}
+In this section, we assume that a socket is already connected and the number of senders and receivers are constant. In order to avoid synchronization and achieve high scalability, we create lock-free shared-memory queues between every pair of sender and receiver. The queues form a bipartite graph between senders and receivers. Each receiver polls messages from all senders in round-robin order, so the multi-sender throughput can scale.
 %Figure \ref{fig:fork-bipartitegraph} shows a sample of the shared-memory buffers between senders and receivers for one connection.
 
+\parab{One exclusive receiver.}
 To ensure multiple receiver ordering and avoid synchronization, each sender designates one receiver with exclusive access to the socket. In common cases with one active receiver, the performance could achieve that of one-to-one shared-memory communication. It is challenging for the sender to choose a receiver, since the chosen one may not call \texttt{recv}, while other receivers may be under starvation. When a non-designated receiver attempts to poll or receive from the socket, it sends a \textit{takeover request} to the sender. To avoid starvation, the sender processes takeover requests in FIFO order.
 
+\parab{Remaining data in queue.}
 A challenge arise when there is remaining data in the queue when a receiver requests to take over the socket. We need to ensure that all the remaining data can be received by the new receiver. Because multiple sockets share a queue from sender to each receiver, and different sockets have different designated receivers, the new receiver cannot access the queue from the old receiver directly. Instead, the remaining data needs to migrate from the old queue to the new queue. When the sender processes a takeover request, it first forwards it to the current receiver. Upon receiving takeover request, the current receiver returns all remaining data to sender via \textit{takeover completion} messages, while sender forwards the messages to the new receiver. During migration of remaining data, the sender blocks \texttt{send} operations and takeover requests to ensure message ordering. The takeover procedure is shown in Figure~\ref{fig:fork-takeover}.
 
+\parab{When to take over.}
 Another challenge is that when a receiver should send a takeover request. Each receiver maintains a flag locally to indicate whether it is designated by the sender. The flag is flipped when the receiver gets takeover request or completion from sender. When a receiver tries to \texttt{recv} and finds itself not designated, the receiver sends a takeover request to sender. Before the receiver becomes designated, the takeover request is sent only once.
 
 %\begin{figure}[t]
@@ -189,7 +196,7 @@ Another challenge is that when a receiver should send a takeover request. Each r
 \end{figure}
 
 
-The first challenge with fork and thread creation is how to identify and isolate parent and child processes. Replacing shared memory queues is essential for isolation between parent and child processes. As shown in Figure~\ref{fig:fork-fork}, when the application calls \texttt{fork}, \texttt{clone} or \texttt{pthread\_create}, \libipc{} first generates a secret for pairing, then invokes the corresponding system call. After fork, because the original shared memory is no longer trusted, parent and child independently creates a native Linux socket (called \textit{bootstrap socket}) to the monitor and sends the secret (child inherits parent memory space and knows the secret). The monitor pairs the child process with the parent, and creates new shared memory to replace all inter-process shared-memory queues in both parent and child. Then monitor sends credentials of new queues to parent and child via bootstrap sockets. Each peer process also receives credentials for new queues, duplicates per-FD states, then announces fork completion. From then on, parent and child processes have isolated queues to the monitor and peers.
+The first challenge with fork and thread creation is how to identify and isolate parent and child processes. We replace shared memory queues for isolation between parent and child processes. As shown in Figure~\ref{fig:fork-fork}, when the application calls \texttt{fork}, \texttt{clone} or \texttt{pthread\_create}, \libipc{} first generates a secret for pairing, then invokes the corresponding system call. After fork, parent and child independently creates a \textit{bootstrap socket} to the monitor and sends the secret (child inherits parent memory space and knows the secret). The monitor pairs the child process with the parent, and creates new shared memory to replace all inter-process shared-memory queues in both parent and child. Then monitor sends credentials of new queues to parent and child via bootstrap sockets. Each peer process also receives credentials for new queues, duplicates per-FD states, then announces fork completion. From then on, parent and child processes have isolated queues to the monitor and peers.
 
 A harder challenge comes from socket connection sharing between parent and child processes. Upon fork, each connection needs to add a sender to the sending direction and a receiver to the receiving direction. The challenging part is how to handle the remaining data in the original send and receive queues.
 
@@ -203,11 +210,15 @@ A harder challenge comes from socket connection sharing between parent and child
 
 %The general process of fork is that after monitor is notified of the fork, it creates shared memory between the newly created process and all the processes which previously have connections with the parent process. The key challenge lies in the fork is that how to deal with the existing data in the connection to guarantee the order requirements.
 
+\parab{Receiver fork.}
 First we look at the scenario where a receiver forks. Recall that only one receiver has exclusive access to a FD, as stated in Sec.~\ref{subsubsec:fork_rdwr}. The child process does not have receive permission after fork. The parent process inherits receive permission before fork. When a sender receives fork notification of its peer, it copies all data from original queue to new queue of the parent process, before announcing fork completion.
 
+\parab{Sender fork.}
 Next we look at a more complicated case where a sender forks. Senders are designed to emit data in parallel via different queues. We need to guarantee that all the data sent prior to \texttt{fork} is consumed before the data sent after \texttt{fork}. It is inefficient to block the senders until remaining data in the queue is consumed.
+
 Our solution is to detach the parent's shared memory queue and create two new queues for senders, one for parent and one for child. Both parent and child senders can transmit data to its new queue in parallel. When the receiver is notified of the fork, it keeps track of the original queue and consumes all data in it before activating new queues. Note that the parent or child may fork again before the original queue is drained. With this in mind, the receiver maintains a forest data structure to track dependency of queues. The root of each tree in the forest is the oldest queue to receive from. Each non-leaf node has two children indicating the new queue of parent and child processes. If a non-leaf root queue becomes empty, it will be removed, and the two children queues will be promoted to roots.
 
+\parab{Dead process.}
 There is one subtle issue remaining. After a sender forks, the receivers still need the takeover mechanism to arbitrate remaining messages in the original shared memory queue. However, both parent and child senders have dropped the original queue and will not respond to takeover requests. A similar situation occurs when a sender process dies. Our solution is to let the receivers use atomic operations to compete for remaining data in the original queue. Since this case rarely happens, the performance of the overall design is not affected.
 
 
@@ -227,8 +238,10 @@ If the application accesses a thread-local FD, \libipc processes it locally. Oth
 
 %To satisfy the synchronization requirements, the close function call is all completed by message passing. The caller of close need to wait for ACK from all the other peers before release resources. i.e. the status of the connection.
 
+\parab{Broadcast.}
 When a process calls \texttt{close} or \texttt{shutdown}, all its peers cannot send or receive to the process. In this sense, closing a shared socket is a multicast operation to notify the peers. A challenge arise when \texttt{close} is interleaved with \texttt{fork}. Since \texttt{fork} and \texttt{close} do not commute~\cite{clements2015scalable}, we need a rule to determine their partial order. We make the choice that the ordering is determined by the initiator of \texttt{close}. If a process calls \texttt{close} before receiving fork notification, it will piggyback close notification with fork completion to both parent and child processes.
 
+\parab{Handshake before releasing resource.}
 Another challenge is caused by FD reuse after close. As stated in Sec.~\ref{subsec:socket-api}, a FD is deleted after receiving shutdown message of both directions. With multiple processes sharing a connection, after one process calls \texttt{close}, others can still use the connection. Consequently, a process deletes a FD after receiving shutdown messages of both directions from all peers of the FD.
 
 %Another challenge lies in the close of a connection is that close is a broadcast operation while send/receive is sent to a specific process. Besides, fork and close are immutable operations while the scalability requirements of the system impose the constraint that all the operations run asynchronously. As a result, a rule to determine the partial order is required.
@@ -239,12 +252,15 @@ Another challenge is caused by FD reuse after close. As stated in Sec.~\ref{subs
 \subsection{Cooperative Multitasking}
 \label{subsec:process-mux}
 
+\parab{Event notification.}
 To minimize context switch, \sys{} runs in user mode and uses cooperative multitasking to multiplex processes on CPU cores. Coordination and delegation based on message passing also requires processes to respond messages promptly. However, processes may execute application code without calling \libipc{} for a long time or may block on a kernel system call. To tackle this issue, we design a \textit{signal} mechanism analogous to interrupts in operating systems. Message passing initiators first poll the receive queue for a while. If no reply, it sends a Linux \texttt{signal} to the receptor and wake up the process.
 
 The signal handler, registered by \libipc{}, first determines whether the process is executing application or \libipc{} code. To determine this, \libipc{} sets and clears a flag at entry and exit of the library. If signal handler finds that the process is in application, the signal handler immediately processes messages from the emergency queue to the monitor, then return control to the application. Otherwise, it does nothing and \libipc{} will check emergent messages before returning control to the application. Because \libipc{} is designed to be fast and non-blocking, message passing initiators will soon receive the response.
 
+\parab{Polling and sleep.}
 When an application calls non-blocking socket operations, \libipc{} polls queues of the specified FD and the emergency queue to the monitor, then returns immediately. For blocking operations (\textit{e.g.} blocking \texttt{recv}, \texttt{connect} and \texttt{epoll\_wait}), \libipc{} first polls the queues once. If the operation is not completed, \libipc{} calls \texttt{sched\_yield} to yield the processor to other processes on the same core. As stated in Sec.~\ref{subsec:bottleneck}, context switch in cooperative multitasking only takes 0.4~$\mu$s. However, an application may wait a long time for an external event, making frequent wake-ups wasteful. In this regard, we count consecutive wake-ups which does not process any message, and puts the process to sleep when it achieves threshold. Before sleeping, it sends a message to the monitor and all peers, so they will wake up the sleeping process after sending a message via shared-memory queue.
 
+\parab{Exit.}
 When a process exits, the \texttt{atexit} handler of \libipc{} notifies the monitor and all peers to close connections and mark the queues as dead. However, a process may crash or be killed unexpectedly. In this case, monitor detects process death via \texttt{SIGHUP} of the bootstrap socket (Sec.~\ref{subsubsec:fork_fork}) and notify its peers. When a process switches to \texttt{daemon} mode or \texttt{execve} another program, it first follows the process exit procedure, then calls the system call. After that, \libipc{} is re-initialized.
 
 
@@ -266,6 +282,7 @@ If the size of send message is not a multiple of 4~KiB, the last chunk of data i
 \subsubsection{Zero Copy for Intra-Server Socket}
 \label{subsec:zero-copy-intra}
 
+\parab{Page remapping.}
 As shown in Figure~\ref{fig:zerocopy}, for \texttt{send} operation, \libipc{} invokes the kernel to get an encrypted physical address of send buffer and send the address to receiver via user-mode shared-memory queue.
 The address is encrypted to prevent unsolicited mapping of arbitrary pages.
 Because the sender may read the buffer after \texttt{send} or send the buffer to multiple receivers, the physical page cannot be remapped.
@@ -273,14 +290,15 @@ Additionally, \texttt{send} needs to write-protect the buffer because the receiv
 On receiving side, \libipc{} invokes the kernel to remap the encrypted physical address to the application-provided receive buffer.
 \texttt{recv} also needs to write-protect the buffer because it is shared by the sender and potentially multiple receivers.
 
+\parab{Minimize copy-on-write.}
 A challenge arises when sender writes the buffer after \texttt{send}.
 Existing zero-copy socket designs~\cite{thadani1995efficient,chu1996zero} use copy-on-write. Copy is required because the sender may read the non-written part of the page.
 Because most applications reuse the buffer for subsequent send operations, copy-on-write is invoked in most cases, making zero-copy essentially useless on sender.
 Our observation is that most applications overwrite entire pages of the send buffer via \texttt{recv} or \texttt{memcpy}, so it is unnecessary to copy old data when the first byte of the page is written.
 Zero-copy \texttt{recv} remaps the buffer without triggering copy-on-write, so proxy applications can achieve zero copy.
 For \texttt{memcpy}, we add preamble code to the function in both \libipc{} runtime and compiler inline library. If both source, destination addresses and the copy size are aligned to 4~KiB, and the destination address is write-protected by \libipc{}, the preamble code invokes the kernel to remap new pages to the destination address and disable write protection.
-For compatibility, copy-on-write is still used for other write operations to protected buffers.
 
+\parab{Page pool in user space.}
 A second challenge is that page remapping requires the kernel to allocate and free pages for each \texttt{send} and \texttt{recv}. Page allocation in kernel acquires a global lock, therefore it is inefficient. Instead, \libipc{} manages a pool of free pages in each user-mode process.
 We add to the kernel a system call to convert virtual addresses in the pool and encrypted physical addresses.
 \libipc{} also tracks the origin of received zero-copy buffers.
