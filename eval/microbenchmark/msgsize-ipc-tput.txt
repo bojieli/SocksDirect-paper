@@ -1,3 +1,0 @@
-size       SocksDirect(intra) FastSocket IX mTCP  Linux
-16B           2              1       1   1           1
-4K            2              1       1   1           1

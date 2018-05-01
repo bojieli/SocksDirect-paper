@@ -13,11 +13,11 @@ Figure~\ref{fig:eval-msgsize-inter} shows throughput and latency with different 
 
 Figure~\ref{fig:eval-connnum-tput} shows throughput with different number of concurrent connections (log scale on x axis). Key points: a) SocksDirect is scalable with number of connections, b) other systems with one queue per socket has performance degradation under high concurrency.
 
-Figure~\ref{fig:eval-cornum-ipc} shows throughput with different number of cores for intra-server communication. Key points: a) SocksDirect is scalable with number of cores, b) NIC hairpin is not scalable with number of cores.
+Figure~\ref{fig:eval-corenum-tput} shows throughput with different number of cores for intra-server communication. Key points: a) SocksDirect is scalable with number of cores, b) NIC hairpin is not scalable with number of cores.
 
 Table~\ref{tab:eval-context-switch} shows throughput and latency with a dispatcher process on core $A$, multiple worker processes on core $B$ and a reducer process on core $C$. Key points: a) When all workers are active, throughput is comparable with single worker. b) When only a fraction of workers are active, the idle workers do not impact performance. c) Latency increases with number of active workers, but still much lower than Linux.
 
-Figure \ref{fig:eval-fork-tput} shows throughput and latency with \texttt{fork}. At time $T_0$, receiver forks, and the parent process keeps receiving. At time $T_1$, the child process begins to receives takes over the socket. At time $T_2$, sender forks, and only the parent sends. At time $T_3$, the child sender also starts sending.
+% Figure \ref{fig:eval-fork-tput} shows throughput and latency with \texttt{fork}. At time $T_0$, receiver forks, and the parent process keeps receiving. At time $T_1$, the child process begins to receives takes over the socket. At time $T_2$, sender forks, and only the parent sends. At time $T_3$, the child sender also starts sending.
 
 \begin{figure}[htpb]
 	\centering
@@ -87,11 +87,24 @@ Figure \ref{fig:eval-fork-tput} shows throughput and latency with \texttt{fork}.
 \end{figure}
 
 \begin{figure}[htpb]
-	\centering
-	\includegraphics[width=\columnwidth]{eval/microbenchmark/corenum-IPC-tput.pdf}
-	\caption{Throughput with different number of cores for intra-server communication}
-	\label{fig:eval-cornum-ipc}
+	\subfloat[Intra-server]{                    
+	%\begin{minipage}{0.4\textwidth}
+	    \centering
+	    \includegraphics[width=\columnwidth]{eval/microbenchmark/corenum-IPC-tput.pdf}
+	    \label{fig:eval-cornum-ipc}
+	%\end{minipage}
+	}
+
+\subfloat[Inter-server]{
+	%\begin{minipage}{0.4\textwidth}
+		\centering \includegraphics[width=\columnwidth]{eval/microbenchmark/corenum-network-tput.pdf}
+		\label{fig:eval-cornum-network}
+	%\end{minipage}
+	}
+	\caption{Throughput with different number of cores}
+	\label{fig:eval-corenum-tput}
 \end{figure}
+
 
 \begin{table}[t]
 	\centering
@@ -113,11 +126,11 @@ Figure \ref{fig:eval-fork-tput} shows throughput and latency with \texttt{fork}.
 	\label{tab:eval-context-switch}
 \end{table}
 
-\begin{figure}[htpb]
-	\centering
-	\includegraphics[width=\columnwidth]{eval/microbenchmark/fork-tput.pdf}
-	\caption{Throughput of SocksDirect with fork happening}
-	\label{fig:eval-fork-tput}
-\end{figure}
+%\begin{figure}[htpb]
+%	\centering
+%	\includegraphics[width=\columnwidth]{eval/microbenchmark/fork-tput.pdf}
+%	\caption{Throughput of SocksDirect with fork happening}
+%	\label{fig:eval-fork-tput}
+%\end{figure}
 
 

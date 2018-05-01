@@ -1,3 +1,0 @@
-size SocksDirect(TCP) SocksDirect(RDMA) RDMA libVMA IX Linux
-16B     2                   1            1      1    1    1
-4K      2                   1            1      1    1    1
