@@ -54,6 +54,26 @@ $libvma << EOD
 16 8141
 EOD
 
+$libsd << EOD
+1 23707
+2 45413
+3 63126
+4 79044
+5 100975
+6 121785
+7 140448
+8 160251
+9 184827
+10 203907
+11 221930
+12 241078
+13 261136
+14 278419
+15 300805
+16 306616
+EOD
+
+
 plot "$linux" title "Linux" with linespoints linestyle 1,\
 "$libvma" title "LibVMA" with linespoints linestyle 2,\
-1 title "SocksDirect" linestyle 3
+"$libsd" title "SocksDirect" with linespoints linestyle 3

@@ -59,4 +59,29 @@ $libvma << EOD
 1048576 5 
 EOD
 
-plot "$linux" title "Linux" with linespoints linestyle 1, "$libvma" title "LibVMA" with linespoints linestyle 2
+
+$libsd << EOD
+8       23970
+16      23039
+32      6722
+64      6997
+128     6187
+256     4936
+512     4951
+1024    3420
+2048    2456
+4096    1529
+8192    895
+16384   881
+32768   815
+65536   685
+131072  463
+262144  338
+524288  216
+1048576 131
+EOD
+
+
+plot "$linux" title "Linux" with linespoints linestyle 1, \
+"$libvma" title "LibVMA" with linespoints linestyle 2, \
+"$libsd" title "SocksDirect" with linespoints linestyle 3,

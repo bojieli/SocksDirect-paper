@@ -80,6 +80,28 @@ $RDMA << EOD
 1048576	327.12
 EOD
 
+$libsd << EOD
+8	1.7053	1.603	1.805
+16	1.7906	1.752	1.925
+32	1.9992	1.833	2.222
+64	2.491	2.44	2.615
+128	2.6034	2.551	2.729
+256	2.65	2.588	2.734
+512	2.8079	2.76	2.916
+1024	3.2079	3.134	3.307
+2048	3.9775	3.911	4.064
+4096	5.5637	5.471	5.67
+8192	11.7415	11.626	12.15
+16384	16.9248	14.06	19.539
+32768	21.9532	20.158	24.845
+65536	31.8033	31.118	34.701
+131072	60.1095	59.282	67.156
+262144	97.6657	96.317	103.932
+524288	179.112	176.381	188.98
+1048576	346.021	343.097	357.664
+EOD
+
 plot "$linux" title "Linux" with yerrorlines linestyle 1,\
 "$libvma" title "LibVMA" with yerrorlines linestyle 2,\
-"$RDMA" title "RDMA" with linespoints linestyle 3
+"$RDMA" title "RDMA" with linespoints linestyle 3,\
+"$libsd" title "SocksDirect" with linespoints linestyle 4
