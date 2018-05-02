@@ -14,7 +14,7 @@ set xlabel "Number of cores"  font "Arial, 20"
 set ylabel "Tput (k read/s)" font "Arial, 20" offset graph -0.02, 0
 set xtics font "Arial, 18"
 set ytics font "Arial, 18"
-set key inside right top font "Arial, 18"
+set key inside reverse left top font "Arial, 18"
 
 $linux << EOD
 1 1182
@@ -74,6 +74,6 @@ $libsd << EOD
 EOD
 
 
-plot "$linux" title "Linux" with linespoints linestyle 1,\
-"$libvma" title "LibVMA" with linespoints linestyle 2,\
-"$libsd" title "SocksDirect" with linespoints linestyle 3
+plot "$libsd" title "SocksDirect" with linespoints linestyle 1,\
+"$linux" title "Linux" with linespoints linestyle 2,\
+"$libvma" title "LibVMA" with linespoints linestyle 3
