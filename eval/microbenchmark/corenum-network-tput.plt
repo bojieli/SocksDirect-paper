@@ -14,7 +14,7 @@ set xlabel "Number of cores"  font "Arial, 20"
 set ylabel "Tput (k read/s)" font "Arial, 20" offset graph -0.02, 0
 set xtics font "Arial, 18"
 set ytics font "Arial, 18"
-set key inside right top font "Arial, 18"
+set key inside reverse left top font "Arial, 18"
 
 $linux << EOD
 1 1272
@@ -66,10 +66,33 @@ $RDMA << EOD
 9	102408.10508
 10	102067.94124
 11	102348.45893
-
+12	102348.45893
+13	102348.45893
+14	102348.45893
+15	102348.45893
+16	102348.45893
 EOD
 
-plot "$linux" title "Linux" with linespoints linestyle 1,\
-"$libvma" title "LibVMA" with yerrorlines linestyle 2,\
-"$RDMA" title "RDMA" with linespoints linestyle 3,\
-1 title "SocksDirect" linestyle 4
+$libsd << EOD
+1 8197
+2 14005
+3 20952
+4 25747
+5 26775
+6 28231
+7 31228
+8 33362
+9 37670
+10 40677
+11 45120
+12 47720
+13 51942
+14 54530
+15 58592
+16 61680
+EOD
+
+plot $libsd title "SocksDirect" with linespoints linestyle 1,\
+"$linux" title "Linux" with linespoints linestyle 2,\
+"$libvma" title "LibVMA" with yerrorlines linestyle 3,\
+"$RDMA" title "RDMA" with linespoints linestyle 4

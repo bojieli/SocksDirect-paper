@@ -14,7 +14,7 @@ set xlabel "Number of connections"  font "Arial, 20"
 set ylabel "Tput (k read/s)" font "Arial, 20" offset graph -0.02, 0
 set xtics font "Arial, 18"
 set ytics font "Arial, 18"
-set key inside right top font "Arial, 18"
+set key inside right center font "Arial, 18"
 set logscale x 10
 
 $linux << EOD
@@ -34,6 +34,16 @@ $libvma << EOD
 10000 5216
 EOD
 
-plot "$linux" title "Linux" with linespoints linestyle 1,\
-"$libvma" title "LibVMA" with linespoints linestyle 2,\
-1 title "SocksDirect" linestyle 3
+$libsd << EOD
+1       23267
+10      23269
+100     23463
+1000    23421
+10000   23272
+100000  22113
+1000000 22895 
+EOD
+
+plot "$libsd" title "SocksDirect" with linespoints linestyle 1,\
+"$linux" title "Linux" with linespoints linestyle 2,\
+"$libvma" title "LibVMA" with linespoints linestyle 3
