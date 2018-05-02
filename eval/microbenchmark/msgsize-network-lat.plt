@@ -1,19 +1,19 @@
 set terminal pdf
 set output "msgsize-network-lat.pdf"
-set lmargin 12
-set style line 1 pt 8 lc rgb "#e41a1c" linewidth 1.5
-set style line 2 pt 4 lc rgb "#377eb8" linewidth 1.5
-set style line 3 pt 6 lc rgb "#4daf4a" linewidth 1.5
-set style line 4 pt 12 lc rgb "#984ea3" linewidth 1.5
-set style line 5 pt 10 lc rgb "#ff7f00" linewidth 1.5
-set style line 6 pt 14 lc rgb "#ffff33" linewidth 1.5
-set style line 7 pt 13 lc rgb "#a65628" linewidth 1.5
-set style line 8 pt 13 lc rgb "#f781bf" linewidth 1.5
-set xlabel "Message size (Bytes)"  font "Arial, 20"
-set ylabel "Latency /  {/Symbol m}s" font "Arial, 20" offset graph -0.02, 0
-set xtics ("8B" 8, "64B" 64, "512B" 512, "4K" 4096, "32K" 32768, "256K" 262144) font "Arial, 18"
-set ytics font "Arial, 18"
-set key inside reverse left top font "Arial, 18"
+set lmargin 13
+set style line 1 pt 8 lc rgb "#e41a1c" linewidth 1.5 ps 1.0
+set style line 2 pt 4 lc rgb "#377eb8" linewidth 1.5 ps 1.0
+set style line 3 pt 6 lc rgb "#4daf4a" linewidth 1.5 ps 1.0
+set style line 4 pt 12 lc rgb "#984ea3" linewidth 2 dt 2 ps 1.0
+set style line 5 pt 10 lc rgb "#ff7f00" linewidth 1.5 ps 1.0
+set style line 6 pt 14 lc rgb "#ffff33" linewidth 1.5 ps 1.0
+set style line 7 pt 13 lc rgb "#a65628" linewidth 1.5 ps 1.0
+set style line 8 pt 13 lc rgb "#f781bf" linewidth 1.5 ps 1.0
+set xlabel "Message size (Bytes)"  font "Arial, 24"
+set ylabel "Latency ({/Symbol m}s, log scale)" font "Arial, 24" offset graph -0.03, 0
+set xtics ("8B" 8, "64B" 64, "512B" 512, "4K" 4096, "32K" 32768, "256K" 262144, "1M" 1048576) font "Arial, 24"
+set ytics font "Arial, 24"
+set key inside reverse left top font "Arial, 24"
 set logscale y 10 
 set logscale x 2
 
@@ -101,7 +101,7 @@ $libsd << EOD
 1048576	346.021	343.097	357.664
 EOD
 
-plot "$libsd" title "SocksDirect" with linespoints linestyle 1,\
+plot "$libsd" title "SocksDirect" with yerrorlines linestyle 1,\
 "$linux" title "Linux" with yerrorlines linestyle 2,\
 "$libvma" title "LibVMA" with yerrorlines linestyle 3,\
 "$RDMA" title "RDMA" with linespoints linestyle 4
