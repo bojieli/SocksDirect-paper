@@ -1,4 +1,9 @@
 \section*{Abstract}
+Communication intensive applications that leverage modern multicore CPU and high-speed networking hardware often put 
+considerable stress on traditional socket implementation. Existing Linux socket is implemented in the kernel 
+space with several shared data structures that needs concurrency protection. This incur significant kernel crossing 
+and locking overhead. 
+
 
 \iffalse
 \textbf{Title Candidates:}
