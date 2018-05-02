@@ -16,7 +16,6 @@ set ylabel "Tput (k read/s)" font "Arial, 20" offset graph -0.02, 0
 set xtics font "Arial, 18"
 set ytics font "Arial, 18"
 set key inside right top font "Arial, 18"
-set logscale y 10 
 set logscale x 10
 
 $linux << EOD
