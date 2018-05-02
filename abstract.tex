@@ -1,8 +1,18 @@
 \section*{Abstract}
 Communication intensive applications that leverage modern multicore CPU and high-speed networking hardware often put 
 considerable stress on traditional socket implementation. Existing Linux socket is implemented in the kernel 
-space with several shared data structures that needs concurrency protection. This incur significant kernel crossing 
+space with several shared data structures that needs concurrency protection. This design incur significant kernel crossing 
 and locking overhead. 
+
+In this paper, we describe \sys{}, a high performance socket system that is fully compatible with Linux socket. 
+\sys{} is implemented in user space to avoid kernel crossing cost. It takes advantage of multicore CPU and achieve
+good scalability by designing the socket system as a shared-nothing message passing distributed system.
+\sys{} use share memory lockless queue for intra-server and RDMA for inter-server communication. Together with carefully 
+designed zero-copy mechanism, it removes many overheads of existing socket systems design. 
+
+\sys{} can be used as a drop-in replacement for Linux socket with no modification to the user applications. 
+Experiment shows that \sys achieves 4 to 24x better message throughput, 10 to 60x better RTT latency, and over 40x connection 
+throughput compared with Linux socket. 
 
 
 \iffalse

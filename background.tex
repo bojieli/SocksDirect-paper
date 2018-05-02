@@ -102,26 +102,6 @@ Linux kernel socket is a well-known bottleneck for communication intensive appli
 
 %\textbf{Socket process: connection setup and data transmission.}
 
-\subsection{Design Goals}
-\label{subsec:goals}
-We aim to design \sys as a drop-in replacement to address the performance limitations of native Linux socket. Therefore, we design \sys{} with several explicit goals in mind.
-
-\parab{Compatibility.}
-We design \sys to be compatible with existing applications using Linux socket. Therefore, it needs to preserve Linux socket semantics, in particular it needs to behave correctly with Fork. \textit{Process isolation} also needs to be preserved in \sys.
-%\parab{User-mode socket library as a drop-in replacement.}
-
-\parab{Intra-Server, Inter-Server and TCP/IP.}
-The emergence of containers and micro-services draws attention to intra-server communication~\cite{bailis2016introducing}.
-%For manageability and fault isolation, developers break monolithic services into self-contained microservice containers, interconnected via container network. 
-Following the trend of recent data-plane operating systems~\cite{peter2016arrakis,belay2017ix,freeflow}, 
-\sys should optimize for both intra-server and inter-server socket.
-
-\parab{Performance.}
-We set out to build \sys{} to have very high performance. To this end, \sys has four performance goals. The first two are \textit{low latency} and \textit{high throughput} (aka low CPU overhead). For inter-process connections within a server, the latency and throughput should be comparable with shared memory communication. For inter-server connections in a data center, we aim at performance close to raw RDMA. Moreover, performance should be \textit{scalable} to leverage multiple cores. Finally, the performance should not degrade with large number of \textit{concurrent connections} between two processes. 
-% Many user connections are forwarded from the load balancer to an application~\cite{lin2016scalable}. Some applications create a TCP socket to key-value store for each request they process~\cite{nishtala2013scaling}.
-
-
-
 \subsection{Challenges}
 \label{subsec:challenges}
 
