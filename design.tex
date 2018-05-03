@@ -295,9 +295,10 @@ As mentioned in \ref{subsec:data_trans}, if \libipc{} continues to yield for sev
 	\label{fig:zerocopy}
 \end{figure}
 
-The main challenge for zero copy is to maintain the semantics of socket API. A sender may write the send buffer after non-blocking \texttt{send}, and the receiver does not know the receive buffer before \texttt{recv}.
-Fortunately, virtual memory provides a layer of indirection, so we can remap virtual address of a buffer to another physical page, if the data occupies entire 4~KiB pages.
-In this regard, we wrap around \texttt{malloc} and \texttt{realloc} functions and allocate 4~KiB aligned addresses for large allocations, so most buffers will align to page boundary.
+The main challenge for zero copy is to maintain the semantics of socket API, as discussed in \ref{subsec:challenges}.
+%A sender may write the send buffer after non-blocking \texttt{send}, and the receiver does not know the receive buffer before \texttt{recv}.
+Fortunately, virtual memory provides a layer of indirection, so we can remap virtual address of a buffer to another physical page if the data occupies entire 4~KiB pages.
+We wrap around \texttt{malloc} and \texttt{realloc} functions and allocate 4~KiB aligned addresses for large allocations, so most buffers will align to page boundary.
 If the size of send message is not a multiple of 4~KiB, the last chunk of data is copied on \texttt{send} and \texttt{recv}.
 
 \subsubsection{Zero Copy for Intra-Server Socket}
@@ -308,7 +309,7 @@ As shown in Figure~\ref{fig:zerocopy}, for \texttt{send} operation, \libipc{} in
 The address is encrypted to prevent unsolicited mapping of arbitrary pages.
 Because the sender may read the buffer after \texttt{send} or send the buffer to multiple receivers, the physical page cannot be remapped.
 Additionally, \texttt{send} needs to write-protect the buffer because the receiver needs to read it.
-On receiving side, \libipc{} invokes the kernel to remap the encrypted physical address to the application-provided receive buffer.
+On the receiving side, \libipc{} invokes the kernel to remap the encrypted physical address to the application-provided receive buffer.
 \texttt{recv} also needs to write-protect the buffer because it is shared by the sender and potentially multiple receivers.
 
 \parab{Minimize copy-on-write.}
@@ -316,26 +317,30 @@ A challenge arises when sender writes the buffer after \texttt{send}.
 Existing zero-copy socket designs~\cite{thadani1995efficient,chu1996zero} use copy-on-write. %Copy is required because the sender may read the non-written part of the page.
 Because most applications reuse the buffer for subsequent send operations, copy-on-write is invoked in most cases, making zero-copy essentially useless on sender.
 Our observation is that most applications overwrite entire pages of the send buffer via \texttt{recv} or \texttt{memcpy}. %so it is unnecessary to copy old data when the first byte of the page is written.
-Zero-copy \texttt{recv} remaps the buffer without triggering copy-on-write, so proxy applications can achieve zero copy.
-We add preamble code to \texttt{memcpy} in both \libipc{} runtime and compiler inline library. For page-aligned copy to \libipc{} buffers, the preamble code invokes the kernel to remap new pages and disable write protection.
+Zero-copy by \texttt{recv} already remaps the buffer without triggering copy-on-write.
+We add preamble code to \texttt{memcpy} in both \libipc{} runtime and compiler inline library. 
+For page-aligned copy to \libipc{} buffers, the preamble code invokes the kernel to remap new pages and disable write protection.
 
 \parab{Page pool in user space.}
 A second challenge is that page remapping requires the kernel to allocate and free pages for each \texttt{send} and \texttt{recv}. Page allocation in kernel acquires a global lock, therefore it is inefficient. Instead, \libipc{} manages a pool of free pages in each user-mode process.
 We add to the kernel a system call to convert virtual addresses in the pool and encrypted physical addresses.
 \libipc{} also tracks the origin of received zero-copy buffers.
-After page remapping on sender \texttt{memcpy} and receiver \texttt{recv}, if the old physical page is from another process, \libipc{} sends a message to the origin process to return the buffer.
+After finish accessing the remapped page, if the page is from another process, \libipc{} sends a message to the original process to return the buffer.
 
 \subsubsection{Zero Copy RDMA}
 \label{subsec:zero-copy-rdma}
 
-We use physical addresses in RDMA verbs to eliminate memory registration and address translation overhead, as recommended by NIC documentation~\cite{mellanox}. During connection initialization, the receiver prepares a huge-page buffer for receiving zero-copy messages. The sender manages a pool of free pages in the receive buffer. Upon socket \texttt{send}, \libipc calls the kernel to get non-encrypted physical address of send virtual address. \libipc also allocates pages from receive buffer as remote address for RDMA \texttt{write}. The metadata message in ring buffer includes physical pages in receive buffer. Upon socket \texttt{recv}, \libipc calls the kernel maps physical pages in metadata message to receive virtual address. For security, kernel validates that page numbers are in the huge-page receive buffer. Same as intra-server zero-copy communication, when the receiver stops using the buffer, it is returned to the sender.
+We use physical addresses in RDMA verbs to eliminate memory registration and address translation overhead, as recommended by NIC documentation~\cite{mellanox}. During connection initialization, the receiver prepares a huge-page buffer for receiving zero-copy messages. The sender manages free pages in the receive buffer. For \texttt{send}, \libipc calls the kernel to get physical address of send data buffer. it also allocates pages from receive buffer as remote address for RDMA \texttt{write}, and attach the address in metadata message in ring buffer. Upon \texttt{recv}, \libipc calls the kernel to map physical pages in metadata message to \texttt{recv} buffer address. 
+%For security, kernel validates that page numbers are in the huge-page receive buffer. 
+Same as intra-server zero-copy communication, when the receiver stops using the buffer, it is returned to the sender.
 
 \subsubsection{Zero Copy TCP}
 \label{subsec:zero-copy-tcp}
 
 To remove data copy between \libipc{} and NIC, the payloads of sent and received packets need to align at 4~KiB page boundary. We leverage scatter-gather support in modern NICs~\cite{mellanox} to separate packet header from application payload.
 %During initialization, \libipc{} queries IP and Ethernet MAC address from the kernel and constructs a packet header template.
-Upon \texttt{send}, \libipc{} constructs a packet header to a NIC send work request, then fills in the payload buffer address from application. In background, \libipc{} issues NIC receive work requests with a 54-byte buffer to hold exactly Ethernet, IPv4 and TCP headers, followed by a page-aligned buffer to hold payload.
+For \texttt{send}, \libipc{} constructs a packet header to a NIC send work request, then fills in the payload buffer address from application. 
+For receiving data, in background, \libipc{} issues NIC receive work requests with a 54-byte buffer to hold exactly Ethernet, IPv4 and TCP headers, followed by a page-aligned buffer to hold payload.
 %In corner cases where the received header length is not 54 bytes, \libipc{} reassembles the packet.
 Upon \texttt{recv}, the payload buffer is remapped to application.
 
