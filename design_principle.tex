@@ -73,27 +73,32 @@
 To address the performance and compatibility challenges, we propose the following design principles to guide \sys design:
 
 \parab{Consider processes as a distributed system.}
-For multi-core and multi-server scalability, we take the Multikernel~\cite{baumann2009multikernel} philosophy and use message passing for inter-process communication to avoid state sharing and synchronization. We consider processes in a server as a distributed system, in the sense that a) processes share nothing but peer-to-peer communication channels, b) new processes may join at any time, c) a process may crash unexpectedly and d) no user process is trusted in terms of security. 
+To achieve multi-core and multi-server scalability, we take the Multikernel~\cite{baumann2009multikernel} philosophy and use message passing for inter-process communication to avoid state sharing and synchronization. We consider processes in a server as a distributed system, in the sense that a) processes share nothing but peer-to-peer communication channels, b) new processes may join at any time, c) a process may crash unexpectedly and d) no user process is trusted in terms of security. 
 %Instead of relying on the isolation between application and ``protected kernel code'' to maintain security, we delegate privileged operations to a special \textit{monitor} process, analogous to the coordinator in a distributed system.
 
 %We strive to minimize the number of messages to reduce overhead. 
-In Table~\ref{tab:socket-api}, we categorize Linux socket operations into local, peer-to-peer and non-partitionable. An operation is \textit{local} if it only changes states local to a process (\textit{e.g.} assigning file descriptors). An operation is \textit{peer-to-peer} if the states are written by one processes and read by another process (\textit{e.g.} sending a message). 
+To reduce message passing, in Table~\ref{tab:socket-api}, we categorize Linux socket operations into local, peer-to-peer and non-partitionable. An operation is \textit{local} if it only changes states local to a process (\textit{e.g.} assigning file descriptors). An operation is \textit{peer-to-peer} if the states are written by one processes and read by another process (\textit{e.g.} sending a message).
 %We develop a high performance lockless queue to enable efficient peer-to-peer communication using shared memory and one-sided RDMA (Sec.\ref{subsec:lockless-queue}). 
 %We design all peer-to-peer operations to be non-blocking using shared memory queue, \textit{i.e.} returns immediately after writing to the queue. 
 Local and peer-to-peer operations are naturally scalable because their states are partitionable~\cite{partitionable}. For \textit{non-partitionable} and privileged operations (\textit{e.g.} \texttt{fork} and shared memory allocation), \sys revisits the idea of~\cite{hoare1974monitors} and delegates coordination to a \emph{monitor proces}, which is analogous to the coordinator in a distributed system. Such delegation not only has higher throughput than synchronization~\cite{roghanchi2017ffwd}, but also ensures security and fairness.
 
-\parab{Each memory location is written by only one process.}
-We design a high performance lockless queue to enable efficient communication between two application processes or between an application process and the monitor. We design the queue so that each memory location is only written by a single process. This design minimizes cache migration in shared memory, ensures security, and allows us to make use of one-sided RDMA. The OS kernel provides memory isolation among different queues. 
-%To reduce memory footprint and polling overhead, all socket connections between two processes are multiplexed through one queue.
-
 \parab{Optimize for the common and prepare for the worst.}
-Sockets can be shared among threads and processes. Using mutual exclusion to ensure correctness for concurrent access would sacrifice the common-case one-to-one communication performance. To avoid such synchronization overhead, \sys creates a queue between each pair of sender and receiver processes, and ensures receive ordering and liveness (Sec.\ref{subsec:fork}).
+Because sockets can be shared among threads and processes, using mutual exclusion to ensure correctness for concurrent access would sacrifice the common-case one-to-one communication performance. To avoid such synchronization overhead, we create a queue between each pair of sender and receiver processes, and ensures receive ordering and liveness (Sec.\ref{subsec:fork}).
 
-We use cooperative multitasking and polling to reduce inter-core interrupts, signaling and scheduling costs. When all processes are awake and responsive to incoming messages, the system achieves high performance at the cost of active polling. To reduce polling overhead, \sys puts a process to sleep after being idle for some time. \sys uses Linux signals to interrupt long-running application code and wake up sleeping or blocked processes (Sec.\ref{subsec:process-mux}). 
+To reduce context switch and scheduling overhead, observing the access pattern of most event-driven applications, we use cooperative multitasking and polling to reduce inter-core interrupts, signaling and scheduling costs. When all processes are awake and responsive to incoming messages, the system achieves high performance at the cost of active polling. To reduce polling overhead, \sys puts a process to sleep after being idle for some time. \sys uses Linux signals to interrupt long-running application code and wake up sleeping or blocked processes (Sec.\ref{subsec:process-mux}). 
 %When a process with \sys is dead, the monitor detects and garbage collects it ).
 
-\parab{Utilize hardware for performance.}
+\parab{Use different communication options based on process location.}
+To offload transport, QoS and ACL to hardware, we design a high performance lockless queue to enable efficient communication between two application processes or between an application process and the monitor. We design the queue so that each memory location is only written by a single process. This design minimizes cache migration in shared memory, ensures security, and allows us to make use of one-sided RDMA. The kernel provides memory isolation among different queues.
+
+
+\RED{Change.}
 For sending and receiving large buffers in a server, we leverage the virtual memory system and modify page mapping on \texttt{memcpy}, \texttt{send} and \texttt{recv} to achieve zero-copy (Sec.\ref{subsec:zerocopy}). For inter-server communication between RDMA capable nodes, \sys uses one-sided RDMA~\cite{mitchell2013using,kaminsky2016design}. To communicate with standard TCP/IP endpoints, we use a light-weight user-space TCP/IP stack~\cite{dunkels2001design}, while still take advantage of connection multiplexing and scatter-gather of the NIC if possible. %In all three cases above, \libipc{} achieves zero copy and kernel bypass.
+
+
+
+
+
 
 
 %\RED{Why do we take the idea of Library OS? Every design choice should have rationale, otherwise the paper would look like a technical report.}
