@@ -111,16 +111,15 @@ Socket APIs are implemented in kernel space and thus require kernel crossing for
 Together with additional cache invalidations, KPTI patches reduce TCP socket throughput by 40\% for 64-byte messages. These side-channel attacks also lead us to rethink the Linux security model in which the complicated network stack needs to be trusted and protected. %, while sharing cores with applications.
 
 %To ensure isolation among processes, one category of dataplane operating systems~\cite{belay2017ix,tsai2017lite} use kernel-based network stacks. However, non-batched system calls have context switch overhead, while batched system calls increase latency.
-Several works~\cite{martins2014clickos,roghanchi2017ffwd,huang2017high} delegate operations to a virtual switch running on dedicated cores, which makes the virtual switch a bottleneck. Our goal is to achieve kernel bypass with process isolation, while not delegating every operation to a centralized coordinator.
+Several works~\cite{martins2014clickos,roghanchi2017ffwd,huang2017high} delegate operations to a virtual switch running on dedicated cores, making the virtual switch a bottleneck. Our goal is to achieve kernel bypass with process isolation, while not delegating every operation to a centralized coordinator.
 
 \parab{Context switch and process scheduling.}
 %As shown in Table~\ref{tab:operation-performance}, switching from one process to another cooperatively is 2.5x as expensive as a system call. 
-As shown in Table~\ref{tab:operation-performance}, inter-process context switch based on semaphore, mutex or \texttt{futex} is 5x$\sim$10x slower than cooperative multitasking. This additional latency is attributed to event notification mechanism and scheduler queue manipulation in kernel. %For two processes that run on different cores, TCP socket latency is only a bit higher than mutex. 
+As shown in Table~\ref{tab:operation-performance}, inter-process context switch based on semaphore, mutex or \texttt{futex} is 5x$\sim$10x slower than cooperative multitasking. This extra latency is due to event notification mechanism and scheduler queue manipulation in kernel. %For two processes that run on different cores, TCP socket latency is only a bit higher than mutex. 
 In \sys we would like to use cooperative multitasking rather than kernel event notification mechanisms.
 
 \parab{Synchronization.}
-Linux kernel acquires global locks during connection creation and a per-socket lock for each socket operation~\cite{boyd2010analysis,han2012megapipe,lin2016scalable}. Scalability analysis of Linux system calls~\cite{boyd2010analysis,clements2015scalable} suggests that many socket operations are not commutable and thus synchronization cannot always be avoided. For example, synchronization is required when a socket is shared after fork.
-In \sys, we try to minimize synchronization overhead through two approaches. First, we optimize for the common case and remove synchronization overhead from frequent socket operations. Second, we take advantage of the fact that shared memory message passing is much cheaper than locking, and use message passing as the exclusive synchronizing mechanism.
+Linux kernel acquires global locks during connection creation and a per-socket lock for each socket operation~\cite{boyd2010analysis,han2012megapipe,lin2016scalable}. Previous works~\cite{boyd2010analysis,clements2015scalable} suggest that many socket operations are not commutable and thus synchronization cannot always be avoided. For example, synchronization is required when a socket is shared after fork. In \sys, we try to minimize synchronization overhead in two ways. First, we optimize for the common case and remove synchronization overhead from frequent socket operations. Second, we leverage the fact that shared memory message passing is much cheaper than locking, and use message passing as the exclusive synchronizing mechanism.
 
 %Spinlock in kernel is implemented with Compare-And-Swap (CAS) instruction, which costs $100\sim200$~ns per acquire and release. In comparison, shared memory message passing only needs one cache migration~\cite{roghanchi2017ffwd} (30~ns).
 %In comparison, shared memory message passing
@@ -128,33 +127,40 @@ In \sys, we try to minimize synchronization overhead through two approaches. Fir
 %For example, socket provides \texttt{SO\_REUSEPORT} option. When this option is enabled, multiple processes on one host can \texttt{bind} to the same port and incoming connections are dispatched to the listeners. During connection setup, coordination is required to allocate file descriptors and port numbers, load balance connections and allocate buffers. In addition, a socket may be shared by multiple processes and threads in a same process share socket connections. When a process forks, the parent and child processes also share the sockets created before fork.
 
 \parab{Memory copy.}
+Socket APIs, \textit{e.g.}, \texttt{send} and \texttt{recv}, cause memory copies between user and kernel space, thus degrading the performance. In \sys, we aim to achieve zero copy for large transfers without changing applications. We achieve this by using the page mapping mechanism in virtual memory.  
+
+
 %For inter-server data transmission, Linux kernel copies data four times: on the send side, from application to kernel socket buffer, then to NIC ring buffer; the receive side is similar. For intra-server, data is copied three times: from application to kernel send buffer, then to kernel receive buffer via loopback interface, and finally to another application. Each CPU core can copy $\approx$5~GiB data per second~\cite{panda2016netbricks}, that's why a kernel TCP connection is hard to saturate an 100~Gbps NIC.
 %Historically, \texttt{send} was designed as a blocking operation, and the send buffer may be overwritten by the application after \texttt{send} function call.
-In a non-blocking \texttt{send}, the process could overwrite the send buffer after \texttt{send} function call returns. To avoid race condition on the data buffer, network stack needs to copy data to an internal buffer. %before \texttt{send} returns, and then send the copied data in background.
-For the \texttt{recv} operation, application provides a buffer and read the data after \texttt{recv}.
+%In a non-blocking \texttt{send}, the process could overwrite the send buffer after \texttt{send} function call returns. To avoid race condition on the data buffer, network stack needs to copy data to an internal buffer. %before \texttt{send} returns, and then send the copied data in background.
+%For the \texttt{recv} operation, application provides a buffer and read the data after \texttt{recv}.
 %If we implement \texttt{send} as a lazy operation, \textit{i.e.}, the data is buffered on the sender, the receiver needs to wait for a round-trip time on \texttt{recv}.
 %For this reason, most socket implementations send data to the receiver eagerly.
-Because the receiver's network stack cannot predict the user-provided \texttt{recv} address, it needs to buffer received data internally, then copy to the desired destination when \texttt{recv} is called.
-Our goal in \sys is to achieve zero copy for large data transfers without making changes to applications. We accomplish this by taking advantage of the page mapping mechanism in virtual memory. 
+%Because the receiver's network stack cannot predict the user-provided \texttt{recv} address, it needs to buffer received data internally, then copy to the desired destination when \texttt{recv} is called.
+%Our goal in \sys is to achieve zero copy for large data transfers without making changes to applications. We accomplish this by taking advantage of the page mapping mechanism in virtual memory. 
+
+\RED{}
 
 \parab{Cache miss.}
 The vast number of connections from Internet users require cloud systems to serve millions of connections efficiently~\cite{nishtala2013scaling,lin2016scalable,belay2017ix}. %, often called the C10M problem~\cite{graham2013c10m}. 
-In Linux, each socket connection has dedicated send and receive buffers, each at least one page (4~KiB) in size. With millions of concurrent connections, the socket buffers can consume gigabytes of memory, most of which is empty. Accessing many buffers randomly leads to non-cached memory accesses.
+In Linux, each socket connection has dedicated send and receive buffers, each at least one page (4~KiB) in size. With millions of concurrent connections, the socket buffers can consume gigabytes of memory, most of which is empty. Accessing many buffers randomly leads to non-cached memory accesses. This problem also exists in RDMA NICs~\cite{mprdma,kaminsky2016design} which have limited on-board memory.
 %, which is slower than sequential access to a single buffer~\cite{li2017kv}. 
-This problem is exaggerated in RDMA. RDMA NIC caches connection states in limited on-board memory. Just over a few hundred active RDMA connections could cause cache misses and degrade performance~\cite{mprdma,kaminsky2016design}. 
+%This problem is exaggerated in RDMA. RDMA NIC caches connection states in limited on-board memory. Just over a few hundred active RDMA connections could cause cache misses and degrade performance~\cite{mprdma,kaminsky2016design}. 
 %Moreover, event-driven applications use \texttt{epoll} to detect which connections are ready for send or receive. If the event queue is separated from data queues, each \texttt{recv} operation involves two cache migrations for event and data~\cite{yasukata2016stackmap}. 
-In light of this, in \sys we multiplex socket connections and minimize memory accesses per data transmission.
+In light of this, in \sys, we multiplex socket connections and minimize memory accesses per data transmission.
 
 %\textbf{Virtual file system.}
 %Each socket connection is a \textit{file descriptor} (FD) in Linux. First, each new connection involves expensive \texttt{inode} and \texttt{dentry} creation in the \texttt{proc} file system, which is not scalable and rarely used except for diagnostic and monitoring utilities. Second, socket operations need to pass through the virtual file system (VFS), which introduces CPU overhead and additional latency.
 
 \parab{Transport, QoS and ACL.}
-Linux TCP implementation has evolved to become quite complicated over the years to address performance and security concerns~\cite{yasukata2016stackmap}. However, intra-server sockets do not need the reordering, loss recovery and congestion control offered by TCP. %QoS and performance isolation are also not required because synchronization-free inter-core communication in a NUMA node can scale with number of cores~\cite{intel-manual}. 
-In \sys, we leverage shared memory queue for intra-server transport and by-pass the TCP stack.
+Linux TCP implementation has evolved to become quite complicated over the years to address performance and security concerns~\cite{yasukata2016stackmap}. However, intra-server sockets may not need many features, \textit{e.g.}, congestion control and loss recovery. In \sys, we leverage shared memory queue instead of TCP as intra-server transport.%the reordering, loss recovery and congestion control offered by TCP. %QoS and performance isolation are also not required because synchronization-free inter-core communication in a NUMA node can scale with number of cores~\cite{intel-manual}. 
+ 
 
-For inter-server communication, RDMA offers reliable transport. 
-An emerging line of work~\cite{zhu2015congestion,guo2016rdma,lu2017memory,mprdma} improve RDMA performance and QoS in large scale data center networks. We take the ideas of Arrakis~\cite{peter2016arrakis} and Azure SmartNICs~\cite{smartnic} to enforce QoS and ACL policies on NICs.
-The main challenge of using RDMA is to bridge the semantics of socket and RDMA. The event polling API in Linux is \textit{reactive}, in the sense that the applications knows a connection is ready for \texttt{send} or \texttt{recv} before issuing the operation. RDMA API is \textit{proactive}. The application delegates RDMA operations to the NIC and receives notification at completion.
+%For inter-server communication inside , RDMA offers reliable transport. 
+For inter-server communication inside the data center, RDMA is a good option as it provides high throughput, low latency with low CPU overhead. RDMA has been deployed in many production data centers~\cite{guo2016rdma}. Given RDMA bypasses the kernel, we offload QoS and ACL policies on NICs~\cite{smartnic}.  
+%An emerging line of work~\cite{zhu2015congestion,guo2016rdma,lu2017memory,mprdma} improves RDMA performance and QoS in large scale data center networks. %We take the ideas of Arrakis~\cite{peter2016arrakis} and Azure 
+%SmartNICs~\cite{smartnic} to enforce QoS and ACL policies on NICs.
+The main challenge of using RDMA is to bridge the semantics of socket and RDMA. For example, the event polling API in Linux is \textit{reactive}, in the sense that the applications knows a connection is ready for \texttt{send} or \texttt{recv} before issuing the operation. RDMA API is \textit{proactive}. The application delegates RDMA operations to the NIC and receives notification at completion.
 %To this end, two-sided RDMA applications need to predict the size and number of messages it expects to receive, and delegate enough \texttt{recv} operations to the NIC~\cite{huang2017high}.
 In \sys, we aim to use RDMA efficiently for existing socket applications.
 
