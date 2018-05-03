@@ -89,6 +89,9 @@ After slow operations.
 
 \subsection{Methodology}
 
+We evaluate \sys on servers with two Xeon E5-2698 v3 CPUs, 256~GiB memory and a Mellanox ConnectX-4 NIC. The servers are interconnected via an Arista 7060CX switch. We use RoCEv2 for RDMA.
+Each thread is pinned on a CPU core. We run tests for enough warm-up rounds before collecting data. For latency, we report the mean, and error bars represent 1\% and 99\% percentile.
+
 \subsection{Efficiency}
 
 
