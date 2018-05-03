@@ -15,7 +15,7 @@ Even though multiple threads in the same process share memory space, we still tr
 
 \begin{figure}[t]
 	\centering
-	\includegraphics[width=0.3\textwidth]{images/fixme}
+	\includegraphics[width=0.3\textwidth]{images/conn-setup}
 	\caption{The message flow of connection creation and close.}
 	\label{fig:conn-setup}
 	\vspace{-15pt}
@@ -86,7 +86,7 @@ Round-robin polling of inter-process queues introduce wasted CPU cycles when two
 
 \begin{figure}[t]
 	\centering
-	\includegraphics[width=0.3\textwidth]{images/fixme}
+	\includegraphics[width=0.3\textwidth]{images/locklessq}
 	\caption{This figure shows the structure of lockless queue (contains shared memory, 2 local ptr, isvalid flag and isdel flag).}
 	\label{fig:locklessq-structure}
 \end{figure}
