@@ -117,7 +117,7 @@ We aim to bypass kernel with process isolation, while not delegating all operati
 
 \parab{Context switch and process scheduling.}
 %As shown in Table~\ref{tab:operation-performance}, switching from one process to another cooperatively is 2.5x as expensive as a system call. 
-As shown in Table~\ref{tab:operation-performance}, inter-process context switch based on semaphore, mutex or \texttt{futex} is 5x$\sim$10x slower than cooperative multitasking. This extra latency is due to event notification mechanism and scheduler queue manipulation in kernel. %For two processes that run on different cores, TCP socket latency is only a bit higher than mutex. 
+As Table~\ref{tab:operation-performance} shows, inter-process context switch based on semaphore, mutex or \texttt{futex} is 5x$\sim$10x slower than cooperative multitasking. This extra latency is due to event notification mechanism and scheduler queue manipulation in kernel. %For two processes that run on different cores, TCP socket latency is only a bit higher than mutex. 
 
 We aim to use cooperative multitasking instead of kernel event notification mechanisms.
 
@@ -161,11 +161,11 @@ Socket APIs, \textit{e.g.}, \texttt{send} and \texttt{recv}, cause memory copies
 We aim to achieve zero copy for large transfers without changing applications. We achieve this by using the page mapping mechanism in virtual memory.
 
 \parab{Transport.}
-Linux TCP implementation has evolved to become quite complicated over the years to address performance and security concerns~\cite{yasukata2016stackmap}. However, intra-server communication may not need many TCP features, \textit{e.g.}, congestion control and loss recovery. Hence, we leverage shared memory queue instead of TCP as intra-server transport.%the reordering, loss recovery and congestion control offered by TCP. %QoS and performance isolation are also not required because synchronization-free inter-core communication in a NUMA node can scale with number of cores~\cite{intel-manual}. 
+Linux TCP has evolved to become quite complicated over the years to address performance and security concerns~\cite{yasukata2016stackmap}. However, intra-server communication may not need many TCP features, \textit{e.g.}, congestion control and loss recovery. Hence, we leverage shared memory queue instead of TCP as intra-server transport.%the reordering, loss recovery and congestion control offered by TCP. %QoS and performance isolation are also not required because synchronization-free inter-core communication in a NUMA node can scale with number of cores~\cite{intel-manual}. 
  
 
 %For inter-server communication inside , RDMA offers reliable transport.
-For inter-server communication inside data centers, RDMA is a good option as it use hardware offloading to provide lower processing latency and CPU utilization than Linux TCP. RDMA has been deployed in many data centers~\cite{guo2016rdma}. The main challenge of using RDMA is to bridge the semantics of socket and RDMA. For example, RDMA preserves messages boundaries while TCP does not. We aim to use RDMA efficiently for existing socket applications. 
+For inter-server communication inside data centers, RDMA is a good option as it uses hardware offloading to provide lower processing latency and CPU utilization than Linux TCP. RDMA has been deployed in many data centers~\cite{guo2016rdma}. The main challenge of using RDMA is to bridge the semantics of socket and RDMA. For example, RDMA preserves messages boundaries while TCP does not. We aim to use RDMA efficiently for existing socket applications. 
 
 %For example, the event polling API in Linux is \textit{reactive}, in the sense that applications knows a connection is ready for \texttt{send} or \texttt{recv} before issuing the operation. RDMA API is \textit{proactive}. The application delegates RDMA operations to the NIC and receives notification at completion. We aim to use RDMA efficiently for existing socket applications. 
 
