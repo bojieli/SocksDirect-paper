@@ -119,7 +119,7 @@ As shown in Table~\ref{tab:operation-performance}, inter-process context switch 
 In \sys we would like to use cooperative multitasking rather than kernel event notification mechanisms.
 
 \parab{Synchronization.}
-Linux kernel acquires global locks during connection creation and a per-socket lock for each socket operation~\cite{boyd2010analysis,han2012megapipe,lin2016scalable}. Scalability analysis of Linux system calls~\cite{boyd2010analysis,clements2015scalable} suggests that many socket operations are not commutable and thus impossible to scale for all cases. For example, synchronization is required when a socket is shared after fork.
+Linux kernel acquires global locks during connection creation and a per-socket lock for each socket operation~\cite{boyd2010analysis,han2012megapipe,lin2016scalable}. Scalability analysis of Linux system calls~\cite{boyd2010analysis,clements2015scalable} suggests that many socket operations are not commutable and thus synchronization cannot always be avoided. For example, synchronization is required when a socket is shared after fork.
 In \sys, we try to minimize synchronization overhead through two approaches. First, we optimize for the common case and remove synchronization overhead from frequent socket operations. Second, we take advantage of the fact that shared memory message passing is much cheaper than locking, and use message passing as the exclusive synchronizing mechanism.
 
 %Spinlock in kernel is implemented with Compare-And-Swap (CAS) instruction, which costs $100\sim200$~ns per acquire and release. In comparison, shared memory message passing only needs one cache migration~\cite{roghanchi2017ffwd} (30~ns).
@@ -135,7 +135,7 @@ For the \texttt{recv} operation, application provides a buffer and read the data
 %If we implement \texttt{send} as a lazy operation, \textit{i.e.}, the data is buffered on the sender, the receiver needs to wait for a round-trip time on \texttt{recv}.
 %For this reason, most socket implementations send data to the receiver eagerly.
 Because the receiver's network stack cannot predict the user-provided \texttt{recv} address, it needs to buffer received data internally, then copy to the desired destination when \texttt{recv} is called.
-Our goal in \sys is to achieve zero copy for most large data transfers without making changes to applications.
+Our goal in \sys is to achieve zero copy for large data transfers without making changes to applications. We accomplish this by taking advantage of the page mapping mechanism in virtual memory. 
 
 \parab{Cache miss.}
 The vast number of connections from Internet users require cloud systems to serve millions of connections efficiently~\cite{nishtala2013scaling,lin2016scalable,belay2017ix}. %, often called the C10M problem~\cite{graham2013c10m}. 
