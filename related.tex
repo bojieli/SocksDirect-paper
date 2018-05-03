@@ -2,45 +2,6 @@
 \label{sec:related}
 
 
-\begin{table*}[t]
-	\centering
-	\scalebox{0.9}{
-		\begin{tabular}{l|c|ccc|cc|ccc|}
-			\hline
-			Category	& \multicolumn{1}{c|}{Linux Opt.} & \multicolumn{3}{c|}{New Kernel Stack} & \multicolumn{2}{c|}{User-space Packet} & \multicolumn{3}{c|}{User-space Socket} \\
-			\hline
-			System	& FastSocket & IX & MegaPipe & StackMap & Arrakis & FreeFlow & mTCP & libvma & SocksDirect \\
-			\hline
-			\hline
-			Kernel Bypass & & & & & \yes & \yes & \yes & \yes & \yes \\
-			\hline
-			Zero Copy & & \yes & & \yes & \yes & \yes & & & \yes \\
-			\hline
-			Low Latency & & \yes & \yes & \yes & \yes & \yes & \yes & \yes & \yes \\
-			\hline
-			\hline
-			Multi-core Scalability & \yes & \yes & \yes & \yes & \yes & \yes & \yes & & \yes \\
-			\hline
-			Connection Scalability & \yes & \yes & \yes & \yes & & & \yes & & \yes \\
-			\hline
-			\hline
-			NIC-bypass IPC & \yes & & \yes & \yes & & \yes & \yes & & \yes \\
-			\hline
-			RDMA as Transport & & & & & & \yes & & & \yes \\
-			\hline
-			\hline
-			Socket-like API & \yes & & \yes & \yes & \yes & & \yes & \yes & \yes \\
-			\hline
-			Linux Compatible & \yes & & & & & & & \yes & \yes \\
-			\hline
-			Process Isolation & \yes & \yes & \yes & \yes & \yes & \yes & \yes & \yes & \yes \\
-			\hline
-		\end{tabular}
-	}
-	\caption{Comparison of high performance socket systems.}
-	\label{tab:related-work}
-\end{table*}
-
 Table~\ref{tab:related-work} categorizes and compares several representative existing approaches.
 
 \textbf{Linux kernel optimization.}
@@ -170,32 +131,3 @@ ffwd delegation~\cite{roghanchi2017ffwd}
 Mellanox VMA~\cite{libvma}, Solarflare OpenOnload~\cite{openonload} and Myricom DBL~\cite{dbl}.
 
 Zero copy socket via \textit{page remapping} has been implemented in UNIX~\cite{thadani1995efficient} and BSD~\cite{chu1996zero}. 
-
-%dIPC~\cite{vilanova2017direct}
-
-Recent years we see a trend of specializing operating system for high performance.
-The network stack in an operating system can be roughly divided into two layers: network packet processing and application interface (\textit{e.g.} socket, RDMA).
-
-To accelerate network packet processing,
-FlexNIC~\cite{kaufmann2015flexnic} redesigns NIC architecture to support flexible and high-performance processing.
-E2~\cite{palkar2015e2} and NetBricks~\cite{panda2016netbricks} are high performance packet processing systems using a pipeline of dedicated cores.
-Corey~\cite{boyd2008corey} and Multikernel~\cite{baumann2009multikernel} achieve multicore scalability by replacing shared memory coordination with explicit message passing among cores.
-FreeFlow~\cite{freeflow} achieves high performance container networking for long-lived connections using user-space communication.
-Inter-core message passing has limited efficiency. To receive a message from a lockless shared-memory queue, the receiver core needs to read non-cached data, because the cache has been invalidated by the message sender. There is no instruction to directly copy data from one core's private cache to another core's.
-
-To translate application interface to network packets efficiently, one line of work develops lightweight TCP/IP stacks to provide socket-compatible APIs with high performance.
-Netmap~\cite{rizzo2012netmap} and VALE~\cite{rizzo2012vale} are high-performance user-space network stacks with BSD-like API, but do not integrate in the Linux file descriptor namespace.
-Fastsocket~\cite{lin2016scalable} and F-stack~\cite{fstack} improves Linux socket performance and scalability while keeping the most extent compatibility.
-However, many Linux APIs are rarely used~\cite{tsai2016study} and they constitute a large portion of processing delay on the data path~\cite{peter2016arrakis}.
-TCP Chimney~\cite{networking2004network} offloads a part of network stack to hardware.
-
-The other line of work uses hardware (the NIC) to achieve kernel-bypass networking between VMs or processes on the same host.
-Arrakis~\cite{peter2016arrakis} and IX~\cite{belay2017ix} leverage hardware-assisted virtualization and SR-IOV NICs to bypass kernel coordination.
-Mellanox VMA~\cite{libvma} translates socket APIs into RDMA verbs via a light-weight socket and network stack in user space.
-When applying these designs to container networking, there are two challenges: (1) All packets traverse through the NIC, while the NIC has limited \textit{hairpin} processing capacity and PCIe bandwidth. (2) The number of NIC virtual functions (VF) is not enough to support each container with a VF.
-This paper basically falls in this category and solves the challenges using careful hardware-software co-design.
-
-After years of broken promises, the increasing gap between network speed and CPU processing capacity finally makes \textit{programmable NICs} deployed in data centers~\cite{smartnic}, opening up new possibilities for network stack design.
-
-Why not use NIC:
-Finally, for inter-process communication in a same server, RDMA still needs the NIC to copy from send to receive buffer. Because the PCIe bus between NIC and CPU has an order of magnitude lower bandwidth and higher latency than the DDR channels between memory and CPU~\cite{li2017kv}, it is desirable to bypass NIC for inter-process communication.

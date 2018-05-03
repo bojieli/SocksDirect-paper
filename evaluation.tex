@@ -75,29 +75,34 @@ We implement \sys in three components: a userspace library \libipc{} with 10K li
 In this section, we evaluate \sys in the following aspects:
 
 \parab{Use shared memory efficiently for intra-server socket.}
+For small messages, \sys achieves 0.3$\mu$s round-trip latency and up to 23~M messages per second throughput, close to raw shared memory performance. For large messages, \sys uses zero copy to achieve 13x lower latency and 26x throughput than Linux.
 
 \parab{Use RDMA efficiently for inter-server socket.}
+For small messages, \sys achieves  1.7$\mu$s round-trip latency and 8M messages per second throughput, close to raw RDMA performance.
 
 \parab{Scale with number of connections.}
+The performance above scales to 100 million concurrent connections.
 
 \parab{Scale with number of cores.}
+The data transmission performance above is linearly scalable with number of cores. In addition, a CPU core can establish 1.4~M per connections per second.
 
 \parab{Corner-case operations does not affect long-term performance.}
-After slow operations.
+After corner-case operations such as \texttt{fork}, the performance converges quickly.
 
 
 
 \subsection{Methodology}
 
-We evaluate \sys on servers with two Xeon E5-2698 v3 CPUs, 256~GiB memory and a Mellanox ConnectX-4 NIC. The servers are interconnected via an Arista 7060CX switch. We use RoCEv2 for RDMA and poll completion queue every 64 messages.
+We evaluate \sys on servers with two Xeon E5-2698 v3 CPUs, 256~GiB memory and a Mellanox ConnectX-4 NIC. The servers are interconnected via an Arista 7060CX switch, supporting 56 Gbps bandwidth per port. We use RoCEv2 for RDMA and poll completion queue every 64 messages.
 Each thread is pinned on a CPU core. We run tests for enough warm-up rounds before collecting data. For latency, we report the mean, and error bars represent 1\% and 99\% percentile.
 
-\subsection{Efficiency}
+\subsection{Performance}
 
 
 
 Figure~\ref{fig:eval-msgsize-intra} shows intra-server socket performance between a pair of sender and receiver threads.
-For 8-byte messages, \sys achieves 0.3$\mu$s round-trip latency (35x lower than Linux) and 23~M throughput (20x Linux).
+For 8-byte messages, \sys achieves 0.3$\mu$s round-trip latency (35x lower than Linux) and 23~M messages per second throughput (20x Linux).
+In comparison, a simple shared memory queue has 0.25$\mu$s round trip latency and 27~M throughput, indicating that \sys adds little overhead.
 This latency is 5x lower than NIC hairpin, \textit{i.e.} one process sends packet to NIC and the NIC delivers it to another process. Using the NIC to forward intra-server packets involve PCIe latency.
 The one-way delay of \sys is 0.15$\mu$s, even lower than a kernel crossing (0.2$\mu$s). Kernel-based sockets require a kernel crossing on both sender and receiver.
 
@@ -106,27 +111,94 @@ Due to memory copy, for 8~KiB messages, the throughput of \sys is only 60\% high
 
 Figure~\ref{fig:eval-msgsize-inter} shows inter-server socket performance between a pair of threads.
 For 8-byte messages, \sys achieves 8M messages per second throughput (7x Linux) and 1.7$\mu$s round-trip latency (17x lower than Linux).
-LibVMA~\cite{libvma} uses batching, 
-
-Key points: a) RDMA is faster than DPDK + user-space stack, b) zero copy for large messages.
-
-
-
-
+The throughput and latency is close to raw RDMA write operations (shown as dashed line), which does not have socket semantics.
+LibVMA~\cite{libvma} uses batching to achieve 19M throughput, but the latency is 7x of \sys.
+For 2~KiB and larger messages, \sys saturates the network bandwidth, which is 2x of LibVMA and Linux. This performance gain mainly comes from zero copy.
 
 
 \subsection{Scalability}
 
 
-Figure~\ref{fig:eval-connnum-tput} shows throughput with different number of concurrent connections (log scale on x axis). Key points: a) SocksDirect is scalable with number of connections, b) other systems with one queue per socket has performance degradation under high concurrency.
+Figure~\ref{fig:eval-connnum-tput} shows the throughput with different number of concurrent connections.
+We establish connections between two processes before testing, then send and receive data from the connections in a round-robin order.
+\sys can support more than 100 million concurrent connections with 16~GiB of memory, and the throughput does not degrade under such high concurrency.
+\sys achieves connection scalability by multiplexing connections via a single queue.
+In comparison, the performance of RDMA, LibVMA and Linux drops quickly as the number of connections increase. There is a sharp performance drop with more than 512 RDMA connections, because the working set saturates the NIC cache.
 
-Figure~\ref{fig:eval-corenum-tput} shows throughput with different number of cores for intra-server communication. Key points: a) SocksDirect is scalable with number of cores, b) NIC hairpin is not scalable with number of cores.
 
-Figure~\ref{fig:eval-conn-setup-tput} shows throughput of connection creation. Key points: a) FastSocket not fast enough, b) higher throughput, c) scalable with number of cores.
+
+\begin{figure*}[t!]
+	\centering
+	\begin{minipage}{.31\textwidth}
+		\subfloat[Intra-server]{                    
+			%\begin{minipage}{0.4\textwidth}
+			\centering
+			\includegraphics[width=\textwidth]{eval/microbenchmark/corenum-IPC-tput.pdf}
+			\label{fig:eval-cornum-ipc}
+			%\end{minipage}
+		}
+		
+		\subfloat[Inter-server]{
+			%\begin{minipage}{0.4\textwidth}
+			\centering \includegraphics[width=\textwidth]{eval/microbenchmark/corenum-network-tput.pdf}
+			\label{fig:eval-cornum-network}
+			%\end{minipage}
+		}
+		\caption{Data transmission throughput with number of cores.}
+		\label{fig:eval-corenum-tput}
+	\end{minipage}
+	\hspace{0.01\textwidth}
+	\begin{minipage}{.31\textwidth}
+		\centering
+		\includegraphics[width=\textwidth]{eval/microbenchmark/conn-setup-tput.pdf}
+		\vspace{-10pt}
+		\caption{Connection creation throughput with number of cores.}
+		\label{fig:eval-conn-setup-tput}
+		
+		%\begin{minipage}{0.4\textwidth}
+		\centering \includegraphics[width=\textwidth]{eval/microbenchmark/sharecore-lat.pdf}
+		\vspace{-15pt}
+		\label{fig:eval-context-switch}
+		\caption{Latency of multiple processes sharing a core.}
+		%\end{minipage}
+	\end{minipage}
+	\hspace{0.01\textwidth}
+	\begin{minipage}{.31\textwidth}
+		\centering
+		\includegraphics[width=\textwidth]{eval/microbenchmark/nfv-tun-tput.pdf}
+		\caption{Throughput of NFV service chain.}
+		\label{fig:eval-tun-tput}
+		%\includegraphics[width=\textwidth]{eval/microbenchmark/nginx-short-tput.pdf}
+		%\vspace{-15pt}
+		%\label{fig:eval-nginx-short}
+		%\caption{Nginx throughput.}
+		
+		\centering \includegraphics[width=\textwidth]{eval/microbenchmark/nginx-multiround-tput.pdf}
+		\vspace{-15pt}
+		\caption{HTTP request latency of a web service composed of load balancer, web application and key-value store.}
+		\label{fig:eval-nginx-multiround}
+	\end{minipage}
+\end{figure*}
+
+
+
+Figure~\ref{fig:eval-corenum-tput} shows the throughput with different number of cores.
+Sender and receiver process each creates several threads, then each thread pins on a core and communicates with a peer thread.
+\sys achieves linear scalability for both intra-server and inter-server sockets.
+Within a server, \sys provides 306~M message per second throughput between 16 pairs of sender and receiver cores, which is 40x of Linux.
+Using RDMA for inter-server socket, \sys achieves 62~M messages per second throughput (8x Linux and 24x LibVMA).
+The multi-thread scalability of \sys attributes to the partitioning of states and removal of synchronization.
+We can also see that shared memory communication has 5x throughput than RDMA. Using RDMA NIC for intra-server socket would meet this bottleneck and thus not scalable.
+
+Figure~\ref{fig:eval-conn-setup-tput} shows the throughput of connection creation with different number of cores. Each core can create 1.4~M new connections per second, which is 20x of Linux and 2x of mTCP~\cite{jeong2014mtcp}. The upper bound is 5.3~M connections per second, where the monitor process becomes a bottleneck.
+
 
 \subsection{Deep Dive}
 
-throughput and latency with \texttt{fork}. At time $T_0$, receiver forks, and the parent process keeps receiving. At time $T_1$, the child process begins to receives takes over the socket. At time $T_2$, sender forks, and only the parent sends. At time $T_3$, the child sender also starts sending.
+Cooperative multitasking requires pinning threads on cores. However, there may be multiple threads sharing a core, and each thread needs to wait for its turn to process messages.
+Figure~\ref{fig:eval-context-switch} shows the message processing latency in such scenario.
+First, when only a fraction of workers are active, the idle workers do not impact performance. 
+Second, although the latency increases with number of active workers, but it is still much lower than Linux, because cooperative context switch is faster than kernel event signaling.
 
 
-Table~\ref{fig:eval-context-switch} shows throughput and latency with a dispatcher process on core $A$, multiple worker processes on core $B$ and a reducer process on core $C$. Key points: a) When all workers are active, throughput is comparable with single worker. b) When only a fraction of workers are active, the idle workers do not impact performance. c) Latency increases with number of active workers, but still much lower than Linux.
+Finally, we benchmark the throughput and latency after \texttt{fork} and other corner-case operations. Initially, there is only one pair of sender and receiver. At time $T_0$, receiver forks, and the parent process keeps receiving. At time $T_1$, the child process begins to receives takes over the socket. At time $T_2$, sender forks, and only the parent sends. At time $T_3$, the child sender also starts sending. We find that both throughput and latency resume to initial maximal performance within 1~ms after each event.

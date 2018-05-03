@@ -2,79 +2,58 @@
 \label{sec:application}
 
 In this section, we demonstrate that \sys{} could significantly improve the performance of realistic applications without modifying the code.
-\begin{figure*}[t!]
-	\centering
-	\begin{minipage}{.31\textwidth}
-		\subfloat[Intra-server]{                    
-			%\begin{minipage}{0.4\textwidth}
-			\centering
-			\includegraphics[width=\textwidth]{eval/microbenchmark/corenum-IPC-tput.pdf}
-			\label{fig:eval-cornum-ipc}
-			%\end{minipage}
-		}
-		
-		\subfloat[Inter-server]{
-			%\begin{minipage}{0.4\textwidth}
-			\centering \includegraphics[width=\textwidth]{eval/microbenchmark/corenum-network-tput.pdf}
-			\label{fig:eval-cornum-network}
-			%\end{minipage}
-		}
-		\caption{Data transmission throughput with number of cores.}
-		\label{fig:eval-corenum-tput}
-	\end{minipage}
-	\hspace{0.01\textwidth}
-	\begin{minipage}{.31\textwidth}
-		\centering
-		\includegraphics[width=\textwidth]{eval/microbenchmark/conn-setup-tput.pdf}
-		\vspace{-10pt}
-		\caption{Connection creation throughput with number of cores.}
-		\label{fig:eval-conn-setup-tput}
-		
-		%\begin{minipage}{0.4\textwidth}
-		\centering \includegraphics[width=\textwidth]{eval/microbenchmark/sharecore-lat.pdf}
-		\vspace{-15pt}
-		\label{fig:eval-context-switch}
-		\caption{Latency of multiple processes sharing a core.}
-		%\end{minipage}
-	\end{minipage}
-	\hspace{0.01\textwidth}
-	\begin{minipage}{.31\textwidth}
-		\centering
-		\includegraphics[width=\textwidth]{eval/microbenchmark/nginx-short-tput.pdf}
-		\vspace{-15pt}
-		\label{fig:eval-nginx-short}
-		\caption{Nginx throughput.}
-		
-		\centering \includegraphics[width=\textwidth]{eval/microbenchmark/nginx-multiround-tput.pdf}
-		\vspace{-15pt}
-		\caption{HTTP request latency of a web service composed of Nginx, C++ application and memcached.}
-		\label{fig:eval-nginx-multiround}
-	\end{minipage}
-\end{figure*}
+
 
 \subsection{Network Function}
 
-Network Function Virtualization is prevalent and widely used in modern datacenters. In traditional design, the throughput of Network Functions are highly bounded by the socket in Linux. In this test, we build up chains of Network Functions with different length in one machine. Each Network Function (NF) of chain running as a process and occupies one CPU core. It receives the packet from the predecessor and modifies one byte of the packet, then sends it to the successor of the chain. We compare the performance of \sys{} with Linux socket and ClickOS~\cite{martins2014clickos}. The result illustrates that our design not only could gain throughput up to \RED{data here}, but also highly scalable with the number of cores.
+Network Function Virtualization is prevalent and widely used in modern datacenters. We build up chains of Network Functions with different lengths in one machine. Each Network Function (NF) in the chain runs as a process and occupies one CPU core. It receives the packet from the predecessor process in the chain, modifies one byte of the packet, then sends it to the successor process. We compare the performance of \sys{} with Linux socket and NetBricks~\cite{panda2016netbricks}, a highly optimized network function framework. Figure~\ref{fig:eval-tun-tput} shows that our \sys not only achieves performance that is comparable with NetBricks, but also scalable with the number of cores.
 
-%Network functions~\cite{li2016clicknp}, 
 
-%Scenarios: Firewall (no packet change), NAT (change a packet field), Tunnel endpoint (add/remove packet header, change length)
 
-Metrics: Latency, throughput
-
-\begin{figure}[htpb]
+\begin{table*}[t]
 	\centering
-	\includegraphics[width=0.33\textwidth]{eval/microbenchmark/nfv-tun-tput.pdf}
-	\caption{Throughput of NFV tunnel}
-	\label{fig:eval-tun-tput}
-\end{figure}
-
-
+	\scalebox{0.9}{
+		\begin{tabular}{l|c|ccc|cc|ccc|}
+			\hline
+			Category	& \multicolumn{1}{c|}{Linux Opt.} & \multicolumn{3}{c|}{New Kernel Stack} & \multicolumn{2}{c|}{User-space Packet} & \multicolumn{3}{c|}{User-space Socket} \\
+			\hline
+			System	& FastSocket & IX & MegaPipe & StackMap & Arrakis & FreeFlow & mTCP & libvma & SocksDirect \\
+			\hline
+			\hline
+			Kernel Bypass & & & & & \yes & \yes & \yes & \yes & \yes \\
+			\hline
+			Zero Copy & & \yes & & \yes & \yes & \yes & & & \yes \\
+			\hline
+			Low Latency & & \yes & \yes & \yes & \yes & \yes & \yes & \yes & \yes \\
+			\hline
+			\hline
+			Multi-core Scalability & \yes & \yes & \yes & \yes & \yes & \yes & \yes & & \yes \\
+			\hline
+			Connection Scalability & \yes & \yes & \yes & \yes & & & \yes & & \yes \\
+			\hline
+			\hline
+			NIC-bypass IPC & \yes & & \yes & \yes & & \yes & \yes & & \yes \\
+			\hline
+			RDMA as Transport & & & & & & \yes & & & \yes \\
+			\hline
+			\hline
+			Socket-like API & \yes & & \yes & \yes & \yes & & \yes & \yes & \yes \\
+			\hline
+			Linux Compatible & \yes & & & & & & & \yes & \yes \\
+			\hline
+			Process Isolation & \yes & \yes & \yes & \yes & \yes & \yes & \yes & \yes & \yes \\
+			\hline
+		\end{tabular}
+	}
+	\caption{Comparison of high performance socket systems.}
+	\label{tab:related-work}
+	\vspace{-15pt}
+\end{table*}
 
 \subsection{Web Application}
-For web applications, we conduct experiment for a widely used scenario: one load balancer is connected with the backend webservice, while the webservice accesses the key value store for multiple rounds. The synthetic http traffic is generated and sent to the system.
+For web applications, we conduct experiment for a widely used scenario: One load balancer is connected with the backend web service, while the web service accesses the key value store for multiple round-trips.
 
-Figure \ref{fig:eval-nginx-multiround} shows the end-to-end latency with different number of round-trips between the webservice and key value store. As we measured, the Linux socket takes up 69\% of the total time before using our library. Since the intra-server latency of \sys{} is ten times lower that Linux socket, the end-to-end latency of the system with \sys{}  is one third of that with original Linux socket when the number of round trips grows.
+Figure \ref{fig:eval-nginx-multiround} shows the end-to-end latency with different number of round-trips between the web service and key value store. As we measured, the Linux socket takes 69\% of the total CPU time before using \libipc. Since the intra-server latency of \sys{} is 30x lower than Linux socket, the end-to-end latency of the system with \sys{}  is one third of that of original Linux socket.
 
 
 
