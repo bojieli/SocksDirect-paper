@@ -1,7 +1,56 @@
-\subsection{Application}
+\section{Application}
 \label{sec:application}
 
-\subsubsection{Network Function}
+
+\begin{figure*}[t!]
+	\centering
+	\begin{minipage}{.32\textwidth}
+		\subfloat[Intra-server]{                    
+			%\begin{minipage}{0.4\textwidth}
+			\centering
+			\includegraphics[width=\textwidth]{eval/microbenchmark/corenum-IPC-tput.pdf}
+			\label{fig:eval-cornum-ipc}
+			%\end{minipage}
+		}
+		
+		\subfloat[Inter-server]{
+			%\begin{minipage}{0.4\textwidth}
+			\centering \includegraphics[width=\textwidth]{eval/microbenchmark/corenum-network-tput.pdf}
+			\label{fig:eval-cornum-network}
+			%\end{minipage}
+		}
+		\caption{Data transmission throughput with number of cores.}
+		\label{fig:eval-corenum-tput}
+	\end{minipage}
+	\begin{minipage}{.32\textwidth}
+		\centering
+		\includegraphics[width=\textwidth]{eval/microbenchmark/conn-setup-tput.pdf}
+		\vspace{-10pt}
+		\caption{Connection creation throughput with number of cores.}
+		\label{fig:eval-conn-setup-tput}
+		
+		%\begin{minipage}{0.4\textwidth}
+		\centering \includegraphics[width=\textwidth]{eval/microbenchmark/sharecore-lat.pdf}
+		\vspace{-15pt}
+		\label{fig:eval-context-switch}
+		\caption{Latency of multiple processes sharing a core.}
+		%\end{minipage}
+	\end{minipage}
+	\begin{minipage}{.32\textwidth}
+		\centering
+		\includegraphics[width=\textwidth]{eval/microbenchmark/nginx-short-tput.pdf}
+		\vspace{-15pt}
+		\label{fig:eval-nginx-short}
+		\caption{Nginx throughput.}
+		
+		\centering \includegraphics[width=\textwidth]{eval/microbenchmark/nginx-multiround-tput.pdf}
+		\vspace{-15pt}
+		\caption{HTTP request latency of a web service composed of Nginx, C++ application and memcached.}
+		\label{fig:eval-nginx-multiround}
+	\end{minipage}
+\end{figure*}
+
+\subsection{Network Function}
 
 Network functions~\cite{li2016clicknp}, ClickOS~\cite{martins2014clickos}
 
@@ -18,7 +67,7 @@ Metrics: Latency, throughput
 
 
 
-\subsubsection{Web Application}
+\subsection{Web Application}
 
 Nginx~\cite{nginx}, Nodejs~\cite{nodejs} and memcached~\cite{memcached}
 
@@ -26,27 +75,6 @@ Nginx~\cite{nginx}, Nodejs~\cite{nodejs} and memcached~\cite{memcached}
 	\item Figure~\ref{fig:eval-nginx-short}: Many short-lived connections. Nginx $\rightarrow$ Nodejs, Nodejs access memcached once.
 	\item Figure~\ref{fig:eval-nginx-multiround}: Each connection, backend interact extensively. (Nodejs access memcached multiple round trips.)
 \end{itemize}
-
-\begin{figure}[htpb]
-	\centering                                                         
-	\subfloat[Throughput of Simple Short-lived connections]{                    
-		%\begin{minipage}{0.4\textwidth}
-			\centering
-			\includegraphics[width=0.33\textwidth]{eval/microbenchmark/nginx-short-tput.pdf}
-			\label{fig:eval-nginx-short}
-		%\end{minipage}
-		}
-	
-	\subfloat[Latency of complicated requests]{
-		%\begin{minipage}{0.4\textwidth}
-			\centering \includegraphics[width=0.33\textwidth]{eval/microbenchmark/nginx-multiround-tput.pdf}
-			\label{fig:eval-nginx-multiround}
-		%\end{minipage}
-		}
-		
-		\caption{Performance of a web service composed of Nginx, Node.js and memcached.}
-		\label{fig:eval-nginx-tput}                                           
-\end{figure}
 
 
 %\subsection{Real-time Stream Processing}
