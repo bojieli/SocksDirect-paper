@@ -17,6 +17,7 @@ set key inside reverse left top font "Arial, 24"
 set logscale y 10 
 set logscale x 2
 
+
 $linux << EOD
 8	0.073486328
 16	0.14831543

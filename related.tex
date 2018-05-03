@@ -1,22 +1,28 @@
 \section{Related Work}
 \label{sec:related}
 
+There has been extensive work aiming to release the bare metal performance of multi-core CPU and data center network. Table~\ref{tab:related-work} categorizes and compares several representative existing approaches.
 
-Table~\ref{tab:related-work} categorizes and compares several representative existing approaches.
+\parab{Linux kernel optimization.}
+One line of research optimize the kernel code for higher socket performance, for example FastSocket~\cite{lin2016scalable}.
+First, the kernel optimization approach does not eliminate kernel crossing overhead, while system call batching introduces extra latency.
+Second, the socket interface still needs memory copy.
+Third, for many concurrent connections, the kernel requires large memory footprint and thus may introduce cache misses.
 
-\textbf{Linux kernel optimization.}
-FastSocket~\cite{lin2016scalable}, 
 
-\begin{itemize}
-	\item
-	Violate goal 1: inter-core interrupts for IPC 
-	\item
-	Violate goal 2: context switch overhead, +latency for syscall batching, still need memory copy 
-	\item 
-	Violate goal 4: Large memory footprint for many connections 
-\end{itemize}
+\parab{New kernel stacks.}
+Another line of research propose kernel stacks with new interfaces.
+Arrakis~\cite{peter2016arrakis} and IX~\cite{belay2017ix} use NIC for both intra-server and inter-server communications. The hairpin latency from CPU to NIC is at least two PCIe delays, which is roughly 1$\mu$s~\cite{kaminsky2016design}, one order of magnitude higher than inter-core communication delay ($\leq0.1\mu$s). In addition, the data plane switching capacity of a NIC is constrained by PCIe bandwidth, an order of magnitude lower than the bus among CPU cores~\cite{li2017kv}. For inter-server communication, IX~\cite{belay2017ix} implement transport in software, while Arrakis~\cite{peter2016arrakis} offload the transport to NIC. IX~\cite{belay2017ix} and NetKernel~\cite{niu2017network} enforce SLA in the kernel or hypervisor. Although software has more flexibility than the hardware-based transport in NIC, NICs are becoming increasingly programmable, and the architecture of programmable NICs is a better fit for implementing transport protocols~\cite{kaufmann2015flexnic,smartnic,mellanox,cavium}. 
+Stackmap~\cite{yasukata2016stackmap} reuses the TCP/IP stack in Linux kernel to achieve protocol compatibility, but the abstraction for applications are changed to support zero copy.
 
-\textbf{New kernel stacks.}
+Although these new stacks demonstrate high performance, existing socket applications need modifications to use the new abstractions.
+Furthermore, for large scale deployment, kernel-based stacks are much more complicated than user-space libraries~\cite{andromeda}.
+
+
+%\parab{RDMA.}
+%First, RDMA is not suitable for WAN. Second, RDMA has scalability issue when one server connects to many servers. Software transport in CPU access connection states in host memory, while hardware RDMA transport caches connection states in NIC and swaps out to host memory when cache overflows. First, CPU cache miss costs less than 0.1$\mu$s, while NIC cache miss costs 0.5$\mu$s~\cite{kaminsky2016design}. Second, CPU memory bandwidth is an order of magnitude larger than NIC PCIe bandwidth. In light of this, a host should switch to software transport when it actively communicates with a large number of hosts. Fortunately, Modern NICs has an increasing size of memory and supports more active connections without performance degradation~\cite{kaminsky2016design}.
+
+
 
 
 \iffalse
@@ -38,22 +44,22 @@ Rump [AsiaBSDCon’09], NUSE [netdev’15]
 
 
 
-Arrakis~\cite{peter2016arrakis} and IX~\cite{belay2017ix} use NIC for both intra-server and inter-server communications. The hairpin latency from CPU to NIC is at least two PCIe delays, which is roughly 1$\mu$s~\cite{kaminsky2016design}, one order of magnitude higher than inter-core communication delay ($\leq0.1\mu$s). In addition, the data plane switching capacity of a NIC is constrained by PCIe bandwidth, an order of magnitude lower than the bus among CPU cores~\cite{li2017kv}. For inter-server communication, Arrakis~\cite{peter2016arrakis} and IX~\cite{belay2017ix} implement transport in software. Although this has more flexibility than the hardware-based transport in RDMA, NICs are becoming increasingly programmable, and the architecture of programmable NICs is a better fit for implementing transport protocols~\cite{kaufmann2015flexnic,smartnic,mellanox,cavium}. 
-IX~\cite{belay2017ix} and NetKernel~\cite{niu2017network} implement stacks in the kernel or hypervisor to enforce SLA.
 
 
-Arrakis reaches for utmost performance by relying on hardware to enforce per-application maximum I/O rates and allowed communication peers. IX trades performance for software control over network I/O, thus allowing the precise enforcement of the I/O behavior of a particular network protocol, such as TCP congestion control.~\cite{bailis2016introducing}
+\textbf{User-space socket.}
 
-For large scale deployment, kernel-based stacks are much more complicated than user-space libraries~\cite{andromeda}.
 
-\textbf{User-space sockets.}
 Seastar~\cite{seastar}, F-stack~\cite{fstack}
+Second, they are not optimized for many concurrent connections.
 
 
+SDP~\cite{socketsdirect} and rsockets~\cite{rsockets} are not compatible with Linux socket because the application still needs to manage send and receive buffers.
+
+\iffalse
 \begin{itemize}
 	\item New abstraction (RDMA, lwip + DPDK etc.) 
 	\begin{itemize}
-		\item Some works violate goal 3: data transmission via centralized virtual switch 
+		\item 
 	\end{itemize}
 	\item Compatible with socket (libvma, LOS etc.) 
 	\begin{itemize}
@@ -66,68 +72,5 @@ Seastar~\cite{seastar}, F-stack~\cite{fstack}
 		\item Violate goal 4: Not optimized for many connections 
 	\end{itemize}
 \end{itemize}
+\fi
 
-
-SDP~\cite{socketsdirect} and rsockets~\cite{rsockets} are not compatible with Linux socket because the application still needs to manage send and receive buffers.
-
-
-
-PacketShader~\cite{han2010packetshader}
-F-stack~\cite{fstack}
-DPDK~\cite{dpdk} lwip~\cite{dunkels2001design}
-PF\_RING~\cite{pf-ring}
-netmap~\cite{rizzo2012netmap}
-
-Improving network connection locality in multi-core:
-Affinity-Accept~\cite{pesterev2012improving}
-
-
-MegaPipe~\cite{han2012megapipe}
-
-system call scheduling:
-FlexSC~\cite{soares2010flexsc}
-
-Vector operating systems.
-VOS~\cite{vasudevan2011case}
-
-mTCP~\cite{jeong2014mtcp}
-StackMap~\cite{yasukata2016stackmap}
-
-data center RPC~\cite{stuedi2014darpc}
-
-Network specialization for performance~\cite{marinos2014network}
-
-OpenOnload~\cite{openonload}
-TCP chimney offload~\cite{networking2004network}
-SeaStar~\cite{seastar}
-
-Dune: safe user-mode access to privileged CPU features~\cite{belay2012dune}
-
-Scalable commutative rule~\cite{clements2015scalable}
-
-Unikernel~\cite{madhavapeddy2013unikernels}
-
-libevent~\cite{libevent}
-
-Metron NFV NSDI'18~\cite{metron2018nsdi}
-
-Anna~\cite{anna}
-
-Linux API what needs to be supported~\cite{tsai2016study}
-
-MICA~\cite{lim2014mica}
-
-FARM~\cite{dragojevic2014farm}
-One-sided RDMA~\cite{mitchell2013using}
-Two-sided RDMA~\cite{kalia2014using}
-RDMA design guidelines~\cite{kaminsky2016design}
-LITE kernel RDMA~\cite{tsai2017lite}
-
-FreeFlow~\cite{freeflow}
-
-
-ffwd delegation~\cite{roghanchi2017ffwd}
-
-Mellanox VMA~\cite{libvma}, Solarflare OpenOnload~\cite{openonload} and Myricom DBL~\cite{dbl}.
-
-Zero copy socket via \textit{page remapping} has been implemented in UNIX~\cite{thadani1995efficient} and BSD~\cite{chu1996zero}. 
