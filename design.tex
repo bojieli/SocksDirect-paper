@@ -29,7 +29,7 @@ For multi-thread applications, since the FD namespace is shared, we partition th
 
 \parab{\texttt{Bind} and \texttt{listen}.}
 A \emph{server} \texttt{bind}s a socket and needs to detect IP and port conflict. In this case, \texttt{bind} is non-partitionable.
-But more often, a \emph{client} usually \texttt{bind}s without specifying IP and port, so we need to allocate a unique IP and port to each connection. For scalability, we partition the loopback IP address space (127.0.0.0/8) and each process allocates IP in its range.
+But more often, a \emph{client} usually \texttt{bind}s without specifying IP and port, so we need to allocate a unique IP and port to each connection. For scalability, we partition the loopback IP address space (127.0.0.0/8) and each process allocates IP and port in its range.
 
 \parab{\texttt{Connect} and \texttt{accept}.}
 When a client connects to a server for the first time, it creates a Linux native \textit{bootstrap socket} to the monitor on destination server. Monitor identifies the client by peer IP and port. If the client is within a same server, they establish a shared memory queue. Otherwise, they establish an RDMA connection. Later communications between client and monitor go through shared memory or RDMA.

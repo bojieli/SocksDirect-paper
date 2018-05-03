@@ -93,7 +93,7 @@ We use cooperative multitasking and polling to reduce inter-core interrupts, sig
 %When a process with \sys is dead, the monitor detects and garbage collects it ).
 
 \parab{Utilize hardware for performance.}
-For sending and receiving large buffers in a server, we leverage the virtual memory system and modify page mapping on \texttt{memcpy}, \texttt{send} and \texttt{recv} to achieve zero-copy (Sec.\ref{subsec:zerocopy}). For inter-server communication between RDMA capable nodes, \sys uses one-sided RDMA~\cite{mitchell2013using,kaminsky2016design}. To communicate with standard TCP/IP endpoints, we use a light-weight user-space TCP/IP stack~\cite{dunkels2001design}, while still take advantage of connection multiplexing and scatter-gather of the NIC if possible~\ref{{}}. %In all three cases above, \libipc{} achieves zero copy and kernel bypass.
+For sending and receiving large buffers in a server, we leverage the virtual memory system and modify page mapping on \texttt{memcpy}, \texttt{send} and \texttt{recv} to achieve zero-copy (Sec.\ref{subsec:zerocopy}). For inter-server communication between RDMA capable nodes, \sys uses one-sided RDMA~\cite{mitchell2013using,kaminsky2016design}. To communicate with standard TCP/IP endpoints, we use a light-weight user-space TCP/IP stack~\cite{dunkels2001design}, while still take advantage of connection multiplexing and scatter-gather of the NIC if possible. %In all three cases above, \libipc{} achieves zero copy and kernel bypass.
 
 
 %\RED{Why do we take the idea of Library OS? Every design choice should have rationale, otherwise the paper would look like a technical report.}
