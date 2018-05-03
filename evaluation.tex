@@ -81,22 +81,38 @@ In this section, we evaluate \sys in the following aspects:
 
 \parab{Scale with number of cores.}
 
-\parab{Low latency with cooperative multitasking.}
+\parab{Corner-case operations does not affect long-term performance.}
+After slow operations.
 
 
-\subsection{Microbenchmarks}
 
-Figure~\ref{fig:eval-conn-setup-tput} shows throughput of connection creation. Key points: a) FastSocket not fast enough, b) higher throughput, c) scalable with number of cores.
+\subsection{Methodology}
+
+\subsection{Efficiency}
+
+
 
 Figure~\ref{fig:eval-msgsize-intra} shows throughput and latency with different message sizes for intra-server communication. Key points: a) shared memory is faster than NIC hairpin, b) user space is faster than kernel, c) zero copy for large messages.
 
 Figure~\ref{fig:eval-msgsize-inter} shows throughput and latency with different message sizes for inter-server communication. Key points: a) RDMA is faster than DPDK + user-space stack, b) zero copy for large messages.
 
+
+
+
+
+
+\subsection{Scalability}
+
+
 Figure~\ref{fig:eval-connnum-tput} shows throughput with different number of concurrent connections (log scale on x axis). Key points: a) SocksDirect is scalable with number of connections, b) other systems with one queue per socket has performance degradation under high concurrency.
 
 Figure~\ref{fig:eval-corenum-tput} shows throughput with different number of cores for intra-server communication. Key points: a) SocksDirect is scalable with number of cores, b) NIC hairpin is not scalable with number of cores.
 
+Figure~\ref{fig:eval-conn-setup-tput} shows throughput of connection creation. Key points: a) FastSocket not fast enough, b) higher throughput, c) scalable with number of cores.
+
+\subsection{Deep Dive}
+
+throughput and latency with \texttt{fork}. At time $T_0$, receiver forks, and the parent process keeps receiving. At time $T_1$, the child process begins to receives takes over the socket. At time $T_2$, sender forks, and only the parent sends. At time $T_3$, the child sender also starts sending.
+
+
 Table~\ref{fig:eval-context-switch} shows throughput and latency with a dispatcher process on core $A$, multiple worker processes on core $B$ and a reducer process on core $C$. Key points: a) When all workers are active, throughput is comparable with single worker. b) When only a fraction of workers are active, the idle workers do not impact performance. c) Latency increases with number of active workers, but still much lower than Linux.
-
-% Figure \ref{fig:eval-fork-tput} shows throughput and latency with \texttt{fork}. At time $T_0$, receiver forks, and the parent process keeps receiving. At time $T_1$, the child process begins to receives takes over the socket. At time $T_2$, sender forks, and only the parent sends. At time $T_3$, the child sender also starts sending.
-
