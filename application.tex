@@ -1,7 +1,7 @@
 \section{Application}
 \label{sec:application}
 
-
+In this section, we demonstrate that \sys{} could significantly improve the performance of realistic applications without modifying the code.
 \begin{figure*}[t!]
 	\centering
 	\begin{minipage}{.31\textwidth}
@@ -54,9 +54,11 @@
 
 \subsection{Network Function}
 
-Network functions~\cite{li2016clicknp}, ClickOS~\cite{martins2014clickos}
+Network Function Virtualization is prevalent and widely used in modern datacenters. In traditional design, the throughput of Network Functions are highly bounded by the socket in Linux. In this test, we build up chains of Network Functions with different length in one machine. Each Network Function (NF) of chain running as a process and occupies one CPU core. It receives the packet from the predecessor and modifies one byte of the packet, then sends it to the successor of the chain. We compare the performance of \sys{} with Linux socket and ClickOS~\cite{martins2014clickos}. The result illustrates that our design not only could gain throughput up to \RED{data here}, but also highly scalable with the number of cores.
 
-Scenarios: Firewall (no packet change), NAT (change a packet field), Tunnel endpoint (add/remove packet header, change length)
+%Network functions~\cite{li2016clicknp}, 
+
+%Scenarios: Firewall (no packet change), NAT (change a packet field), Tunnel endpoint (add/remove packet header, change length)
 
 Metrics: Latency, throughput
 
@@ -70,13 +72,18 @@ Metrics: Latency, throughput
 
 
 \subsection{Web Application}
+For web applications, we conduct experiment for a widely used scenario: one load balancer is connected with the backend webservice, while the webservice accesses the key value store for multiple rounds. The synthetic http traffic is generated and sent to the system.
 
-Nginx~\cite{nginx}, Nodejs~\cite{nodejs} and memcached~\cite{memcached}
+Figure \ref{fig:eval-nginx-multiround} shows the end-to-end latency with different number of round-trips between the webservice and key value store. As we measured, the Linux socket takes up 69\% of the total time before using our library. Since the intra-server latency of \sys{} is ten times lower that Linux socket, the end-to-end latency of the system with \sys{}  is one third of that with original Linux socket when the number of round trips grows.
 
-\begin{itemize}
-	\item Figure~\ref{fig:eval-nginx-short}: Many short-lived connections. Nginx $\rightarrow$ Nodejs, Nodejs access memcached once.
-	\item Figure~\ref{fig:eval-nginx-multiround}: Each connection, backend interact extensively. (Nodejs access memcached multiple round trips.)
-\end{itemize}
+
+
+%, Nodejs~\cite{nodejs} and memcached~\cite{memcached}
+
+%\begin{itemize}
+%	\item Figure~\ref{fig:eval-nginx-short}: Many short-lived connections. %Nginx $\rightarrow$ Nodejs, Nodejs access memcached once.
+%	\item Figure~\ref{fig:eval-nginx-multiround}: Each connection, backend %interact extensively. (Nodejs access memcached multiple round trips.)
+%\end{itemize}
 
 
 %\subsection{Real-time Stream Processing}
