@@ -4,12 +4,12 @@
 \subsection{Motivation}
 \label{subsec:motivation}
 
-\begin{figure}[t]
-	\centering
-	\includegraphics[width=0.3\textwidth]{images/fixme}
-	\caption{Fraction of CPU time in the kernel (socket connection setup, socket data transmission and non-socket system calls) and user-mode applications.}
-	\label{fig:socket-kernel-time}
-\end{figure}
+%\begin{figure}[t]
+%	\centering
+%	\includegraphics[width=0.3\textwidth]{images/fixme}
+%	\caption{Fraction of CPU time in the kernel (socket connection setup, socket data transmission and non-socket system calls) and user-mode applications.}
+%	\label{fig:socket-kernel-time}
+%\end{figure}
 
 %\begin{figure}[t]
 %	\centering
@@ -88,7 +88,7 @@
 	\label{tab:operation-performance}
 \end{table}
 
-Linux kernel socket is a well-known bottleneck for communication intensive applications. We stress test Nginx load balancer, memcached and Redis with one request per TCP connection or a stream of requests on pre-established TCP connections. As shown in Figure~\ref{fig:socket-kernel-time}, 50\%$\sim$90\% CPU time is consumed in the kernel, mostly dealing with socket system calls. The one request per connection scenario shows much lower throughput, because of overhead in connection creation.
+Linux kernel socket is a well-known bottleneck for communication intensive applications. We stress test Nginx load balancer, memcached and Redis with one request per TCP connection or a stream of requests on pre-established TCP connections, and find that 50\%$\sim$90\% CPU time is consumed in the kernel, mostly dealing with socket system calls. The one request per connection scenario shows much lower throughput, because of overhead in connection creation.
 %If we were able to mitigate the overhead associated with sockets, application performance would be 2x$\sim$10x.
 %As another example, we replaced socket with RDMA and enabled zero copy gRPC in distributed Tensorflow~\cite{abadi2016tensorflow}, and training a VGG network shows 5x speedup.
 
