@@ -50,41 +50,41 @@
 			\hline
 			Atomic operation & 0.10 & 5$\sim$10 \\
 			\hline
-			Shared memory queue & 0.12 & 27 \\
+			Shared memory queue & 0.25 & 27 \\
 			\hline
-			\textbf{Intra-server \sys} & 0.15 & 19 \\
+			\textbf{Intra-server \sys} & 0.30 & 22 \\
 			\hline
 			System call (after KPTI) & 0.20 & 5 \\
+			\hline
+			Copy one page (4~KiB) & 0.40 & 5 \\
 			\hline
 			NIC cache miss & 0.45 & 2.2 \\
 			\hline
 			Cooperative context switch & 0.52 & 2.0 \\
 			\hline
-			Two-sided RDMA & 1.0 & 8 \\
+			Remap 1 page (4~KiB) & 0.78 & 1.3 \\
 			\hline
-			One-sided RDMA & 1.0 & 23 \\
+			Remap 32 pages (128~KiB) & 1.2 & 0.8 \\
 			\hline
-			\textbf{\sys via RDMA} & 1.0 & X \\
+			Two-sided RDMA & 1.6 & 8 \\
 			\hline
-			Inter-core hairpin via NIC & 1.3 & 5 \\
+			One-sided RDMA & 1.6 & 13 \\
 			\hline
-			libvma~\cite{libvma} TCP socket & 2.7 & 5 \\
-			\hline
-			Remap 32 pages (128~KiB) & 2.9 & 0.34 \\
+			\textbf{\sys via RDMA} & 1.6 & 9 \\
 			\hline
 			Semaphore, mutex, futex & 2.8$\sim$5.5 & 0.2$\sim$0.4 \\
 			\hline
-			Intra-server TCP & 5.5 & 1.2 \\
+			Intra-server TCP & 11 & 0.9 \\
 			\hline
-			Inter-server TCP & 15 & 0.3 \\
+			Copy 32 pages (128~KiB) & 13 & 0.08 \\
 			\hline
-			128~KiB memory copy & 15 & 0.07 \\
+			Create TCP socket & 14 & 0.07 \\
 			\hline
-			Create TCP socket & 35 & 0.03 \\
+			Inter-server TCP & 30 & 0.3 \\
 			\hline
 		\end{tabular}
 	}
-	\caption{Per-core throughput and one-way latency of operations on our testbed (settings in Sec.\ref{sec:evaluation}). Message size is 64 bytes if not specified.}
+	\caption{Per-core throughput and round-trip latency of operations on our testbed (settings in Sec.\ref{sec:evaluation}). Message size is 8 bytes if not specified.}
 	\label{tab:operation-performance}
 \end{table}
 
@@ -141,7 +141,6 @@ We aim to minimize synchronization overhead in two ways. First, we optimize for 
 %Because the receiver's network stack cannot predict the user-provided \texttt{recv} address, it needs to buffer received data internally, then copy to the desired destination when \texttt{recv} is called.
 %Our goal in \sys is to achieve zero copy for large data transfers without making changes to applications. We accomplish this by taking advantage of the page mapping mechanism in virtual memory. 
 
-\RED{}
 
 \parab{Cache miss.}
 The vast number of connections from Internet users require cloud systems to serve millions of connections efficiently~\cite{nishtala2013scaling,lin2016scalable,belay2017ix}. %, often called the C10M problem~\cite{graham2013c10m}. 
@@ -156,9 +155,11 @@ We multiplex socket connections and minimize memory accesses per data transmissi
 %Each socket connection is a \textit{file descriptor} (FD) in Linux. First, each new connection involves expensive \texttt{inode} and \texttt{dentry} creation in the \texttt{proc} file system, which is not scalable and rarely used except for diagnostic and monitoring utilities. Second, socket operations need to pass through the virtual file system (VFS), which introduces CPU overhead and additional latency.
 
 \parab{Memory copy.}
-Socket APIs, \textit{e.g.}, \texttt{send} and \texttt{recv}, cause memory copies between user and kernel space, thus degrading the performance.
+Socket APIs, \textit{e.g.}, \texttt{send} and \texttt{recv}, cause memory copies between user and kernel space. Though these memory copies degrade the system performance, they are useful for some applications as the application may overwrite the user space memory right after the socket API returns. Simply removing these copies may violate the application correctness.
 
-We aim to achieve zero copy for large transfers without changing applications. We achieve this by using the page mapping mechanism in virtual memory.
+We aim to achieve zero copy for large transfers without changing applications, by leveraging page mapping mechanism in virtual memory. However, as shown in Table~\ref{tab:operation-performance}, remapping a page is more expensive than copying it, because of kernel crossing and TLB flush. Hence, we batch page remappings to amortize such overhead.
+
+
 
 \parab{Transport.}
 Linux TCP has evolved to become quite complicated over the years to address performance and security concerns~\cite{yasukata2016stackmap}. However, intra-server communication may not need many TCP features, \textit{e.g.}, congestion control and loss recovery. Hence, we leverage shared memory queue instead of TCP as intra-server transport.%the reordering, loss recovery and congestion control offered by TCP. %QoS and performance isolation are also not required because synchronization-free inter-core communication in a NUMA node can scale with number of cores~\cite{intel-manual}. 
