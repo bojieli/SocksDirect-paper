@@ -1,7 +1,7 @@
 \section{Evaluation}
 \label{sec:evaluation}
 
-Testbed settings..
+\sys is implemented in three modules: a userspace library \libipc{} with $\approx$5000 lines of C/C++ code, a monitor program and  is divided to two parts: monitor and userspace library. Both parts are implemented in $\approx$5000 lines of C/C++ code. We take advantage of C++ templates for different types of queues in our design.
 
 \subsection{Microbenchmarks}
 
@@ -43,7 +43,7 @@ Table~\ref{tab:eval-context-switch} shows throughput and latency with a dispatch
 		\label{fig:eval-msgsize-ipc-lat}
 		%\end{minipage}
 	}
-	\caption{Intra-server performance with different message sizes}
+	\caption{Single-core intra-server performance with different message sizes.}
 	\label{fig:eval-msgsize-intra}
 \end{figure}
 
@@ -62,7 +62,7 @@ Table~\ref{tab:eval-context-switch} shows throughput and latency with a dispatch
 		\label{fig:eval-msgsize-network-lat}
 		%\end{minipage}
 	}
-	\caption{Inter-server performance with different message sizes}
+	\caption{Single-core inter-server performance with different message sizes.}
 	\label{fig:eval-msgsize-inter}
 \end{figure}
 
@@ -82,7 +82,7 @@ Table~\ref{tab:eval-context-switch} shows throughput and latency with a dispatch
 		\label{fig:eval-connnum-network-tput}
 	%\end{minipage}
 	}
-	\caption{Throughput with different number of connections}
+	\caption{Single-core throughput with different number of connections.}
 	\label{fig:eval-connnum-tput}
 \end{figure}
 
@@ -101,7 +101,7 @@ Table~\ref{tab:eval-context-switch} shows throughput and latency with a dispatch
 		\label{fig:eval-cornum-network}
 	%\end{minipage}
 	}
-	\caption{Throughput with different number of cores}
+	\caption{Throughput with different number of cores.}
 	\label{fig:eval-corenum-tput}
 \end{figure}
 
