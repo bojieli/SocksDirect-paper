@@ -89,16 +89,26 @@ After slow operations.
 
 \subsection{Methodology}
 
-We evaluate \sys on servers with two Xeon E5-2698 v3 CPUs, 256~GiB memory and a Mellanox ConnectX-4 NIC. The servers are interconnected via an Arista 7060CX switch. We use RoCEv2 for RDMA.
+We evaluate \sys on servers with two Xeon E5-2698 v3 CPUs, 256~GiB memory and a Mellanox ConnectX-4 NIC. The servers are interconnected via an Arista 7060CX switch. We use RoCEv2 for RDMA and poll completion queue every 64 messages.
 Each thread is pinned on a CPU core. We run tests for enough warm-up rounds before collecting data. For latency, we report the mean, and error bars represent 1\% and 99\% percentile.
 
 \subsection{Efficiency}
 
 
 
-Figure~\ref{fig:eval-msgsize-intra} shows throughput and latency with different message sizes for intra-server communication. Key points: a) shared memory is faster than NIC hairpin, b) user space is faster than kernel, c) zero copy for large messages.
+Figure~\ref{fig:eval-msgsize-intra} shows intra-server socket performance between a pair of sender and receiver threads.
+For 8-byte messages, \sys achieves 0.3$\mu$s round-trip latency (35x lower than Linux) and 23~M throughput (20x Linux).
+This latency is 5x lower than NIC hairpin, \textit{i.e.} one process sends packet to NIC and the NIC delivers it to another process. Using the NIC to forward intra-server packets involve PCIe latency.
+The one-way delay of \sys is 0.15$\mu$s, even lower than a kernel crossing (0.2$\mu$s). Kernel-based sockets require a kernel crossing on both sender and receiver.
 
-Figure~\ref{fig:eval-msgsize-inter} shows throughput and latency with different message sizes for inter-server communication. Key points: a) RDMA is faster than DPDK + user-space stack, b) zero copy for large messages.
+Due to memory copy, for 8~KiB messages, the throughput of \sys is only 60\% higher than Linux, and the latency is 4x lower. For messages larger than 8~KiB, \sys uses page remapping to achieve zero copy. For 1~MiB messages, \sys achieves 13x lower latency and 26x throughput than Linux.
+
+
+Figure~\ref{fig:eval-msgsize-inter} shows inter-server socket performance between a pair of threads.
+For 8-byte messages, \sys achieves 8M messages per second throughput (7x Linux) and 1.7$\mu$s round-trip latency (17x lower than Linux).
+LibVMA~\cite{libvma} uses batching, 
+
+Key points: a) RDMA is faster than DPDK + user-space stack, b) zero copy for large messages.
 
 
 
