@@ -91,42 +91,6 @@ After corner-case operations such as \texttt{fork}, the performance converges qu
 
 
 
-\subsection{Methodology}
-
-We evaluate \sys on servers with two Xeon E5-2698 v3 CPUs, 256~GiB memory and a Mellanox ConnectX-4 NIC. The servers are interconnected via an Arista 7060CX switch, supporting 56 Gbps bandwidth per port. We use RoCEv2 for RDMA and poll completion queue every 64 messages.
-Each thread is pinned on a CPU core. We run tests for enough warm-up rounds before collecting data. For latency, we report the mean, and error bars represent 1\% and 99\% percentile.
-
-\subsection{Performance}
-
-
-
-Figure~\ref{fig:eval-msgsize-intra} shows intra-server socket performance between a pair of sender and receiver threads.
-For 8-byte messages, \sys achieves 0.3$\mu$s round-trip latency (35x lower than Linux) and 23~M messages per second throughput (20x Linux).
-In comparison, a simple shared memory queue has 0.25$\mu$s round trip latency and 27~M throughput, indicating that \sys adds little overhead.
-This latency is 5x lower than NIC hairpin, \textit{i.e.} one process sends packet to NIC and the NIC delivers it to another process. Using the NIC to forward intra-server packets involve PCIe latency.
-The one-way delay of \sys is 0.15$\mu$s, even lower than a kernel crossing (0.2$\mu$s). Kernel-based sockets require a kernel crossing on both sender and receiver.
-
-Due to memory copy, for 8~KiB messages, the throughput of \sys is only 60\% higher than Linux, and the latency is 4x lower. For messages larger than 8~KiB, \sys uses page remapping to achieve zero copy. For 1~MiB messages, \sys achieves 13x lower latency and 26x throughput than Linux.
-
-
-Figure~\ref{fig:eval-msgsize-inter} shows inter-server socket performance between a pair of threads.
-For 8-byte messages, \sys achieves 8M messages per second throughput (7x Linux) and 1.7$\mu$s round-trip latency (17x lower than Linux).
-The throughput and latency is close to raw RDMA write operations (shown as dashed line), which does not have socket semantics.
-LibVMA~\cite{libvma} uses batching to achieve 19M throughput, but the latency is 7x of \sys.
-For 2~KiB and larger messages, \sys saturates the network bandwidth, which is 2x of LibVMA and Linux. This performance gain mainly comes from zero copy.
-
-
-\subsection{Scalability}
-
-
-Figure~\ref{fig:eval-connnum-tput} shows the throughput with different number of concurrent connections.
-We establish connections between two processes before testing, then send and receive data from the connections in a round-robin order.
-\sys can support more than 100 million concurrent connections with 16~GiB of memory, and the throughput does not degrade under such high concurrency.
-\sys achieves connection scalability by multiplexing connections via a single queue.
-In comparison, the performance of RDMA, LibVMA and Linux drops quickly as the number of connections increase. There is a sharp performance drop with more than 512 RDMA connections, because the working set saturates the NIC cache.
-
-
-
 \begin{figure*}[t!]
 	\centering
 	\begin{minipage}{.31\textwidth}
@@ -179,6 +143,42 @@ In comparison, the performance of RDMA, LibVMA and Linux drops quickly as the nu
 		\label{fig:eval-nginx-multiround}
 	\end{minipage}
 \end{figure*}
+
+
+\subsection{Methodology}
+
+We evaluate \sys on servers with two Xeon E5-2698 v3 CPUs, 256~GiB memory and a Mellanox ConnectX-4 NIC. The servers are interconnected via an Arista 7060CX switch, supporting 56 Gbps bandwidth per port. We use RoCEv2 for RDMA and poll completion queue every 64 messages.
+Each thread is pinned on a CPU core. We run tests for enough warm-up rounds before collecting data. For latency, we report the mean, and error bars represent 1\% and 99\% percentile.
+
+\subsection{Performance}
+
+
+
+Figure~\ref{fig:eval-msgsize-intra} shows intra-server socket performance between a pair of sender and receiver threads.
+For 8-byte messages, \sys achieves 0.3$\mu$s round-trip latency (35x lower than Linux) and 23~M messages per second throughput (20x Linux).
+In comparison, a simple shared memory queue has 0.25$\mu$s round trip latency and 27~M throughput, indicating that \sys adds little overhead.
+This latency is 5x lower than NIC hairpin, \textit{i.e.} one process sends packet to NIC and the NIC delivers it to another process. Using the NIC to forward intra-server packets involve PCIe latency.
+The one-way delay of \sys is 0.15$\mu$s, even lower than a kernel crossing (0.2$\mu$s). Kernel-based sockets require a kernel crossing on both sender and receiver.
+
+Due to memory copy, for 8~KiB messages, the throughput of \sys is only 60\% higher than Linux, and the latency is 4x lower. For messages larger than 8~KiB, \sys uses page remapping to achieve zero copy. For 1~MiB messages, \sys achieves 13x lower latency and 26x throughput than Linux.
+
+
+Figure~\ref{fig:eval-msgsize-inter} shows inter-server socket performance between a pair of threads.
+For 8-byte messages, \sys achieves 8M messages per second throughput (7x Linux) and 1.7$\mu$s round-trip latency (17x lower than Linux).
+The throughput and latency is close to raw RDMA write operations (shown as dashed line), which does not have socket semantics.
+LibVMA~\cite{libvma} uses batching to achieve 19M throughput, but the latency is 7x of \sys.
+For 2~KiB and larger messages, \sys saturates the network bandwidth, which is 2x of LibVMA and Linux. This performance gain mainly comes from zero copy.
+
+
+\subsection{Scalability}
+
+
+Figure~\ref{fig:eval-connnum-tput} shows the throughput with different number of concurrent connections.
+We establish connections between two processes before testing, then send and receive data from the connections in a round-robin order.
+\sys can support more than 100 million concurrent connections with 16~GiB of memory, and the throughput does not degrade under such high concurrency.
+\sys achieves connection scalability by multiplexing connections via a single queue.
+In comparison, the performance of RDMA, LibVMA and Linux drops quickly as the number of connections increase. There is a sharp performance drop with more than 512 RDMA connections, because the working set saturates the NIC cache.
+
 
 
 
