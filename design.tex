@@ -1,6 +1,15 @@
 \section{Design}
 \label{sec:intra-server}
 
+
+\begin{figure}[t]
+	\centering
+	\includegraphics[width=0.3\textwidth]{images/architecture}
+	\caption{Architecture of \sys{}.}
+	\label{fig:architecture}
+\end{figure}
+
+
 Inspired by Unikernels~\cite{madhavapeddy2013unikernels}, we move networking and IPC functions from the kernel to user space. Similar to existing works~\cite{peter2016arrakis,jeong2014mtcp,libvma}, we leverage multiple queues in modern NICs to enable user-space direct access to network. %The kernel is still responsible for process creation, scheduling, virtual memory and device management, but no longer on the critical path of performance.
 To maintain compatibility with existing Linux applications, we design a user-mode library \libipc as a drop-in replacement of the system call wrappers in the GNU C library (glibc). \libipc{} implements network socket functions in user mode, and adds a wrapper to other system calls to track process creation and memory allocation. \libipc{} is not considered a secure domain, as it shares memory space with the application. Figure~\ref{fig:architecture} shows the architecture of \sys{}.
 

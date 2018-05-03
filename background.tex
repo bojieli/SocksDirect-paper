@@ -85,8 +85,73 @@
 		\end{tabular}
 	}
 	\caption{Per-core throughput and round-trip latency of operations on our testbed (settings in Sec.\ref{sec:evaluation}). Message size is 8 bytes if not specified.}
+	\vspace{-15pt}
 	\label{tab:operation-performance}
 \end{table}
+
+
+\begin{table*}[t!]
+	\centering
+	\begin{tabular}{ll|ll|ll|ll}
+		\hline
+		\multicolumn{2}{c|}{Initialization} &
+		\multicolumn{2}{c|}{Connection Mgmt} &
+		\multicolumn{2}{c|}{Data Transmission} &
+		\multicolumn{2}{c}{Process Mgmt} \\
+		\hline
+		API & Cat. &
+		API & Cat. &
+		API & Cat. &
+		API & Cat. \\
+		\hline
+		\hline
+		\textbf{socket} & Local &
+		\textbf{connect} & NoPart &
+		\textbf{send(to,(m)msg)} & P2P &
+		\textit{(v)fork} & NoPart \\
+		\hline
+		bind & NoPart &
+		\textbf{accept(4)} & P2P &
+		\textbf{recv(from,(m)msg)} & P2P &
+		\textit{pthread\_create} & NoPart \\
+		\hline
+		listen & NoPart &
+		\textbf{\textit{fcntl, ioctl}} & Local &
+		\textbf{\textit{write(v)}} & P2P &
+		\textit{clone} & NoPart \\
+		\hline
+		socketpair & Local &
+		\textbf{(get,set)sockopt} & Local &
+		\textbf{\textit{read(v)}} & P2P &
+		\textit{execve} & NoPart \\
+		\hline
+		getsockname  & Local &
+		\textbf{\textit{close}, shutdown} & P2P &
+		\textbf{\textit{memcpy}} & Local &
+		\textit{exit} & P2P \\
+		\hline
+		\textbf{\textit{malloc}} & Local &
+		getpeername & Local &
+		\textit{(p)select} & P2P &
+		\textit{sleep} & P2P \\
+		\hline
+		\textbf{\textit{realloc}} & Local &
+		\textit{dup(2)} & P2P &
+		\textit{(p)poll} & P2P &
+		\textit{daemon} & P2P \\
+		\hline
+		\textit{epoll\_create} & Local &
+		\textbf{\textit{epoll\_ctl}} & Local &
+		\textbf{\textit{epoll\_(p)wait}} & P2P &
+		\textit{sigaction} & Local \\
+		\hline
+	\end{tabular}
+	\caption{Linux APIs that are related to socket and intercepted by \libipc{}. Categories include local, peer-to-peer (P2P) and non-partitionable (NoPart). APIs in \textit{italic} indicate usages more than socket. APIs in \textbf{bold} are called more frequently than others.}
+	\vspace{-15pt}
+	\label{tab:socket-api}
+\end{table*}
+
+
 
 Linux kernel socket is a well-known bottleneck for communication intensive applications. We stress test Nginx load balancer, memcached and Redis with one request per TCP connection or a stream of requests on pre-established TCP connections, and find that 50\%$\sim$90\% CPU time is consumed in the kernel, mostly dealing with socket system calls. The one request per connection scenario shows much lower throughput, because of overhead in connection creation.
 %If we were able to mitigate the overhead associated with sockets, application performance would be 2x$\sim$10x.
@@ -140,6 +205,9 @@ We aim to minimize synchronization overhead in two ways. First, we optimize for 
 %For this reason, most socket implementations send data to the receiver eagerly.
 %Because the receiver's network stack cannot predict the user-provided \texttt{recv} address, it needs to buffer received data internally, then copy to the desired destination when \texttt{recv} is called.
 %Our goal in \sys is to achieve zero copy for large data transfers without making changes to applications. We accomplish this by taking advantage of the page mapping mechanism in virtual memory. 
+
+
+
 
 
 \parab{Cache miss.}
