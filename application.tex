@@ -48,7 +48,7 @@ In this section, we demonstrate that \sys{} could significantly improve the perf
 
 \subsection{Network Function}
 
-Network Function Virtualization is prevalent and widely used in modern datacenters. We build up chains of Network Functions with different lengths in one machine. Each Network Function (NF) in the chain runs as a process and occupies one CPU core. It receives the packet from the predecessor process in the chain, modifies one byte of the packet, then sends it to the successor process. We compare the performance of \sys{} with Linux socket and NetBricks~\cite{panda2016netbricks}, a highly optimized network function framework. Figure~\ref{fig:eval-tun-tput} shows that our \sys achieves performance that is comparable with NetBricks and scalable with number of cores.
+Network Function Virtualization is prevalent and widely used in modern datacenters. We build up chains of Network Functions (NF) with different lengths in one machine. Each NF in the chain runs as a process and occupies one CPU core. It receives the packet from the predecessor process in the chain, modifies one byte of the packet, then sends it to the successor process. We compare the performance of \sys{} with Linux socket and NetBricks~\cite{panda2016netbricks}, a highly optimized network function framework. Figure~\ref{fig:eval-tun-tput} shows that our \sys achieves performance that is comparable with NetBricks and scalable with number of cores.
 
 
 

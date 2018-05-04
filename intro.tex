@@ -51,10 +51,10 @@ To handle many concurrent connections efficiently, we need to save memory footpr
 %First, we intercept \texttt{memcpy} of full pages to reduce copy-on-write. Second, we move kernel-based page allocation to user-space while preserving security.
 %As a result, we achieve zero copy for both shared memory, RDMA and TCP transport.
 
-On the latency side, \sys{} achieves $0.3\mu$s RTT for intra-server socket, 36x faster than native Linux Sockets and only $0.05\mu$s higher than a bare-metal shared memory queue. For inter-server socket, \sys{} achieves $2\mu$s RTT between RDMA hosts, almost the same as raw RDMA verbs and reduces Linux RTT by 10x. The RTT to a TCP/IP peer is $5\mu$s. On the throughput side, every second, a single-thread process can send 23~M intra-server messages (12x Linux), 8~M messages via RDMA (8x Linux).
+On the latency side, \sys{} achieves $0.3\mu$s RTT for intra-server socket, 36x faster than native Linux Sockets and only $0.05\mu$s higher than a bare-metal shared memory queue. For inter-server socket, \sys{} achieves $1.7\mu$s RTT between RDMA hosts, almost the same as raw RDMA verbs and reduces Linux RTT by 13x. On the throughput side, a single-thread process can send 23~M intra-server messages per second (20x Linux) or 8~M inter-server (7x Linux).
 %or 5~M messages via TCP/IP (15x Linux). 
 Each thread can establish up to 1.4~M new connections per second (20x Linux). It is worth noting that the throughput is scalable with number of cores and connections.
 
 We evaluate end-to-end performance of \sys{} using two categories of applications: \textit{network functions} and \textit{web services}. For a multi-core pipelined network function chain, a socket application accelerated by \sys{} achieves comparable performance as a state-of-the-art framework specialized for network functions~\cite{panda2016netbricks}. We also evaluate \sys{} on a standard web application composed of the load balancer, a backend webservice and a key value store. %For simple requests in short-lived connections, the web service serves 2~M requests per second (10x Linux). 
-For an HTTP request that involves multi-round-trip key-value store accesses, \sys{} reduces end-to-end latency by 2/3. 
+For an HTTP request that involves multi-round-trip key-value store accesses, \sys{} reduces end-to-end latency by 2/3.
 %For a connection sending a large in-memory file, Nginx achieves 5x throughput and saturates the 100~Gbps NIC.
