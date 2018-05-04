@@ -171,7 +171,6 @@ Our scalable socket design can be divided into four parts: a) \texttt{send} and 
 
 \subsubsection{Send/Recv Operation}
 \label{subsubsec:fork_rdwr}
-
 \begin{figure}[t]
 	\centering
 	\includegraphics[width=0.3\textwidth]{images/takeover}
@@ -179,7 +178,6 @@ Our scalable socket design can be divided into four parts: a) \texttt{send} and 
 	\label{fig:fork-takeover}
 	\vspace{-15pt}
 \end{figure}
-
 In this section, we assume that a socket is already connected and the number of senders and receivers are constant. We discuss adding senders or receivers in the next section.
 
 \parab{Multiple concurrent senders.}
