@@ -30,6 +30,8 @@ Even though multiple threads in the same process share memory space, we still tr
 	\vspace{-15pt}
 \end{figure}
 
+As shown in Figure~\ref{fig:conn-setup}, during connection creation, a \textit{server} process calls \texttt{bind} and \texttt{listen}, while a \textit{client} process calls \texttt{connect}.
+
 \parab{\texttt{Socket}.}
 To create a socket connection, an application first calls \texttt{socket} to get a \textit{file descriptor} (FD). 
 %Although Linux globally allocates the lowest available file descriptor, this property is rarely used~\cite{han2012megapipe,huang2017high}. We relax the semantics and maintains an FD table in each process. 
@@ -97,7 +99,8 @@ Round-robin polling of inter-process queues wastes CPU cycles when two processes
 \begin{figure}[t]
 	\centering
 	\includegraphics[width=0.4\textwidth]{images/locklessq}
-	\caption{The structure of lockless queue (contain shared memory, 2 local ptr, isvalid flag and isdel flag).}
+	\caption{The structure of lockless queue.}
+	\vspace{-15pt}
 	\label{fig:locklessq-structure}
 \end{figure}
 
@@ -172,8 +175,9 @@ Our scalable socket design can be divided into four parts: a) \texttt{send} and 
 \begin{figure}[t]
 	\centering
 	\includegraphics[width=0.3\textwidth]{images/takeover}
-	\caption{A socket connection is shared by three processes. $S$ is the sender, $R_1$ is the previous designated receiver and $R_2$ is the new receiver that takes over the socket.}
+	\caption{Takeover flow of one sender and two receivers.}
 	\label{fig:fork-takeover}
+	\vspace{-15pt}
 \end{figure}
 
 In this section, we assume that a socket is already connected and the number of senders and receivers are constant. We discuss adding senders or receivers in the next section.
@@ -301,7 +305,8 @@ As mentioned in \ref{subsec:data_trans}, if \libipc{} continues to yield for sev
 \begin{figure}[t]
 	\centering
 	\includegraphics[width=0.3\textwidth]{images/zerocopy}
-	\caption{Zero-copy theory of operation.}
+	\caption{Zero copy via page remapping. Step 1: sender get physical address and send via shared memory. Step 2: receiver maps the page to buffer. Step 3: sender remaps buffer on write.}
+	\vspace{-15pt}
 	\label{fig:zerocopy}
 \end{figure}
 

@@ -10,13 +10,22 @@ Second, the socket interface still needs memory copy.
 Third, for many concurrent connections, the kernel requires large memory footprint and thus may introduce cache misses.
 
 
-\parab{New kernel stacks.}
+\parab{New OS stacks.}
 Another line of research propose kernel stacks with new interfaces.
 Arrakis~\cite{peter2016arrakis} and IX~\cite{belay2017ix} use NIC for both intra-server and inter-server communications. The hairpin latency from CPU to NIC is at least two PCIe delays, which is roughly 1$\mu$s~\cite{kaminsky2016design}, one order of magnitude higher than inter-core communication delay ($\leq0.1\mu$s). In addition, the data plane switching capacity of a NIC is constrained by PCIe bandwidth, an order of magnitude lower than the bus among CPU cores~\cite{li2017kv}. For inter-server communication, IX~\cite{belay2017ix} implement transport in software, while Arrakis~\cite{peter2016arrakis} offload the transport to NIC. IX~\cite{belay2017ix} and NetKernel~\cite{niu2017network} enforce SLA in the kernel or hypervisor. Although software has more flexibility than the hardware-based transport in NIC, NICs are becoming increasingly programmable, and the architecture of programmable NICs is a better fit for implementing transport protocols~\cite{kaufmann2015flexnic,smartnic,mellanox,cavium}. 
 Stackmap~\cite{yasukata2016stackmap} reuses the TCP/IP stack in Linux kernel to achieve protocol compatibility, but the abstraction for applications are changed to support zero copy.
 
 Although these new stacks demonstrate high performance, existing socket applications need modifications to use the new abstractions.
 Furthermore, for large scale deployment, kernel-based stacks are much more complicated than user-space libraries~\cite{andromeda}.
+
+\parab{User-space socket.}
+A third line of approach is user-space sockets.
+LibVMA~\cite{libvma} is fully compatible with existing applications, but not scalable to multiple threads and connections.
+mTCP~\cite{jeong2014mtcp} is compatible with most Linux socket functions, which uses batched syscalls to reduce kernel crossing overhead.
+Additionally, most user-space sockets focus on inter-server and do not use shared memory for intra-server.
+
+FreeFlow~\cite{freeflow} leverages shared memory for intra-server communication and RDMA for inter-server, but it provides an RDMA interface.
+Existing socket to RDMA translation approaches, \textit{e.g.} SDP~\cite{socketsdirect} and rsockets~\cite{rsockets} are not compatible with Linux socket because the application still needs to manage send and receive buffers.
 
 
 %\parab{RDMA.}
@@ -43,13 +52,6 @@ Rump [AsiaBSDCon’09], NUSE [netdev’15]
 \fi
 
 
-
-
-
-%\textbf{User-space socket.}
-%mTCP~\cite{jeong2014mtcp}
-
-%SDP~\cite{socketsdirect} and rsockets~\cite{rsockets} are not compatible with Linux socket because the application still needs to manage send and receive buffers.
 
 \iffalse
 \begin{itemize}

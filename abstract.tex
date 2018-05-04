@@ -7,7 +7,7 @@ This design incur significant kernel crossing and locking overhead.
 In this paper, we describe \sys{}, a high performance socket system. 
 \sys{} is implemented in user space to avoid kernel crossing cost. It achieves multicore scalability 
 by designing the socket system as a shared-nothing message passing distributed system.
-\sys{} use a high performance shared memory lockless queue for intra-server communication. For inter-server communication, 
+\sys{} uses a high performance shared memory lockless queue for intra-server communication. For inter-server communication, 
 it can take advantage of modern RDMA hardware, but can also communicate with regular TCP/IP endpoints.
 Together with carefully designed zero-copy mechanism, it removes many overheads of existing socket systems. 
 
