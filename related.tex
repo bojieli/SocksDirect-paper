@@ -21,8 +21,8 @@ Furthermore, for large scale deployment, kernel-based stacks are much more compl
 \parab{User-space socket.}
 A third line of approach is user-space sockets.
 LibVMA~\cite{libvma} is fully compatible with existing applications, but not scalable to multiple threads and connections.
-mTCP~\cite{jeong2014mtcp} is compatible with most Linux socket functions, which uses batched syscalls to reduce kernel crossing overhead.
-Additionally, most user-space sockets focus on inter-server and do not use shared memory for intra-server.
+mTCP~\cite{jeong2014mtcp} is compatible with most Linux socket functions, which uses batched function calls to use a packet-level interface of the NIC.
+Additionally, most user-space sockets focus on inter-server and do not optimize for intra-server connections.
 
 FreeFlow~\cite{freeflow} leverages shared memory for intra-server communication and RDMA for inter-server, but it provides an RDMA interface.
 Existing socket to RDMA translation approaches, \textit{e.g.} SDP~\cite{socketsdirect} and rsockets~\cite{rsockets} are not compatible with Linux socket because the application still needs to manage send and receive buffers.
