@@ -20,7 +20,7 @@ Socket API is the most widely used communication primitive and a fundamental bui
 
 %\textbf{The above part is motivation and related work.}
 
-We design \sys{}, a high performance user-space socket architecture that is compatible with existing applications and preserves isolation among processes, while being scalable to multiple cores and many concurrent connections. The main component of \sys{} is a user-space library \libipc{} that intercepts and implements Linux socket APIs. User application can take advantage of \libipc by simply using the \textit{LD\_PRELOAD} environment variable in Linux to load the library.
+We design \sys{}, a high performance user-space socket architecture that is compatible with existing applications and preserves isolation among processes, while being scalable to multiple cores and many concurrent connections. The main component of \sys{} is a user-space library \libipc{} that intercepts and implements Linux socket APIs. Applications can take advantage of \libipc by simply using the \textit{LD\_PRELOAD} environment variable in Linux to load the library.
 
 
 
