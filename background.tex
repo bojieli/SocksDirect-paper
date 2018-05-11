@@ -171,11 +171,11 @@ Linux kernel socket is a well-known bottleneck for communication intensive appli
 \label{subsec:challenges}
 
 \parab{Kernel crossing.}
-Socket APIs are implemented in kernel and thus require kernel crossing for each socket operation. Recently, the KPTI patches~\cite{kpti} to protect against Spectre~\cite{Kocher2018spectre} and Meltdown~\cite{Lipp2018meltdown} attacks make kernel crossings 3x more expensive.
+Socket APIs are implemented in kernel and thus require kernel crossing for each socket operation. Recently, the KPTI patches~\cite{kpti} to protect against Spectre~\cite{Kocher2018spectre} and Meltdown~\cite{Lipp2018meltdown} attacks make kernel crossings 4x expensive.
 % (from 47~ns on Linux 4.11 to 200~ns on Linux 4.16 per system call). 
 Together with additional cache invalidations, KPTI patches reduce TCP socket throughput by 40\% for 64-byte messages. These side-channel attacks also make us rethink the Linux security model in which the complicated network stack needs to be trusted and protected. %, while sharing cores with applications.
 %To ensure isolation among processes, one category of dataplane operating systems~\cite{belay2017ix,tsai2017lite} use kernel-based network stacks. However, non-batched system calls have context switch overhead, while batched system calls increase latency.
-Several works~\cite{martins2014clickos,roghanchi2017ffwd,huang2017high} delegate operations to a virtual switch running on dedicated cores, making the virtual switch a bottleneck. 
+Several works~\cite{martins2014clickos,roghanchi2017ffwd,huang2017high} delegate operations to a virtual switch running on dedicated cores, making the virtual switch a bottleneck.
 
 We aim to bypass kernel with process isolation, while not delegating all operations to a centralized coordinator.
 
@@ -234,7 +234,7 @@ Linux TCP has evolved to become quite complicated over the years to address perf
  
 
 %For inter-server communication inside , RDMA offers reliable transport.
-For inter-server communication inside data centers, RDMA is a good option as it uses hardware offloading to provide lower processing latency and CPU utilization than Linux TCP. RDMA has been deployed in many data centers~\cite{guo2016rdma}. The main challenge of using RDMA is to bridge the semantics of socket and RDMA. For example, RDMA preserves messages boundaries while TCP does not. We aim to use RDMA efficiently for existing socket applications. 
+For inter-server communication inside data centers, RDMA is a good option as it uses hardware offloading to provide lower latency and CPU utilization than software-based transport. RDMA has been deployed in many data centers~\cite{guo2016rdma}. The main challenge of using RDMA is to bridge the semantics of socket and RDMA. For example, RDMA preserves messages boundaries while TCP does not. We aim to use RDMA efficiently for existing socket applications. 
 
 %For example, the event polling API in Linux is \textit{reactive}, in the sense that applications knows a connection is ready for \texttt{send} or \texttt{recv} before issuing the operation. RDMA API is \textit{proactive}. The application delegates RDMA operations to the NIC and receives notification at completion. We aim to use RDMA efficiently for existing socket applications. 
 
