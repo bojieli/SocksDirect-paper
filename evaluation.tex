@@ -72,7 +72,7 @@
 
 
 We implement \sys in three components: a userspace library \libipc{} with 10K lines of C/C++ code, a monitor program and three system calls for zero copy. 
-In this section, we evaluate \sys in the following aspects:
+We evaluate \sys in the following aspects:
 
 \parab{Use shared memory efficiently for intra-server socket.}
 For small messages, \sys achieves 0.3$\mu$s round-trip latency and up to 23~M messages per second throughput, close to raw shared memory performance. For large messages, \sys uses zero copy to achieve 13x lower latency and 26x throughput than Linux.
@@ -84,7 +84,7 @@ For small messages, \sys achieves  1.7$\mu$s round-trip latency and 8M messages 
 The performance above scales to 100 million concurrent connections.
 
 \parab{Scale with number of cores.}
-The data transmission performance above is linearly scalable with number of cores. In addition, a CPU core can establish 1.4~M per connections per second.
+The performance above is linearly scalable with number of cores. In addition, a CPU core can create 1.4~M per connections per second.
 
 \parab{Corner-case operations does not affect long-term performance.}
 After corner-case operations such as \texttt{fork}, the performance converges quickly.
@@ -188,8 +188,8 @@ Sender and receiver process each creates several threads, then each thread pins 
 \sys achieves linear scalability for both intra-server and inter-server sockets.
 Within a server, \sys provides 306~M message per second throughput between 16 pairs of sender and receiver cores, which is 40x of Linux.
 Using RDMA for inter-server socket, \sys achieves 62~M messages per second throughput (8x Linux and 24x LibVMA).
-The multi-thread scalability of \sys attributes to the partitioning of states and removal of synchronization.
-We can also see that shared memory communication has 5x throughput than RDMA. Using RDMA NIC for intra-server socket would meet this bottleneck and thus not scalable.
+%The multi-thread scalability of \sys attributes to the partitioning of states and removal of synchronization.
+%We can also see that shared memory communication has 5x throughput than RDMA.% Using RDMA NIC for intra-server socket would meet this bottleneck and thus not scalable.
 
 Figure~\ref{fig:eval-conn-setup-tput} shows the throughput of connection creation with different number of cores. Each core can create 1.4~M new connections per second, which is 20x of Linux and 2x of mTCP~\cite{jeong2014mtcp}. The upper bound is 5.3~M connections per second, where the monitor process becomes a bottleneck.
 

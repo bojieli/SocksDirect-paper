@@ -180,7 +180,7 @@ Several works~\cite{martins2014clickos,roghanchi2017ffwd,huang2017high} delegate
 We aim to bypass kernel with process isolation, while not delegating all operations to a centralized coordinator.
 
 
-\parab{Context switch and process scheduling.}
+\parab{Context switch and event notification.}
 %As shown in Table~\ref{tab:operation-performance}, switching from one process to another cooperatively is 2.5x as expensive as a system call. 
 As Table~\ref{tab:operation-performance} shows, inter-process context switch based on semaphore, mutex or \texttt{futex} is 5x$\sim$10x slower than cooperative multitasking. This extra latency is due to event notification mechanism and scheduler queue manipulation in kernel. %For two processes that run on different cores, TCP socket latency is only a bit higher than mutex. 
 
@@ -234,7 +234,7 @@ Linux TCP has evolved to become quite complicated over the years to address perf
  
 
 %For inter-server communication inside , RDMA offers reliable transport.
-For inter-server communication inside data centers, RDMA is a good option as it uses hardware offloading to provide lower latency and CPU utilization than software-based transport. RDMA has been deployed in many data centers~\cite{guo2016rdma}. The main challenge of using RDMA is to bridge the semantics of socket and RDMA. For example, RDMA preserves messages boundaries while TCP does not. We aim to use RDMA efficiently for existing socket applications. 
+For inter-server communication inside data centers, RDMA is a good option as it uses hardware offloading to provide lower latency and CPU utilization than software-based transport. RDMA has been deployed in many data centers~\cite{guo2016rdma}. The main challenge of using RDMA is to bridge the semantics of socket and RDMA~\cite{dragojevic2014farm}. For example, RDMA preserves messages boundaries while TCP does not. We aim to use RDMA efficiently for existing socket applications. 
 
 %For example, the event polling API in Linux is \textit{reactive}, in the sense that applications knows a connection is ready for \texttt{send} or \texttt{recv} before issuing the operation. RDMA API is \textit{proactive}. The application delegates RDMA operations to the NIC and receives notification at completion. We aim to use RDMA efficiently for existing socket applications. 
 

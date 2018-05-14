@@ -5,29 +5,12 @@
 
 \begin{table*}[t]
 	\centering
-	\scalebox{0.9}{
+	\scalebox{0.88}{
 		\begin{tabular}{l|c|ccc|cc|ccc|}
 			\hline
 			Category	& \multicolumn{1}{c|}{Linux Opt.} & \multicolumn{3}{c|}{New Kernel Stack} & \multicolumn{2}{c|}{User-space Packet} & \multicolumn{3}{c|}{User-space Socket} \\
 			\hline
 			System	& FastSocket & IX & MegaPipe & StackMap & Arrakis & FreeFlow & mTCP & libvma & SocksDirect \\
-			\hline
-			\hline
-			Kernel Bypass & & & & & \yes & \yes & \yes & \yes & \yes \\
-			\hline
-			Zero Copy & & \yes & & \yes & \yes & \yes & & & \yes \\
-			\hline
-			Low Latency & & \yes & \yes & \yes & \yes & \yes & \yes & \yes & \yes \\
-			\hline
-			\hline
-			Multi-core Scalability & \yes & \yes & \yes & \yes & \yes & \yes & \yes & & \yes \\
-			\hline
-			Connection Scalability & \yes & \yes & \yes & \yes & & & \yes & & \yes \\
-			\hline
-			\hline
-			NIC-bypass IPC & \yes & & \yes & \yes & & \yes & \yes & & \yes \\
-			\hline
-			RDMA as Transport & & & & & & \yes & & & \yes \\
 			\hline
 			\hline
 			Socket-like API & \yes & & \yes & \yes & \yes & & \yes & \yes & \yes \\
@@ -36,6 +19,25 @@
 			\hline
 			Process Isolation & \yes & \yes & \yes & \yes & \yes & \yes & \yes & \yes & \yes \\
 			\hline
+			\hline
+			Kernel Bypass & & & & & \yes & \yes & \yes & \yes & \yes \\
+			\hline
+			Cooperative Multitasking & & & & & & & & & \yes \\
+			\hline
+			Zero Copy & & \yes & & \yes & \yes & \yes & & & \yes \\
+			\hline
+			\hline
+			NIC-bypass IPC & \yes & & \yes & \yes & & \yes & \yes & & \yes \\
+			\hline
+			RDMA as Transport & & & & & & \yes & & & \yes \\
+			\hline
+			\hline
+			Scalable Socket Creation & \yes & \yes & \yes & \yes & \yes & \yes & \yes & & \yes \\
+			\hline
+			Lock-free Multi-thread & & & & & & & & & \yes \\
+			\hline
+			Scale to Many Sockets & \yes & \yes & \yes & \yes & & & \yes & & \yes \\
+			\hline
 		\end{tabular}
 	}
 	\caption{Comparison of high performance socket systems.}
@@ -43,12 +45,12 @@
 	\vspace{-15pt}
 \end{table*}
 
-In this section, we demonstrate that \sys{} could significantly improve the performance of realistic applications without modifying the code.
+In this section, we demonstrate that \sys{} can significantly improve the performance of real-world applications without modifying the code.
 
 
 \subsection{Network Function}
 
-Network Function Virtualization is prevalent and widely used in modern datacenters. We build up chains of Network Functions (NF) with different lengths in one machine. Each NF in the chain runs as a process and occupies one CPU core. It receives the packet from the predecessor process in the chain, modifies one byte of the packet, then sends it to the successor process. We compare the performance of \sys{} with Linux socket and NetBricks~\cite{panda2016netbricks}, a highly optimized network function framework. Figure~\ref{fig:eval-tun-tput} shows that our \sys achieves performance that is comparable with NetBricks and scalable with number of cores.
+Network Function Virtualization is prevalent and widely used in modern datacenters. We build up a chain of Network Functions (NF) with different lengths in one host. Each NF in the chain runs as a process and is pinned on one CPU core. It receives packets from the predecessor, modifies one byte of each packet, then sends them to the successor. We compare the performance of \sys{} with Linux socket and NetBricks~\cite{panda2016netbricks}, a highly optimized NF framework. Figure~\ref{fig:eval-tun-tput} shows that our \sys achieves performance that is comparable with NetBricks and scalable with number of cores.
 
 
 
