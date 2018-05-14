@@ -13,20 +13,19 @@ In addition, they fail to remove cache miss and transport overheads.
 \parab{New OS stacks.}
 Another line of research propose new OS stacks with modified socket interface, mostly aiming at zero copy and fast event notification. Existing socket applications need modifications to use the new interfaces.
 For intra-server connections, Arrakis~\cite{peter2016arrakis} and IX~\cite{belay2017ix} use the NIC to forward packets from one process to another. The hairpin latency from CPU to NIC is at least two PCIe delays, which is one order of magnitude higher than inter-core cache migration delay. In addition, the data plane switching throughput of a NIC is constrained by PCIe bandwidth (Figure~\ref{fig:eval-corenum-tput}).
-For inter-server communication, IX~\cite{belay2017ix} and Stackmap~\cite{yasukata2016stackmap} run in the kernel to enforce QoS policy or preserve protocol compatibility with Linux, while Arrakis~\cite{peter2016arrakis} and SandStorm~\cite{marinos2014network} run in user mode to maximize performance.
-Virtualization works, \textit{e.g.} LITE~\cite{tsai2017lite} and NetKernel~\cite{niu2017network} also enforce QoS in the hypervisor.
+
+For inter-server connections, most OS stacks implement transport in software. IX~\cite{belay2017ix} and Stackmap~\cite{yasukata2016stackmap} run in the kernel to enforce QoS policy or preserve protocol compatibility with Linux, while Arrakis~\cite{peter2016arrakis} and SandStorm~\cite{marinos2014network} run in user mode to maximize performance.
+RDMA and transport virtualization~\cite{tsai2017lite,niu2017network} also enforce QoS in the hypervisor.
 Due to the additional level of indirection, kernel stacks cannot remove kernel crossing, while batched syscalls add latency.
 Further, large-scale deployment of kernel-based stacks is more complicated than user-space libraries~\cite{andromeda}.
-
-
 \sys offloads transport and QoS to NIC hardware.
-RDMA transport has been deployed in many data centers~\cite{guo2016rdma}, and an emerging line of work~\cite{zhu2015congestion,lu2017memory,mprdma} improves congestion control and QoS for large-scale RDMA deployment.
+RDMA transport has been deployed in many data centers~\cite{guo2016rdma}, and an emerging line of work~\cite{zhu2015congestion,lu2017memory,mprdma} improves congestion control and QoS in large-scale RDMA deployments.
 For flexibility, programmable NICs are being adopted in data centers~\cite{smartnic,cavium}, as they are more efficient than general-purpose CPUs for network processing~\cite{kaufmann2015flexnic,li2016clicknp}.
 
 
 
 \parab{User-space socket.}
-A third line of approach is user-space sockets.
+A third line of research are user-space sockets.
 mTCP~\cite{jeong2014mtcp}, Seastar~\cite{seastar} and 
 F-stack~\cite{fstack} use a high performance packet I/O framework (\textit{e.g.} PacketShader~\cite{han2010packetshader}, DPDK~\cite{dpdk} and PF\_RING~\cite{pf-ring}) and achieves compatibility with most Linux socket functions and scalability with number of cores and sockets.
 LibVMA~\cite{libvma}, OpenOnload~\cite{openonload} and DBL~\cite{dbl} are fully compatible with existing applications. However, they use vendor-specific NIC features and do not scale to multiple threads or connections.
