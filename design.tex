@@ -116,7 +116,7 @@ One may think that out-of-order execution may mandate the use of memory fence in
 
 \parab{Amortize polling overhead.}
 Polling the inter-process queue wastes CPU cycles of the receiver when a pair of processes do not communicate frequently. To this end, we amortize polling overhead of multiple inter-process queues by multiplexing their event notifications into a single queue.
-For inter-server connections, we use the RDMA NIC as the multiplexer. Receiver uses a \textit{shared completion queue} with all hosts, so it only needs to poll one queue rather than multiple ring buffers.
+For inter-server connections, we use RDMA NIC as the multiplexer. A process uses a \textit{shared completion queue} for all RDMA connections, so it only needs to poll one queue rather than multiple ring buffers.
 
 For intra-server connections, we use the monitor as the multiplexer. Each queue can switch between \textit{polling} and \textit{interrupt} modes. The queue to the monitor process is always in polling mode. Receiver of each queue maintains a counter of consecutive empty polls. When it exceeds a threshold, the receiver sends a \textit{stop polling} request to sender and stops polling after receiving ACK. When sender writes to a queue in interrupt mode, it sends an \textit{interrupt} message to the monitor and the monitor will signal the receiver to resume polling. 
 
