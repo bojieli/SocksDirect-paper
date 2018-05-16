@@ -12,10 +12,10 @@ set style line 5 pt 10 lc rgb "#ff7f00" linewidth 1.5 ps 1.0
 set style line 6 pt 14 lc rgb "#ffff33" linewidth 1.5 ps 1.0
 set style line 7 pt 13 lc rgb "#a65628" linewidth 1.5 ps 1.0
 set style line 8 pt 13 lc rgb "#f781bf" linewidth 1.5 ps 1.0
-set xlabel "Rounds"  font "Arial, 24"
-set ylabel "Latency (ms)" font "Arial, 24" offset graph -0.02, 0
+set xlabel "Round-trips to key-value store"  font "Arial, 24"
+set ylabel "HTTP Latency (ms)" font "Arial, 24" offset graph -0.05, 0
 set xtics  ("1" 1, "10" 10, "100" 100, "1K" 1000, "10K" 10000, "100K" 100000, "1M" 1000000) font "Arial, 24"
-set ytics font "Arial, 24"
+set ytics ("0.1" 0.1, "1" 1, "10" 10, "100" 100, "1K" 1000, "10K" 10000, "100K" 100000) font "Arial, 24"
 set key inside reverse left top font "Arial, 24"
 set logscale y 10 
 set logscale x 10
