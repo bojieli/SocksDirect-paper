@@ -4,14 +4,14 @@
 There has been extensive work aiming to make the best use of multi-core CPU and data center network. Table~\ref{tab:related-work} categorizes several representative approaches.
 
 \parab{Linux kernel optimization.}
-One line of research optimize the kernel stack for higher socket performance. FastSocket~\cite{lin2016scalable} and Affinity-Accept~\cite{pesterev2012improving} scale connection creation to multiple cores, but synchronization is still needed when multiple threads share a socket.
+One line of research optimizes the kernel stack for higher socket performance. FastSocket~\cite{lin2016scalable} and Affinity-Accept~\cite{pesterev2012improving} scale connection creation to multiple cores, but synchronization is still needed when multiple threads share a socket.
 FlexSC~\cite{soares2010flexsc} proposes exception-less system calls to reduce kernel crossing overhead.
 Zero-copy socket~\cite{thadani1995efficient,chu1996zero} still needs copy-on-write on senders.
 In addition, they fail to remove cache miss and transport overheads.
 
 
 \parab{New OS stacks.}
-Another line of research propose new OS stacks with modified socket interface, mostly aiming at zero copy and fast event notification. Existing socket applications need modifications to use the new interfaces.
+Another line of research proposes new OS stacks with modified socket interface, mostly aiming at zero copy and fast event notification. Existing socket applications need modifications to use the new interfaces.
 For intra-server connections, Arrakis~\cite{peter2016arrakis} and IX~\cite{belay2017ix} use the NIC to forward packets from one process to another. The hairpin latency from CPU to NIC is at least two PCIe delays, which is one order of magnitude higher than inter-core cache migration delay. In addition, the data plane switching throughput of a NIC is constrained by PCIe bandwidth (Figure~\ref{fig:eval-corenum-tput}).
 
 For inter-server connections, most OS stacks implement transport in software. IX~\cite{belay2017ix} and Stackmap~\cite{yasukata2016stackmap} run in the kernel to enforce QoS policy or preserve protocol compatibility with Linux, while Arrakis~\cite{peter2016arrakis} and SandStorm~\cite{marinos2014network} run in user mode to maximize performance.
@@ -25,7 +25,7 @@ For flexibility, programmable NICs are being adopted in data centers~\cite{smart
 
 
 \parab{User-space socket.}
-A third line of research are user-space sockets.
+A third line of research runs socket in user space.
 mTCP~\cite{jeong2014mtcp}, Seastar~\cite{seastar}, 
 F-stack~\cite{fstack} and LOS~\cite{huang2017high} use a high performance packet I/O framework (\textit{e.g.} netmap~\cite{rizzo2012netmap}, DPDK~\cite{dpdk} and PF\_RING~\cite{pf-ring}) and achieves compatibility with most Linux socket functions and scalability with number of cores and sockets.
 LibVMA~\cite{libvma}, OpenOnload~\cite{openonload} and DBL~\cite{dbl} are fully compatible with existing applications. However, they use vendor-specific NIC features and do not scale to multiple threads or connections.
