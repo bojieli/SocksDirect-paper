@@ -62,9 +62,9 @@
 			\hline
 			Cooperative context switch & 0.52 & 2.0 \\
 			\hline
-			Remap 1 page (4~KiB) & 0.78 & 1.3 \\
+			Map 1 page (4~KiB) & 0.78 & 1.3 \\
 			\hline
-			Remap 32 pages (128~KiB) & 1.2 & 0.8 \\
+			Map 32 pages (128~KiB) & 1.2 & 0.8 \\
 			\hline
 			Two-sided RDMA & 1.6 & 8 \\
 			\hline
@@ -223,9 +223,10 @@ We multiplex socket connections and minimize memory accesses per data transmissi
 %Each socket connection is a \textit{file descriptor} (FD) in Linux. First, each new connection involves expensive \texttt{inode} and \texttt{dentry} creation in the \texttt{proc} file system, which is not scalable and rarely used except for diagnostic and monitoring utilities. Second, socket operations need to pass through the virtual file system (VFS), which introduces CPU overhead and additional latency.
 
 \parab{Memory copy.}
-Socket APIs, \textit{e.g.}, \texttt{send} and \texttt{recv}, cause memory copies between user and kernel space. Though these memory copies degrade the system performance, they are useful for some applications as the application may overwrite the user space memory right after the socket API returns. Simply removing these copies may violate the application correctness.
+Socket \texttt{send} and \texttt{recv} APIs cause memory copies between application and network stack. For \texttt{send}, the application may overwrite the memory right after \texttt{send} returns. Simply removing these copies may violate application correctness. For \texttt{recv}, application provides a buffer and read the data in buffer after \texttt{recv} returns. If we buffer data on the sender and only transmit it on \texttt{recv}, the receiver needs to wait for a round-trip time. For this reason, most socket implementations buffer data on the receiver and copy it to application on \texttt{recv}.
 
-We aim to achieve zero copy for large transfers without changing applications, by leveraging page mapping mechanism in virtual memory. However, as shown in Table~\ref{tab:operation-performance}, remapping a page is more expensive than copying it, because of kernel crossing and TLB flush. Hence, we batch page remappings to amortize such overhead.
+
+We aim to achieve zero copy for large transfers without changing applications. Rather than copying, we map the physical pages to new virtual addresses. However, as Table~\ref{tab:operation-performance} shows, remapping a single page is more expensive than copying it, because of kernel crossing and TLB flush. Hence, we batch page mapping operations to amortize the overhead.
 
 
 
@@ -234,14 +235,4 @@ Linux TCP has evolved to become quite complicated over the years to address perf
  
 
 %For inter-server communication inside , RDMA offers reliable transport.
-For inter-server communication inside data centers, RDMA is a good option as it uses hardware offloading to provide lower latency and CPU utilization than software-based transport. RDMA has been deployed in many data centers~\cite{guo2016rdma}. The main challenge of using RDMA is to bridge the semantics of socket and RDMA~\cite{dragojevic2014farm}. For example, RDMA preserves messages boundaries while TCP does not. We aim to use RDMA efficiently for existing socket applications. 
-
-%For example, the event polling API in Linux is \textit{reactive}, in the sense that applications knows a connection is ready for \texttt{send} or \texttt{recv} before issuing the operation. RDMA API is \textit{proactive}. The application delegates RDMA operations to the NIC and receives notification at completion. We aim to use RDMA efficiently for existing socket applications. 
-
-%An emerging line of work~\cite{zhu2015congestion,guo2016rdma,lu2017memory,mprdma} improves RDMA performance and QoS in large scale data center networks. %We take the ideas of Arrakis~\cite{peter2016arrakis} and Azure 
-%SmartNICs~\cite{smartnic} to enforce QoS and ACL policies on NICs.
-
-%To this end, two-sided RDMA applications need to predict the size and number of messages it expects to receive, and delegate enough \texttt{recv} operations to the NIC~\cite{huang2017high}.
-
-
-
+For inter-server communication inside data centers, RDMA is a good option as it uses hardware offloading to provide lower latency and CPU utilization than software-based transport. RDMA has been deployed in many data centers~\cite{guo2016rdma}. The main challenge of using RDMA is to bridge the semantics of socket and RDMA~\cite{dragojevic2014farm}. For example, RDMA preserves messages boundaries while TCP does not. Further, RDMA verbs have different efficiency and overheads~\cite{kalia2014using,kaminsky2016design}. We aim to use RDMA efficiently for existing socket applications. 

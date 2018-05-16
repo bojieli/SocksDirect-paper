@@ -26,8 +26,8 @@ For flexibility, programmable NICs are being adopted in data centers~\cite{smart
 
 \parab{User-space socket.}
 A third line of research are user-space sockets.
-mTCP~\cite{jeong2014mtcp}, Seastar~\cite{seastar} and 
-F-stack~\cite{fstack} use a high performance packet I/O framework (\textit{e.g.} netmap~\cite{rizzo2012netmap}, DPDK~\cite{dpdk} and PF\_RING~\cite{pf-ring}) and achieves compatibility with most Linux socket functions and scalability with number of cores and sockets.
+mTCP~\cite{jeong2014mtcp}, Seastar~\cite{seastar}, 
+F-stack~\cite{fstack} and LOS~\cite{huang2017high} use a high performance packet I/O framework (\textit{e.g.} netmap~\cite{rizzo2012netmap}, DPDK~\cite{dpdk} and PF\_RING~\cite{pf-ring}) and achieves compatibility with most Linux socket functions and scalability with number of cores and sockets.
 LibVMA~\cite{libvma}, OpenOnload~\cite{openonload} and DBL~\cite{dbl} are fully compatible with existing applications. However, they use vendor-specific NIC features and do not scale to multiple threads or connections.
 In addition, user-space sockets do not support zero copy or efficient multitasking.
 

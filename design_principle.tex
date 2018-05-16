@@ -9,39 +9,14 @@ To achieve multi-core and multi-server scalability, we take the Multikernel~\cit
 
 %We strive to minimize the number of messages to reduce overhead. 
 To reduce message passing, in Table~\ref{tab:socket-api}, we categorize Linux socket operations into three categories: local, peer-to-peer and non-partitionable. An operation is \textit{local} if it only changes states local to a process (\textit{e.g.}, assigning file descriptors). An operation is \textit{peer-to-peer} if the states are written by one processes and read by another process (\textit{e.g.} sending a message).
-%We develop a high performance lockless queue to enable efficient peer-to-peer communication using shared memory and one-sided RDMA (Sec.\ref{subsec:lockless-queue}). 
-%We design all peer-to-peer operations to be non-blocking using shared memory queue, \textit{i.e.} returns immediately after writing to the queue. 
+We design all peer-to-peer operations to be non-blocking using shared memory queue, \textit{i.e.} returns immediately after writing to the queue. 
 Local and peer-to-peer operations are naturally scalable because their states are partitionable~\cite{partitionable}. For \textit{non-partitionable} and privileged operations (\textit{e.g.}, \texttt{fork} and shared memory allocation), \sys revisits the idea of~\cite{hoare1974monitors} and delegates coordination to a \emph{monitor proces}, which is analogous to the coordinator in a distributed system. Such delegation not only has higher throughput than synchronization~\cite{roghanchi2017ffwd}, but also ensures security and fairness.
 
 \parab{Optimize for the common and prepare for the worst.}
 Because sockets can be shared among threads and processes, using mutual exclusion to ensure correctness for concurrent access would sacrifice the common-case one-to-one communication performance. To avoid such synchronization overhead, we create a queue between each pair of sender and receiver processes, and ensures receive ordering and liveness (Sec.\ref{subsec:fork}).
 
 To reduce context switch and scheduling overhead, observing the access pattern of most event-driven applications, we use cooperative multitasking and polling to reduce inter-core interrupts, signaling and scheduling costs. When all processes are awake and responsive to incoming messages, the system achieves high performance at the cost of active polling. To reduce polling overhead, \sys puts a process to sleep after being idle for some time. \sys uses Linux signals to interrupt long-running application code and wake up sleeping or blocked processes (Sec.\ref{subsec:process-mux}). 
-%When a process with \sys is dead, the monitor detects and garbage collects it ).
 
-%\parab{Use different communication options based on process location.}
-%To offload transport, QoS and ACL to hardware, we design a high performance lockless queue to enable efficient communication between two application processes or between an application process and the monitor. We design the queue so that each memory location is only written by a single process. This design minimizes cache migration in shared memory, ensures security, and allows us to make use of one-sided RDMA. The kernel provides memory isolation among different queues.
-
-
-%\RED{Change.}
-%For sending and receiving large buffers in a server, we leverage the virtual memory system and modify page mapping on \texttt{memcpy}, \texttt{send} and \texttt{recv} to achieve zero-copy (Sec.\ref{subsec:zerocopy}). For inter-server communication between RDMA capable nodes, \sys uses one-sided RDMA~\cite{mitchell2013using,kaminsky2016design}. To communicate with standard TCP/IP endpoints, we use a light-weight user-space TCP/IP stack~\cite{dunkels2001design}, while still take advantage of connection multiplexing and scatter-gather of the NIC if possible. %In all three cases above, \libipc{} achieves zero copy and kernel bypass.
-
-\parab{Use different transports.} To provide persistent good performance, we choose different transports in different scenarios. For intra-server communication, we use shared memory. For inter-server communication inside the data center, we use one-sided RDMA~\cite{mitchell2013using,kaminsky2016design}. To enable efficient shared memory and RDMA communications, we design a high performance lockless queue. We design the queue so that each memory location is only written by a single process. This design minimizes cache migration in shared memory and the kernel provides memory isolation among different queues. To amortize polling overhead of infrequently used queues, we use a shared RDMA completion queue for inter-server and use monitor forwarding for intra-server (Sec.\ref{subsec:lockless-queue}). We optimize the page remapping technology to achieve zero copy for both intra- and inter-server sockets (Sec.\ref{subsec:zerocopy}).
-
-As RDMA is only deployed in data centers, we use a user-space TCP/IP stack~\cite{dunkels2001design} to handle Wide Area Network (WAN) traffic, in addition to \libipc{} bootstrapping. We use scatter-gather in NICs to achieve zero copy.
-
-
-%For intra-server communication, we design a high performance lockless queue to enable efficient communication between two application processes or between an application process and the monitor. We design the queue so that each memory location is only written by a single process. This design minimizes cache migration in shared memory, ensures security, and allows us to make use of one-sided RDMA. The kernel provides memory isolation among different queues.      
-
-
-
-
-
-%\RED{Why do we take the idea of Library OS? Every design choice should have rationale, otherwise the paper would look like a technical report.}
-%\sys takes the idea of Library Operating System \RED{(cite)}. All the threads are treated as separated processes in our design. All function calls to the GNU C library is redirected to our user-mode library \libipc.
-
-%\libipc leverages message passing to communicate with other processes to conduct inter-process communication and coordination of the resources of the operating system, i.e., file system, networking (sockets) in user-mode. We take advantage of the unmodified Linux Kernel for process creation and isolation, scheduling and memory management.
-
-%To make a high performance design of \libipc, we treat processes as a distributed system and separate the Linux API to scalable and non-scalable parts. For the scalable parts eg. assign file descriptor, the \libipc of each process settle them individually. For the non-scalable parts, \libipc revisit the idea of a single monitor process on each machine to tackle the coordination problem without the overhead of traditional distributed systems.
-
-%We noticed that the read and write between two processes can be highly scalable if two process communicate with each other directly with a shared memory queue. As a result, only the connection setup is coordinated by the monitor, which alleviate the workload of the monitor. The permission of Linux Kernel could provide isolation for different connections. RDMA is used in our design for inter-process communication across multiple machines.
+\parab{Use different transports.} To provide persistent good performance, we choose different transports in different scenarios. As shown in Figure~\ref{fig:architecture}, for intra-server communication, we use shared memory. For inter-server communication inside the data center, we use one-sided RDMA~\cite{mitchell2013using,kaminsky2016design}. To enable efficient shared memory and RDMA communications, we design a high performance lockless queue. We design the queue so that each memory location is only written by a single process. This design minimizes cache migration in shared memory and the kernel provides memory isolation among different queues. To amortize polling overhead of infrequently used queues, we use a shared RDMA completion queue for inter-server and use monitor forwarding for intra-server (Sec.\ref{subsec:lockless-queue}).
+As RDMA is only deployed in data centers, we use a user-space TCP/IP stack~\cite{dunkels2001design} to handle Wide Area Network (WAN) traffic.
+We extend the page remapping technology to achieve zero copy for shared memory, RDMA and TCP (Sec.\ref{subsec:zerocopy}).
