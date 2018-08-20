@@ -1,4 +1,4 @@
-\documentclass[10pt,twocolumn]{article}
+\documentclass[twocolumn,10pt]{article}
 \usepackage{usenix}
 \usepackage{epsfig}
 \usepackage{endnotes}
@@ -40,18 +40,30 @@
 
 \graphicspath{{figure/}}
 
+\setlength{\textheight}{9.0in}
+\setlength{\columnsep}{0.33in}
+\setlength{\textwidth}{7.0in}
+
 %
 % import the customized commands
 %
 
 \begin{document}
 
+%\settopmatter{printfolios=true} % Add page numbers
+%\settopmatter{printacmref=false} % Removes citation information below abstract
+%\renewcommand\footnotetextcopyrightpermission[1]{} % removes footnote with conference information in first column
+\pagestyle{plain} % removes running headers
+
+%don't want date printed
+\date{}
+
 %\title{SocksDirect: Push-Button Acceleration of Linux Socket~\vspace{-0.1in}}
 \title{SocksDirect: Fast and Compatible Socket in User Space~\vspace{-0.1in}}
 
 \author{{\rm OSDI'18 Submission \#264}\vspace{-0.5in}}
 
-\newcommand{\authornote}[1]{\raisebox{0.8ex}{$#1$}}
+%\newcommand{\authornote}[1]{\raisebox{0.8ex}{$#1$}}
 \maketitle
 
 \newcommand{\specialcell}[2][c]{%
