@@ -4,66 +4,14 @@ Communication intensive applications in data center hosts with multi-core CPU an
 %often put considerable stress on traditional socket implementation. 
 Linux socket is implemented in the kernel space with shared data structures that needs concurrency protection, which incurs significant overhead.
 %This design incurs significant kernel crossing and locking overhead.
-Recent user-space sockets often do not support intra-host communication among containers and applications, or have limitations on compatibility, isolation and multi-thread scalability.
+Recent user-space sockets often do not support intra-host communication among containers and applications, or have limitations on compatibility, isolation and scalability with multiple threads and concurrent connections.
 
-In this paper, we describe \sys{}, a high performance socket system that is fully compatible with Linux socket and can be used as a drop-in replacement with no modification to applications.
-\sys{} is implemented in user space to avoid kernel crossing cost.
-It achieves multi-thread scalability by considering threads as a shared-nothing message passing distributed system.
+In this paper, we describe \sys{}, a high performance socket system that is fully compatible with Linux and can be used as a drop-in replacement with no modification to applications.
+\sys{} is implemented in user space to avoid kernel crossing cost and simplify deployment.
+Each host runs a monitor daemon to securely process the control plane, while the data plane bypasses the monitor.
+We achieve multi-thread scalability by considering threads as a shared-nothing message passing distributed system.
 To improve memory locality, we multiplex all connections and event notifications between a pair of threads via one queue.
-\sys{} uses a high performance shared memory lockless queue for intra-host communication.
-For inter-host communication, it takes advantage of modern RDMA hardware, but can also transparently communicate with regular TCP/IP endpoints.
+We use a high performance shared memory queue for intra-host communication.
+For inter-host communication, we take advantage of modern RDMA hardware, but can also transparently communicate with regular TCP/IP endpoints.
 Together with carefully designed zero-copy mechanism and cooperative multitasking, it removes many overheads of existing socket systems.
-Experiment shows that \sys achieves 4 to 24x better message throughput, 10 to 60x better latency, and over 40x connection setup throughput compared with Linux socket.
-
-
-\iffalse
-\textbf{Title Candidates:}
-
-%IPC-Direct: Fast and Compatible Inter-Process Communication in User Space
-
-IPC-Direct: A Fast and Linux-Compatible Architecture for Inter-Process Communication
-
-%IPC-Direct: Rethinking Processes as a Distributed System
-
-%IPC-Direct: Rethinking Cores as a Distributed System
-
-IPC-Direct: Accelerating Linux Sockets by Rethinking Processes as a Distributed System
-
-SocksDirect: Push-Button Acceleration of Linux Socket
-
-Rethinking Processes as a Distributed System: A Fast and Compatible Sockets Design
-
-SocksDirect: High Performance Drop-in Replacement for Linux Socket
-
-SocksDirect: High Performance Drop-in Replacement for Linux Socket in Multi-core RDMA Systems
-
-High Performance Drop-in Replacement for Linux Socket: A Distributed Approach
-
-High Performance Drop-in Replacement for Linux Socket: A Distributed Systems Perspective
-
-High Performance Drop-in Replacement for Linux Socket from Distributed Systems Perspective
-
-High Performance Drop-in Replacement for Linux Socket: A Distributed Library Operating System
-
-\textit{IPC-Direct: A High Performance Operating System Architecture with Linux Compatibility}
-
-\textit{SocksDirect: A High Performance and Linux Compatible Library Operating System}
-
-\textbf{Key points that must be mentioned in the title:}
-
-\begin{itemize}
-	\item Fast / High Performance
-	\item Compatible / Drop-in Replacement
-\end{itemize}
-
-\textbf{Key points that may be mentioned in the title:}
-
-\begin{itemize}
-	\item Sockets / Linux Socket / Inter-Process Communication
-	\item Operating System / Architecture
-	\item User Space / Library
-	\item Distributed / Decentralized
-	\item Multi-core / RDMA
-	\item System name: IPC-Direct / SocksDirect
-\end{itemize}
-\fi
+Experiment shows that \sys{} achieves 4 to 24x message throughput, 10 to 60x better latency, and over 40x connection setup throughput compared with Linux socket.

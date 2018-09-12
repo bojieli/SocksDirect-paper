@@ -33,44 +33,51 @@ In addition, when the number of active threads is larger than that of CPU cores,
 
 %\textbf{The above part is motivation and related work.}
 
-We design \sys{}, a high performance user-space socket architecture that is compatible with existing applications and preserves isolation among processes, while being scalable to multiple cores and many concurrent connections.
-\sys is designed to be compatible with existing applications using Linux socket. Therefore, it preserves Linux socket semantics, and in particular it behaves correctly with process fork and thread creation. %We also take particular caution to preserve \textit{process isolation} in \sys.
-The main component of \sys{} is a user-space library \libipc{} that intercepts and implements Linux socket APIs. Applications can take advantage of \libipc by simply using the \textit{LD\_PRELOAD} environment variable in Linux to load the library.
+We design \sys{}, a high performance user-space socket architecture that is compatible with existing applications and preserves isolation among processes, while being scalable to multiple cores, threads and concurrent connections.
+\sys is designed to be compatible with existing applications using Linux socket.
+It preserves Linux socket semantics, and in particular behaves correctly with process fork and thread creation. %We also take particular caution to preserve \textit{process isolation} in \sys.
+The main component of \sys{} is a user-space library \libipc{} that intercepts Linux \emph{glibc} APIs, implements socket operations in user space and forwards others to the kernel.
+Applications can take advantage of \libipc{} by simply using the \emph{LD\_PRELOAD} environment variable in Linux to load the library.
 
 %The emergence of containers and micro-services draws attention to intra-server communication~\cite{bailis2016introducing}.
 %%For manageability and fault isolation, developers break monolithic services into self-contained microservice containers, interconnected via container network. 
 %Following the trend of recent data-plane operating systems~\cite{peter2016arrakis,belay2017ix,freeflow}, 
 %\sys should optimize for both intra-server and inter-server socket.
 
-We set out to build \sys{} with four performance goals.
+We set out to build \sys{} with five performance goals.
 The first two are \textit{low latency} and \textit{high throughput} (aka low CPU overhead) for both intra- and inter-host connections.
-Moreover, the performance should be \textit{scalable} to multiple processes on modern multi-core CPUs, especially when the number of threads exceed the number of cores. Finally, the performance should not degrade with large number of \textit{concurrent connections} between two processes.
+Moreover, the performance should be \textit{scalable} on modern multi-core CPUs.
+In addition, the performance should not degrade with large number of \textit{concurrent connections} between two processes.
+Finally, context switch should be efficient when multiple active threads run on a CPU core.
 % Many user connections are forwarded from the load balancer to an application~\cite{lin2016scalable}. Some applications create a TCP socket to key-value store for each request they process~\cite{nishtala2013scaling}.
 
 %The key to multi-core scalability and inter-process isolation is to avoid synchronization and state sharing. 
 %We further minimize message passing by partitioning socket states to each process. We implement the socket APIs \textit{as locally as possible}. In particular, we allocate file descriptors, buffers and manage socket options in the caller process. For non-local operations, we make the best effort to \textit{minimize centralized coordination and blocking wait}. Data transmission and event multiplexing operations (\textit{e.g.} \texttt{send}, \texttt{recv} and \texttt{epoll}) only need non-blocking access to peer-to-peer communication channels. For connection establishment, each server has a coordinator process, called \textit{monitor}, to load balance incoming connections, setup inter-process queues and enforce ACL policies. Delegation to the monitor is more secure and efficient than inter-process synchronization~\cite{roghanchi2017ffwd}.
 
 For security, we design a \emph{monitor} daemon as the control plane to process privileged operations and enforce access control policies.
-Data plane (e.g. send/recv) is transferred peer-to-peer to achieve scalable performance.
+Data plane (send/recv) is transferred peer-to-peer to achieve scalable performance.
 To avoid synchronization in multi-thread applications, each thread is treated as a separate process, even if the threads have shared memory address space.
 To support fork, we consider all processes in a host as a shared-nothing distributed system that communicates via message passing.
-\textbf{How to support fork?}
+In both multi-thread and multi-process scenarios, a connection may be shared by multiple senders and receivers.
+To preserve FIFO semantics, we optimize for the common case while prepare for the worst case.
 
 %We further partition socket states to each process and implement the socket APIs \textit{as local to the process as possible}.
 
 To handle many concurrent connections efficiently, we need to save memory footprint and improve spatial locality.
-For each pair of processes, \sys multiplexes socket connections through one queue.
-\textbf{How to solve head of line blocking?}
+For each pair of threads, \sys multiplexes socket connections through one queue.
+Rather than maintaining a separate buffer for each connection and an event notification queue, we send to and receive from the queue in place.
+Observing the event-driven behavior of applications, in normal case the data in queue is fetched by the application in send order.
+We design carefully to enable fetching from the middle of queue and solve the head-of-line blocking problem.
 
 We leverage different transports to push the limits of underlying hardware.
 For inter-process and inter-container communication within a same host, we use shared memory in user space.
 For communication among hosts in an RDMA enabled data center, \sys can transparently determine whether the remote endpoint supports \sys.
 If so, we offload the TCP/IP stack to RDMA NICs. If not, we fall back to kernel socket.
-First, we design different queue structures for shared memory and RDMA transports.
-We use one-sided RDMA write and shared CQ to amortize polling overhead.
-In \sys, sending a small message involves only one cache migration or one-sided RDMA write.
+First, we design different queue structures for shared memory and RDMA.
+We use batched one-sided RDMA write and amortize polling overhead with shared CQ.
+%In \sys, sending a small message involves only one cache migration or one-sided RDMA write.
 To remove memory copy for large messages, we use \emph{page remapping} to achieve transparent zero copy.
-To share a CPU core efficiently among multiple active processes or threads, observing the event-driven behavior of applications, \sys uses \emph{cooperative multitasking} to remove kernel event processing overhead.
+To share a CPU core efficiently among multiple active processes or threads, \sys uses \emph{cooperative multitasking} to remove kernel event processing overhead.
 
 
 %The POSIX socket API was designed for networking and IPC in millisecond scale, leading to two performance challenges. First, connections are shared by processes and threads after \texttt{fork} and thread creation. Linux protects this multi-producer multi-consumer FIFO with locks. To scale a shared socket, we \textit{optimize for the common case and prepare for the worst case}. Senders transmit data via different queues in parallel. To ensure receiver ordering, based on the observation that applications seldom receive concurrently from a shared socket, the sender designates a receiver with exclusive access. We further develop mechanisms to avoid deadlock and starvation, in addition to handling unconsumed buffers during \texttt{fork} and thread creation.
@@ -79,11 +86,18 @@ To share a CPU core efficiently among multiple active processes or threads, obse
 %First, we intercept \texttt{memcpy} of full pages to reduce copy-on-write. Second, we move kernel-based page allocation to user-space while preserving security.
 %As a result, we achieve zero copy for both shared memory, RDMA and TCP transport.
 
-\sys{} achieves latency and throughput that is close to the raw performance of shared memory and RDMA.
+\sys{} achieves latency and throughput close to the raw performance of shared memory and RDMA.
 On the latency side, \sys{} achieves $0.3\mu$s RTT for intra-server socket, 35x lower than Linux and only $0.05\mu$s higher than a bare-metal shared memory queue. For inter-server socket, \sys{} achieves $1.7\mu$s RTT between RDMA hosts, almost the same as raw RDMA verbs and 17x lower than Linux.
 On the throughput side, a single thread can send 23~M intra-server messages per second (20x Linux) or 8~M inter-server (7x Linux). For large messages, with zero copy, a single connection saturates an 100~Gbps NIC. Each thread can establish 1.4~M new connections per second (20x Linux). The performance above is scalable with number of cores and concurrent connections, and do not degrade with multiple threads.
 
-We evaluate end-to-end performance of \sys{} using two categories of applications: \textit{network functions} and \textit{web services}. For a multi-core pipelined network function (NF) chain, a socket application achieves comparable performance with a state-of-the-art NF framework~\cite{panda2016netbricks}. We also evaluate \sys{} on a standard web application composed of a load balancer, a web service and a key-value store.
-For an HTTP request that involves multi-round-trip key-value store accesses, \sys{} reduces end-to-end latency by 2/3.
+\textbf{End-to-end performance.}
 
-\textbf{The main contributions of this paper are summarized as follows:}
+%We evaluate end-to-end performance of \sys{} using two categories of applications: \textit{network functions} and \textit{web services}. For a multi-core pipelined network function (NF) chain, a socket application achieves comparable performance with a state-of-the-art NF framework~\cite{panda2016netbricks}. We also evaluate \sys{} on a standard web application composed of a load balancer, a web service and a key-value store.
+%For an HTTP request that involves multi-round-trip key-value store accesses, \sys{} reduces end-to-end latency by 2/3.
+
+This paper makes the following contributions:
+\begin{itemize}[noitemsep,nolistsep]
+	\item A socket architecture in user space that uses a trusted monitor for control plane and peer-to-peer queues for data plane.
+	\item A user-space library that efficiently multiplexes kernel system calls and 
+	\item A multi-sender and multi-receiver lockless queue to fully support fork and multi-thread socket sharing.
+\end{itemize}
