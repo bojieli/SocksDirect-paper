@@ -293,9 +293,11 @@ For inter-server communication inside data centers, RDMA is a good option as it 
 	\hline
 	Scale to multiple cores & \yes & \yes & \yes & \yes & \yes & \yes & \yes & \yes & & \yes \\
 	\hline
-	Multiple threads share a socket & & & & & & & & & & \yes \\
+	Multiple threads share a connection & & & & & & & & & & \yes \\
 	\hline
 	Multiple threads share a CPU core & & & & & & & & & & \yes \\
+	\hline
+	Socket-compatible zero copy & & & & & & & & & & \yes \\
 	\hline
 	\end{tabularx}
 }
