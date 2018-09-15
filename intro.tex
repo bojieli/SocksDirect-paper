@@ -81,7 +81,7 @@ The data plane is composed of applications with a dynamically loaded user-space 
 \libipc{} delegates connection creation to the local monitor, while implements data transmission and event polling peer-to-peer to achieve scalable performance.
 
 
-We face several additional performance challenges.
+However, we face three performance challenges.
 (1) How to share a socket among threads and forked processes without locking?
 (2) How to scale to many concurrent connections?
 (3) How to utilize shared memory and RDMA efficiently for intra- and inter-host communication?
