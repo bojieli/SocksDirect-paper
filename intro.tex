@@ -36,7 +36,7 @@ Third, they fail to remove some of the important overheads such as multi-thread 
 We design \sys{}, a user-space socket architecture with compatibility, security and performance.
 \begin{ecompact}
 	\item \textbf{Compatibility}.
-	First, existing applications can use \sys{} transparently, without code modification.
+	First, existing applications can use \sys{} as a drop-in replacement with no modification.
 	Second, it supports both intra-host and inter-host communication.
 	Third, it behaves correctly with fork or thread creation.
 	Finally, if the remote peer does not support \sys{}, it falls back to kernel TCP socket transparently.
