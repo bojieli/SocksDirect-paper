@@ -248,8 +248,63 @@ For inter-server communication inside data centers, RDMA is a good option as it 
 \subsection{Related Work}
 \label{sec:related}
 
+\begin{table*}[t]
+\centering
+\scalebox{0.68}{
+	\begin{tabularx}{1.45\textwidth}{l|X|X|X|X|X|X|X|X|X|X|}
+	\hline
+	 & FastSocket & StackMap & IX & Arrakis & F-Stack / mTCP & Rsocket / SDP & LibVMA & OpenOnload & FreeFlow & SocksDirect \\
+	\hline
+	\hline
+	\multicolumn{11}{c|}{Compatibility} \\
+	\hline
+	\hline
+	Transparent to existing applications & \yes &   & \yes & \yes &   & \yes & \yes & \yes & \yes & \yes \\
+	\hline
+	Intra-host communication & \yes & \yes & & \yes & & & & & \yes & \yes \\
+	\hline
+	Container overlay network & & & & & & & & & \yes & \yes \\
+	\hline
+	Multiple applications listen a port & \yes & \yes & & & & & & & & \yes \\
+	\hline
+	Full fork support & \yes & \yes & & & & & & \yes & & \yes \\
+	\hline
+	Compatible with regular TCP peers &	\yes & \yes & \yes & \yes & \yes & & \yes & \yes & & \yes \\
+	\hline
+	\hline
+	\multicolumn{11}{c|}{Security and Isolation} \\
+	\hline
+	\hline
+	Access control policy & Kernel & & Kernel & Kernel & & Kernel & & & vSwitch & monitor \\
+	\hline
+	Isolation among containers / VMs & \yes & & \yes & \yes & & \yes & & & \yes & \yes \\
+	\hline
+	QoS (performance isolation) & Kernel & Kernel & Kernel & NIC & & NIC & & & vSwitch & NIC \\
+	\hline
+	\hline
+	\multicolumn{11}{c|}{Performance Optimizations} \\
+	\hline
+	\hline
+	Offload transport to RDMA NIC & & & & & & \yes & & & \yes & \yes \\
+	\hline
+	Many concurrent connections & \yes & \yes & \yes & \yes & \yes & & & & & \yes \\
+	\hline
+	Kernel bypass & & & & \yes & \yes & Partial & \yes & \yes & \yes & \yes \\
+	\hline
+	Scale to multiple cores & \yes & \yes & \yes & \yes & \yes & \yes & \yes & \yes & & \yes \\
+	\hline
+	Multiple threads share a socket & & & & & & & & & & \yes \\
+	\hline
+	Multiple threads share a CPU core & & & & & & & & & & \yes \\
+	\hline
+	\end{tabularx}
+}
+\caption{Comparison of high performance socket systems.}
+\label{tab:related-work}
+\vspace{-10pt}
+\end{table*}
 
-
+\iffalse
 \begin{table*}[t]
 	\centering
 	\scalebox{0.88}{
@@ -291,6 +346,7 @@ For inter-server communication inside data centers, RDMA is a good option as it 
 	\label{tab:related-work}
 	\vspace{-10pt}
 \end{table*}
+\fi
 
 
 There has been extensive work aiming to make the best use of multi-core CPU and data center network. Table~\ref{tab:related-work} categorizes several representative approaches.
