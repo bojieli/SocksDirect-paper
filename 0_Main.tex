@@ -44,6 +44,28 @@
 \setlength{\columnsep}{0.33in}
 \setlength{\textwidth}{7.0in}
 
+\newenvironment{icompact}{
+	\begin{list}{$\bullet$}{
+			\parsep 1pt plus 1pt
+			\partopsep 1pt plus 1pt
+			\topsep 1pt plus 2pt minus 1pt
+			\itemsep 1.5pt plus 1pt
+			\parskip 0pt plus 2pt
+			\leftmargin 0.15in}
+	}
+	{\normalsize\end{list}}
+
+\newenvironment{ecompact}{
+	\begin{list}{$\bullet$}{
+			\parsep 1pt plus 1pt
+			\partopsep 1pt plus 1pt
+			\topsep 1pt plus 2pt minus 1pt
+			\itemsep 1.5pt plus 1pt
+			\parskip 0pt plus 2pt
+			\leftmargin 0.15in}
+	}
+	{\normalsize\end{list}}
+
 %
 % import the customized commands
 %
