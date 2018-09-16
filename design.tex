@@ -32,8 +32,18 @@
 	\end{minipage}
 \end{figure*}
 
-
-As shown in Figure~\ref{fig:architecture}, ...
+To achieve high performance while preserving security, we design a \emph{monitor} daemon in each host to coordinate control-plane operations, while establish queues between each pair of applications to scale data-plane performance.
+As shown in Figure~\ref{fig:architecture}, the core component of \sys{} is a user-space library \libipc{}.
+An application can load \libipc{} simply by setting the \texttt{LD\_PRELOAD} environment variable.
+\libipc{} intercepts all Linux APIs in \texttt{glibc} that are related to file operations.
+It implements socket operations in user space and forwards other operations to the kernel.
+During initialization, \libipc{} connects to the monitor in local host via shared memory queue.
+To enforce access control policy, support overlay networks and load balance new connections to multiple listeners, every new connection request is sent to the local monitor.
+If the peer is in local host, the monitor establishes a shared memory queue between the two applications (possibly in different containers), so they can communicate directly since then.
+When the monitor connects to another host for the first time, it establishes a regular TCP connection and detects whether the remote host supports \sys{}.
+If so, it establishes an RDMA queue between two monitors, so future connections between the two hosts can be established faster.
+The monitor on the remote side dispatches the connection to the peer and helps the two applications establish an RDMA queue, as between host 1 and 2 in Figure~\ref{fig:architecture}.
+If the remote host does not support \sys{}, it keeps using the TCP connection, as between host 1 and 3 in Figure~\ref{fig:architecture}.
 
 
 %Inspired by Unikernels~\cite{madhavapeddy2013unikernels}, we move networking and IPC functions from the kernel to user space. Similar to existing works~\cite{peter2016arrakis,jeong2014mtcp,libvma}, we leverage multiple queues in modern NICs to enable user-space direct access to network. %The kernel is still responsible for process creation, scheduling, virtual memory and device management, but no longer on the critical path of performance.
@@ -47,6 +57,15 @@ As shown in Figure~\ref{fig:architecture}, ...
 
 \parab{Connection creation.}
  in Figure~\ref{fig:conn-setup}...
+
+During initialization, \libipc{} connects to the monitor in local host via TCP socket (called \emph{bootstrap socket}) and establishes a shared memory queue between them.
+Since then, communication between the application and monitor go through the shared memory queue.
+
+When an application creates a connection, it sends the request to monitor.
+The monitor dispatches the new connection to a listening process (note that there may be many operations).
+
+(a TCP socket on localhost or a local container in overlay network, or a UNIX socket), it connects 
+
 
 Client application sends a request to client monitor.
 Monitor translates IP addresses (NAT), and forward the request to server application:
@@ -80,7 +99,7 @@ Otherwise, the monitor proxies messages between the application and kernel TCP s
 \textbf{Above is draft.}
 
 \parab{\texttt{Socket}.}
-To create a socket connection, an application first calls \texttt{socket} to get a \textit{file descriptor} (FD). 
+As shown in Figure~\ref{fig:socket-pseudo-code}, to create a socket connection, an application first calls \texttt{socket} to get a \textit{file descriptor} (FD). 
 %Although Linux globally allocates the lowest available file descriptor, this property is rarely used~\cite{han2012megapipe,huang2017high}. We relax the semantics and maintains an FD table in each process. 
 We maintains an FD table for each process. Upon allocation, \libipc{} finds an idle FD from the table or doubles the table size if none available. 
 %The table is a vector of socket information with an allocation pointer, indexed by FD. Upon allocation, \libipc{} linearly moves the allocation pointer and finds the first idle FD. When the vector is more than half full, its size is doubled. This allows amortized O(1) allocation and O(1) lookup and deletion.
