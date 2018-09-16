@@ -94,6 +94,7 @@ After corner-case operations such as \texttt{fork}, the performance converges qu
 
 
 \subsection{Methodology}
+\label{subsec:methodology}
 
 We evaluate \sys on servers with two Xeon E5-2698 v3 CPUs, 256~GiB memory and a Mellanox ConnectX-4 NIC. The servers are interconnected via an Arista 7060CX switch, supporting 56 Gbps bandwidth per port. We use RoCEv2 for RDMA and poll completion queue every 64 messages.
 Each thread is pinned on a CPU core. We run tests for enough warm-up rounds before collecting data. For latency, we report the mean, with error bars representing 1\% and 99\% percentile.

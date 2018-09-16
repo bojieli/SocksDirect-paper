@@ -15,9 +15,10 @@ Communication intensive applications such as distributed key-value stores and we
 
 There has been extensive work aiming at reducing the socket overhead.
 These approaches still have limitations.
-First, many user-mode sockets do not support intra-host communication among containers and applications.
-Second, they either incur the overhead of kernel or virtual switch, or expose shared NIC queues directly to applications, thus do not provide isolation among applications and cannot enforce access control policies.
-Third, they fail to remove some of the important overheads such as multi-thread synchronization, memory copy and TCP/IP packet processing.
+First, many user-space sockets are not fully compatible with existing applications, e.g., fork(), multiple processes listen a same port, and intra-host communication among containers and applications.
+Second, several user-space sockets have security problems because applications can directly access shared NIC queues, thus violate process isolation and cannot enforce access control policies.
+Other works preserve security, but incur the overhead of kernel or virtual switch.
+Third, none of existing works achieve performance close to bare-metal RDMA because they fail to remove some of the important overheads such as multi-thread synchronization, memory copy and TCP/IP packet processing.
 %In addition, when the number of active threads is larger than that of CPU cores, polling and kernel event notification are a dilemma.
 %Finally, they cannot take advantage of low latency networking provided by RDMA.
 %These approaches still have limitations, either not fully removing some of the important overheads such as context switch and synchronization~\cite{lin2016scalable,han2012megapipe,jeong2014mtcp,baumann2009multikernel}, not fully compatible with Linux socket API, or cannot take advantage of modern networking hardware capabilities such as RDMA~\cite{dunkels2001design,jeong2014mtcp,libvma,openonload}.
