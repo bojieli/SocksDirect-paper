@@ -316,7 +316,7 @@ We aim to deliver consistent high throughput and low latency regardless of the n
 			\hline
 		\end{tabular}
 	}
-	\vspace{-10pt}
+	\vspace{-5pt}
 	\caption{Round-trip latency and per-core throughput of operations (testbed settings in Sec.\ref{subsec:methodology}). Message size is 8 bytes if not specified.}
 	\vspace{-10pt}
 	\label{tab:operation-performance}
@@ -330,7 +330,7 @@ Arrakis uses the NIC to forward packets from one application to another.
 As shown in Figure~\ref{tab:operation-performance}, the hairpin latency from CPU to NIC is 25x higher than inter-core cache migration delay.
 The throughput is also constrained by MMIO doorbell latency and PCIe bandwidth.
 
-We aim to leverage shared memory queue in user space as intra-server transport.
+We aim to leverage user-space shared memory for intra-host transport.
 
 \parab{Container overlay network.}
 Many container deployments use isolated network namespaces for containers, which communicate via a virtual overlay network.
