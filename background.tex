@@ -389,7 +389,7 @@ Second, we leverage the fact that shared memory message passing is much cheaper 
 \parab{Multiple threads share a CPU core.}
 Most user-space stacks use polling to avoid the latency of interrupt and thread wakeup in the kernel.
 However, polling does not work when the number of threads exceed the number of CPU cores, and multiple threads have to share a core.
-As Table~\ref{tab:operation-performance} shows, if we use semaphore, mutex or \texttt{futex} to wake up a sleeping thread, it is 5x$\sim$10x slower than cooperative context switch via \texttt{sched\_yield}.
+To switch thread contexts, as Table~\ref{tab:operation-performance} shows, if we use semaphore, mutex or \texttt{futex} to wake up a sleeping thread, it is 5x$\sim$10x slower than cooperative context switch via \texttt{sched\_yield}.
 %This extra latency is due to event notification mechanism and process scheduler in kernel.
 
 We aim to use cooperative multitasking instead of kernel thread wakeup mechanisms.
