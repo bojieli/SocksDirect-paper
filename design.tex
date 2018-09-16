@@ -4,37 +4,80 @@
 \subsection{Architecture}
 \label{subsec:architecture}
 
-\begin{figure}[t]
+\begin{figure*}[t!]
 	\centering
-	\includegraphics[width=0.45\textwidth]{images/architecture_new}
-	\vspace{-5pt}
-	\caption{Architecture of \sys{}.}
-	\label{fig:architecture}
-	\vspace{-15pt}
-\end{figure}
+	\begin{minipage}{.44\textwidth}
+		\centering
+		\includegraphics[width=\textwidth]{images/architecture_new}
+		\vspace{-5pt}
+		\caption{Architecture of \sys{}. Host 1 and 2 are RDMA capable, while host 3 is a regular TCP/IP host.}
+		\label{fig:architecture}
+		\vspace{-15pt}
+	\end{minipage}
+	\begin{minipage}{0.3\textwidth}
+		\centering
+		\includegraphics[width=\textwidth]{images/conn-setup-new}
+		\caption{State machine of connection creation.}
+		\vspace{-5pt}
+		\label{fig:conn-setup}
+		\vspace{-15pt}
+	\end{minipage}
+	\begin{minipage}{0.24\textwidth}
+		\centering
+		\includegraphics[width=\textwidth]{images/conn-close-new}
+		\caption{State machine of connection close.}
+		\vspace{-5pt}
+		\label{fig:conn-close}
+		\vspace{-15pt}
+	\end{minipage}
+\end{figure*}
 
 
-Inspired by Unikernels~\cite{madhavapeddy2013unikernels}, we move networking and IPC functions from the kernel to user space. Similar to existing works~\cite{peter2016arrakis,jeong2014mtcp,libvma}, we leverage multiple queues in modern NICs to enable user-space direct access to network. %The kernel is still responsible for process creation, scheduling, virtual memory and device management, but no longer on the critical path of performance.
-To maintain compatibility with existing Linux applications, we design a user-mode library \libipc as a drop-in replacement of the system call wrappers in the GNU C library (glibc). \libipc{} implements network socket functions in user mode, and adds a wrapper to other system calls to track process creation and memory allocation. \libipc{} is not considered a secure domain, as it shares memory space with the application. When \libipc{} is loaded, it creates a Linux native \textit{bootstrap socket} to the \textit{monitor} daemon, then creates a shared memory queue to the monitor.
+As shown in Figure~\ref{fig:architecture}, ...
 
-Even though multiple threads in the same process share memory space, we still treat each thread as a separated process and use thread-specific storage to store states in \libipc. In the following text, unless explicitly mentioned, we use a ``process'' to refer to a regular process or a thread.
 
-%\subsection{Connection Management}
-%\label{subsec:socket-api}
+%Inspired by Unikernels~\cite{madhavapeddy2013unikernels}, we move networking and IPC functions from the kernel to user space. Similar to existing works~\cite{peter2016arrakis,jeong2014mtcp,libvma}, we leverage multiple queues in modern NICs to enable user-space direct access to network. %The kernel is still responsible for process creation, scheduling, virtual memory and device management, but no longer on the critical path of performance.
+%To maintain compatibility with existing Linux applications, we design a user-mode library \libipc as a drop-in replacement of the system call wrappers in the GNU C library (glibc). \libipc{} implements network socket functions in user mode, and adds a wrapper to other system calls to track process creation and memory allocation. \libipc{} is not considered a secure domain, as it shares memory space with the application. When \libipc{} is loaded, it creates a Linux native \textit{bootstrap socket} to the \textit{monitor} daemon, then creates a shared memory queue to the monitor.
 
-\subsection{Control and Data Plane Separation}
-\label{subsec:monitor}
+%Even though multiple threads in the same process share memory space, we still treat each thread as a separated process and use thread-specific storage to store states in \libipc. In the following text, unless explicitly mentioned, we use a ``process'' to refer to a regular process or a thread.
 
-%\subsubsection{Connection Creation}
-%\label{subsubsec:connection_management}
+\subsection{Connection Management}
+\label{subsec:socket-api}
 
-\begin{figure}[t]
-	\centering
-	\includegraphics[width=0.45\textwidth]{images/conn-setup}
-	\caption{Message flow of connection setup and close.}
-	\label{fig:conn-setup}
-	\vspace{-15pt}
-\end{figure}
+
+\parab{Connection creation.}
+ in Figure~\ref{fig:conn-setup}...
+
+Client application sends a request to client monitor.
+Monitor translates IP addresses (NAT), and forward the request to server application:
+If the server application is in the same host, forward the command to server application.
+If the client and server applications are in different hosts:
+If client monitor has connected to server monitor, forward the request to server monitor.
+Otherwise, the client monitor and server monitor establish an RDMA connection (details in next slide).
+The server monitor forwards the command to server application.
+If the client application has not connected to the server application, the server monitor helps the client and server establish a direct connection.
+For intra-host, the monitor allocates a shared memory and sends the shared memory key to both client and server applications.
+For inter-host, the client and server monitors proxy information between client and server applications during RDMA setup.
+The server application sends a response to client application containing FD mapping. The server application can start sending data immediately after sending the response.
+When the client application receives the response, it can start sending data.
+
+
+\parab{Connection close.} in Figure~\ref{fig:conn-close}...
+
+\parab{Detect whether the peer supports \sys{}.}
+Goals: Both client and server can detect whether the peer supports SocksDirect. Use kernel TCP when the peer does not support SocksDirect. No change to kernel.
+Server monitor opens a raw socket with libpcap to capture SYN packets to listening ports.
+Client monitor opens a raw socket with libpcap to send TCP SYN with a special TCP option, then wait for SYN+ACK response.
+If server monitor receives a TCP SYN with special option, respond SYN+ACK with special option and begin SocksDirect establishment.
+If client monitor receives a TCP SYN+ACK with special option, the peer supports SocksDirect.
+To avoid the kernel TCP stack from sending RST packets, install firewall rules to block incoming SYN and outgoing RST.
+If the peer does not support SocksDirect:
+The monitor creates a kernel TCP connection using TCP restore functionality.
+If the application is able to share network namespace with the monitor, send the restored TCP connection to the application via “sendmsg”. Then the application can use the kernel TCP socket.
+Otherwise, the monitor proxies messages between the application and kernel TCP socket.
+
+
+\textbf{Above is draft.}
 
 \parab{\texttt{Socket}.}
 To create a socket connection, an application first calls \texttt{socket} to get a \textit{file descriptor} (FD). 
@@ -71,31 +114,10 @@ When application shuts down one direction of a connection, it sends a \textit{sh
 
 
 
-\subsection{Multiplex Connections via a Queue}
-\label{subsec:multiplex-conn}
-
-%\subsection{Data Transmission}
-%\label{subsec:data_trans}
-
-To scale the system with multiple cores, each process should be able to transmit data directly to the peer without notifying monitor. As shown in Table~\ref{tab:socket-api}, we design all APIs in data transmission to be peer-to-peer or local.
-
-\parab{Multiplex connections in event-driven applications.}
-To reduce memory footprint and improve locality of memory accesses, we use one queue to multiplex all connections between a pair of processes. Each data item in the queue is marked with its FD. By using a single queue, we save per-socket memory footprint, and random memory accesses and cache misses are reduced (See Sec.~\ref{subsec:challenges}). However, head-of-line blocking problem would arise if the queue is FIFO. 
-%If we use a FIFO queue, the application would block if it \texttt{recv} from a connection with data not at the head of queue. 
-Therefore, the queue needs to support picking a message in the middle with a specific FD. 
-Fortunately, this does not happen frequently. Event-driven applications typically process incoming events in a FIFO order. For \texttt{epoll\_wait} in level trigger mode, we iterate through all messages in the queue and return those in the set of registered FDs. When applications call \texttt{recv}, \libipc{} would usually dequeue the message at head. %Because both \texttt{epoll\_wait} and \texttt{recv} access a same queue, each data transmission involves only one cache migration.
-
-To poll events from sockets and other FDs (handled by kernel) at the same time, \libipc{} creates an \textit{epoll thread} in each process to wait on all FDs handled by kernel. When it receives a kernel event, it broadcasts the event to application threads via shared memory queues. %\texttt{Epoll\_wait} in \libipc{} will return such kernel events in addition to socket events. %Note that Linux allows an event to be received by multiple threads sharing the FD.
-
-\parab{Head-of-line blocking.}
-Head-of-line blocking causes two problems. First is to receive control messages when the queue is full. For example, in order to close the receive direction while sending data, the shutdown message should not be blocked by unconsumed data in the queue. To transfer control messages out-of-band, we add an \textit{emergency queue} alongside each data queue.
-
-Second, if application does not receive from an FD for a long time, data items of the FD may fill up the queue and starve other FDs. To avoid starvation, we need at least one byte of headroom per FD. Accordingly, we design a single byte \textit{headroom slot} per FD. When data queue is full and the per-FD headroom slot is free, sender uses it and sends a notification via emergency queue. Receiver receives from data queue first, then from the headroom slot if it received a notification.
 
 
 
-
-\subsection{Multi-Process Shared Socket}
+\subsection{Sharing a Socket Among Processes}
 \label{subsec:fork}
 Process fork and thread creation are ubiquitous in modern applications. 
 Fork and thread makes sockets to be shared, and thus become a multiple producers or multiple consumers model. With a traditional mutual exclusion solution, the multi-process scalability of socket is limited. Our aim is to maximize the common-case performance while keeping compatibility with Linux socket.
@@ -233,4 +255,36 @@ When a process calls \texttt{close}, all its peers cannot send to or receive fro
 %In \libipc, we make the choice that the order of fork and close is determined at the start point of the fork operation and the end point (after receiving all the ACKs). By making this choice, when a process waiting fork close ACK encounters fork message, it could send a separate close request to newly created process, which guarantees all the processes closed.
 
 
+\subsection{Multiplex Sockets via One Queue}
+\label{subsec:multiplex-conn}
+
+To scale the system with multiple cores, each process should be able to transmit data directly to the peer without notifying monitor. As shown in Table~\ref{tab:socket-api}, we design all APIs in data transmission to be peer-to-peer or local.
+
+\parab{Multiplex connections in event-driven applications.}
+To reduce memory footprint and improve locality of memory accesses, we use one queue to multiplex all connections between a pair of processes. Each data item in the queue is marked with its FD. By using a single queue, we save per-socket memory footprint, and random memory accesses and cache misses are reduced (See Sec.~\ref{subsec:challenges}). However, head-of-line blocking problem would arise if the queue is FIFO. 
+%If we use a FIFO queue, the application would block if it \texttt{recv} from a connection with data not at the head of queue. 
+Therefore, the queue needs to support picking a message in the middle with a specific FD. 
+Fortunately, this does not happen frequently. Event-driven applications typically process incoming events in a FIFO order. For \texttt{epoll\_wait} in level trigger mode, we iterate through all messages in the queue and return those in the set of registered FDs. When applications call \texttt{recv}, \libipc{} would usually dequeue the message at head.
+
+We maintain a bitmap of the epoll FD set.
+When epoll\_wait() is called, we scan all data queues round-robin and check the FD of each data message against the bitmap. If the FD is in the bitmap, an event is returned to the application.
+A global cursor is maintained to resume data queue scanning from the last position in the last scanned queue.
+A per-queue cursor records the last scanned position in each queue to avoid scanning a message twice.
+Each FD maintains the positions of the first and last scanned (but unread) message of the FD.
+When a new message of the FD is scanned, a pointer in the last message is updated to point to the new message. This chains received messages of a FD to a linked list.
+This is to speedup receive operation. When an application attempts to receive multiple messages from a FD, it can follow the linked list rather than scanning through the whole queue.
+
+%Because both \texttt{epoll\_wait} and \texttt{recv} access a same queue, each data transmission involves only one cache migration.
+
+To poll events from sockets and other FDs (handled by kernel) at the same time, \libipc{} creates an \textit{epoll thread} in each process to wait on all FDs handled by kernel. When it receives a kernel event, it broadcasts the event to application threads via shared memory queues. %\texttt{Epoll\_wait} in \libipc{} will return such kernel events in addition to socket events. %Note that Linux allows an event to be received by multiple threads sharing the FD.
+
+\parab{Head-of-line blocking.}
+Head-of-line blocking causes two problems.
+First is to receive control messages when the queue is full. For example, in order to close the receive direction while sending data, the shutdown message should not be blocked by unconsumed data in the queue. To transfer control messages out-of-band, we add an \textit{emergency queue} alongside each data queue.
+A receiver will always retrieve messages in the emergency queue immediately.
+
+Second, if application does not receive from an FD for a long time, data items of the FD may fill up the queue and starve other FDs.
+When data queue is full, the sender sends a message via emergency queue to trigger garbage collection in the receiver.
+The receiver scans empty space in the middle of queue and moves messages closer to the tail, so that empty space are collected at the head and can be returned to the sender.
+%To avoid starvation, we need at least one byte of headroom per FD. Accordingly, we design a single byte \textit{headroom slot} per FD. When data queue is full and the per-FD headroom slot is free, sender uses it and sends a notification via emergency queue. Receiver receives from data queue first, then from the headroom slot if it received a notification.
 
