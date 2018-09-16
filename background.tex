@@ -399,7 +399,7 @@ We aim to use cooperative multitasking instead of kernel thread wakeup mechanism
 
 \parab{Socket-compatible zero copy.}
 The semantics of socket \texttt{send} and \texttt{recv} APIs cause memory copies between application and network stack. For \texttt{send}, the application may overwrite the memory right after \texttt{send} returns. Simply removing these copies may violate application correctness. For \texttt{recv}, application provides a buffer and read the data in buffer after \texttt{recv} returns. If we buffer data on the sender and only transmit it on \texttt{recv}, the receiver needs to wait for a round-trip time. For this reason, most socket implementations buffer data on the receiver and copy it to application on \texttt{recv}.
-Many user-space sockets provide alternative APIs to achieve zero copy, but none of them can eliminate copies on both send and receive path for unmodified applications.
+Many user-space sockets provide both standard socket API and an alternative zero-copy API, but none of them achieve zero copy for the standard API on both send and receive paths.
 
 We aim to achieve zero copy for large transfers without changing applications. Rather than copying, we map the physical pages to new virtual addresses. However, as Table~\ref{tab:operation-performance} shows, remapping a single page is more expensive than copying it, because of kernel crossing and TLB flush. Hence, we batch page mapping operations to amortize the overhead.
 
