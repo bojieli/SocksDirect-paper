@@ -86,7 +86,7 @@ These design requirements lead to a \emph{monitor} service running as a daemon p
 Rather than delegating all operations to the monitor, we only delegate the connection creation procedure, which forms the control plane.
 From the application's perspective, connection creation procedure is similar to TCP handshake.
 Monitor(s) on the path between client and server applications proxy the handshake commands and help them establish a peer-to-peer queue via shared memory or RDMA.
-If the peer does not support \sys{}, all future operations are proxied and translated by the local monitor.
+If the peer does not support \sys{}, all future operations are delegated by the local monitor.
 The detailed procedure is as follows.
 
 \parab{Initialization.}
