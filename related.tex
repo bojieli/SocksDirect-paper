@@ -1,12 +1,25 @@
 \section{Discussion}
 \label{sec:discussion}
 
+\textbf{Communicating with TCP/IP peers.}
+In Sec.~\ref{subsec:connection-management}, we use a user-space networking stack to communicate with regular TCP/IP peers, but it is known that the compatibility is limited~\cite{yasukata2016stackmap}.
+In this scenario, after receiving the TCP SYN+ACK, the monitor can create an established kernel TCP connection using TCP connection repair~\cite{tcp-connection-repair}, so the monitor can use the kernel TCP/IP stack since then.
+Moreover, if the application and monitor share a network namespace, the monitor can send the kernel FD to the application via UNIX domain socket, then \libipc{} can use the FD directly without delegation to the monitor.
+
+\textbf{Connecting to a lot of RDMA capable hosts.}
+Sec.~\ref{subsec:multiplex-conn} multiplexes connections between a pair of threads, but it cannot reduce the number of RDMA connections with a lot of hosts.
+In this scenario, the NIC will still suffer from performance degradation.
+In contrast, user-space networking stack alleviates this problem because the NIC is stateless.
+We provide a socket option to enable applications to delegate operations to the monitor and use user-space networking stack even if the peer supports RDMA.
+An application can choose to use RDMA for latency sensitive and throughput demanding connections, and user-space networking stack for others.
+
 
 \section{Related Work}
 \label{sec:related-work}
 
 Several mostly related works have been discussed in Sec.~\ref{subsec:related-work}.
 
+\iffalse
 \parab{Linux kernel optimization.}
 One line of research optimizes the kernel stack for higher socket performance. FastSocket~\cite{lin2016scalable} and Affinity-Accept~\cite{pesterev2012improving} scale connection creation to multiple cores, but synchronization is still needed when multiple threads share a socket.
 FlexSC~\cite{soares2010flexsc} proposes exception-less system calls to reduce kernel crossing overhead.
@@ -42,7 +55,7 @@ Existing socket to RDMA translation approaches, \textit{e.g.} SDP~\cite{socketsd
 
 %\parab{RDMA.}
 %First, RDMA is not suitable for WAN. Second, RDMA has scalability issue when one server connects to many servers. Software transport in CPU access connection states in host memory, while hardware RDMA transport caches connection states in NIC and swaps out to host memory when cache overflows. First, CPU cache miss costs less than 0.1$\mu$s, while NIC cache miss costs 0.5$\mu$s~\cite{kaminsky2016design}. Second, CPU memory bandwidth is an order of magnitude larger than NIC PCIe bandwidth. In light of this, a host should switch to software transport when it actively communicates with a large number of hosts. Fortunately, Modern NICs has an increasing size of memory and supports more active connections without performance degradation~\cite{kaminsky2016design}.
-
+\fi
 
 
 \iffalse

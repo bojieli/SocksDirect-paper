@@ -42,7 +42,7 @@ If the remote host does not support \sys{}, it keeps using the TCP connection, a
 The detailed connection management protocol is presented in Sec.~\ref{subsec:connection-management}.
 
 In order to remove synchronization overhead for multi-thread applications, we regard each thread as a separate process.
-Although threads in a process share memory, we use thread-specific storage in \libipc{}.
+Although threads in a process share memory, we use thread-specific storage for most states in \libipc{}.
 For a pair of communicating applications, rather than contending on a same queue, we create peer-to-peer queues between each pair of sender and receiver threads, as shown in Figure~\ref{fig:fork-rdwr}.
 In Sec.~\ref{subsec:fork}, we present the peer-to-peer queue design to preserve FIFO ordering semantics and avoid starvation, especially when a process forks or creates a new thread.
 To scale performance in the scenario with many concurrent connections, rather than creating separate queues for each connection, we multiplex data from all connections through one queue.
@@ -54,19 +54,19 @@ In Sec.~\ref{subsec:multiplex-conn}, we present the design of multiplexed queue 
 %Even though multiple threads in the same process share memory space, we still treat each thread as a separated process and use thread-specific storage to store states in \libipc. In the following text, unless explicitly mentioned, we use a ``process'' to refer to a regular process or a thread.
 
 
-\begin{figure}[htbp]
+\begin{figure}[t!]
 	\centering
 	\includegraphics[width=0.3\textwidth]{images/conn-setup-new}
 	\vspace{-5pt}
-	\caption{State machine of connection creation.}
+	\caption{State machine of connection creation in \libipc{}.}
 	\vspace{-10pt}
 	\label{fig:conn-setup}
 \end{figure}
-\begin{figure}[htbp]
+\begin{figure}[t!]
 	\centering
 	\includegraphics[width=0.25\textwidth]{images/conn-close-new}
 	\vspace{-5pt}
-	\caption{State machine of connection close.}
+	\caption{State machine of connection close in \libipc{}.}
 	\label{fig:conn-close}
 	\vspace{-15pt}
 \end{figure}
@@ -75,59 +75,95 @@ In Sec.~\ref{subsec:multiplex-conn}, we present the design of multiplexed queue 
 \subsection{Connection Management}
 \label{subsec:connection-management}
 
-Before designing the connection management protocol, we keep the following requirements in mind: 1) The applications may be in an overlay network and needs address translation. 2) The applications and \libipc{} are not trusted, so we must enforce access control policies on the process boundary to prevent access to restricted resources. 3) Two processes may create multiple concurrent connections and should be accelerated. 4) Each address and port may be listened by multiple processes, which needs load balancing while avoiding starvation.
+Before designing the connection management protocol, we keep the following requirements in mind:
+1) The applications and \libipc{} are not trusted because they are in one memory address space, so we must enforce access control policies outside \libipc{} to prevent access to restricted resources.
+2) Each address and port may be listened by multiple processes, which needs load balancing while avoiding starvation.
+3) The applications may be in an overlay network and thus needs address translation. 
+4) Multiple concurrent connections may be created between two hosts and therefore should be accelerated.
+5) A client should connect to both \sys{} and regular TCP/IP hosts transparently, and a server should accept connections from all hosts.
 
-\parab{Connection creation.}
-in Figure~\ref{fig:conn-setup}...
+These design requirements lead to a \emph{monitor} service running as a daemon process in each host.
+Rather than delegating all operations to the monitor, we only delegate the connection creation procedure, which forms the control plane.
+From the application's perspective, connection creation procedure is similar to TCP handshake.
+Monitor(s) on the path between client and server applications proxy the handshake commands and help them establish a peer-to-peer queue via shared memory or RDMA.
+If the peer does not support \sys{}, all future operations are proxied and translated by the local monitor.
+The detailed procedure is as follows.
 
-During initialization, \libipc{} connects to the monitor in local host via TCP socket (called \emph{bootstrap socket}) and establishes a shared memory queue between them.
+\parab{Initialization.}
+During initialization, \libipc{} connects to the monitor in local host via \emph{bootstrap socket} (a UNIX socket or kernel TCP socket on localhost or overlay network) and establishes a shared memory queue between them.
 Since then, communication between the application and monitor go through the shared memory queue.
 
-When an application creates a connection, it sends the request to monitor.
-The monitor dispatches the new connection to a listening process (note that there may be many operations).
+\parab{Socket creation.}
+An application first creates a socket identified by an integer \emph{file descriptor} (FD).
+Socket FDs and other FDs (e.g. disk files) share a namespace and Linux always allocates the lowest available FD.
+To preserve this semantics without allocating dummy FDs in the kernel, \libipc{} intercepts all FD-related Linux APIs and maintains a FD translation table to map each application FD to a user-space socket FD or a kernel FD.
+When a FD is closed, \libipc{} enqueues it to a \emph{FD recycle queue}.
+Upon FD allocation, \libipc{} first tries to dequeue a FD from the recycle queue.
+If the queue is empty, it allocates a new FD by incrementing a \emph{FD allocation counter}.
+The FD recycle queue and allocation counter are shared among all threads in a process and provides wait-free access with atomic operations.
 
-(a TCP socket on localhost or a local container in overlay network, or a UNIX socket), it connects 
+\parab{Bind.}
+After socket creation, the application calls \texttt{bind} to allocate address and port.
+Because addresses and ports are global resources with permission protection, the allocation is coordinated by the monitor.
+As shown in Figure~\ref{fig:conn-setup}, \libipc{} sends the request to monitor and the monitor sets up an address translation rule between physical and overlay network.
+\libipc{} employs an optimization to return success speculatively if the bind request would not fail, e.g., when port is not specified for client-side sockets.
 
+\parab{Listen.}
+When a server application is ready to accept connections from clients, it calls \texttt{listen} and notifies the monitor.
+The monitor maintains a list of listening processes on each address and port to dispatch new connections.
+The monitor also uses a user-space networking stack (modified LibVMA~\cite{libvma} in our implementation) or \texttt{netfilter} to wait for incoming TCP SYN packets, and inserts flow steering rules in modern NICs or \texttt{iptables} filters to avoid the kernel networking stack from receiving the SYN.
 
-Client application sends a request to client monitor.
-Monitor translates IP addresses (NAT), and forward the request to server application:
-If the server application is in the same host, forward the command to server application.
-If the client and server applications are in different hosts:
-If client monitor has connected to server monitor, forward the request to server monitor.
-Otherwise, the client monitor and server monitor establish an RDMA connection (details in next slide).
-The server monitor forwards the command to server application.
-If the client application has not connected to the server application, the server monitor helps the client and server establish a direct connection.
+\parab{Connect.}
+The client application calls \texttt{connect} and sends a SYN command to monitor via shared memory queue.
+The monitor translates IP addresses and ports for overlay network, then forwards the SYN to the server application.
+If the server application is in the same host, forward the SYN to it directly.
+
+\parab{Differentiate \sys{} peers from regular TCP/IP peers.}
+If the server application is in a different host, the monitor first needs to detect whether the server supports \sys{}.
+To this end, the monitor sends a TCP SYN packet with a special option over the network.
+If the server is \sys{} capable, its monitor would receive the special SYN and knows the client is \sys{} capable.
+It then responds SYN+ACK with special option, including credentials to setup an RDMA connection, so the two monitors can communicate through RDMA since then.
+If either client or server monitor finds that the peer is a regular TCP/IP host, it tells the application to delegate future operations to it, then executes delegated socket operations via the user-space TCP stack, as shown between host 1 and 3 in Figure~\ref{fig:architecture}.
+
+\parab{Dispatch new connections to listeners.}
+Let's continue with the connect creation procedure assuming that both ends support \sys{}.
+The server monitor selects one application from all that listen on a same address and port, then forwards the SYN to server application.
+This differs from Linux where the new connection requests are queued in a \emph{backlog} in the kernel.
+In the Linux design, every time the server \texttt{accept}s a new connection, it accesses the kernel to dequeue a connection from the backlog, which requires synchronization and adds latency.
+In contrast, we maintain a per-listener backlog for every thread that listens on the socket.
+The monitor distributes SYN commands into queues to listeners.
+
+Dispatching connection to listeners may lead to starvation when a listener does not \texttt{accept} new connections.
+We devise a \textit{work stealing} approach.
+When a listener invokes \texttt{accept} while the backlog is empty, it requests the monitor to steal from others' backlog.
+To avoid polling empty backlogs, each listener notifies the monitor when its backlog becomes empty.
+To avoid contention between a listener and monitor, the monitor sends a request to the listener rather than stealing from the backlog directly.
+
+\parab{Establish a peer-to-peer queue.}
+If it is the first time for the client and server applications to communicate, the server monitor helps the them establish a direct connection.
 For intra-host, the monitor allocates a shared memory and sends the shared memory key to both client and server applications.
-For inter-host, the client and server monitors proxy information between client and server applications during RDMA setup.
-The server application sends a response to client application containing FD mapping. The server application can start sending data immediately after sending the response.
-When the client application receives the response, it can start sending data.
+For inter-host, the client and server monitors establish a new RDMA QP, and send the local and remote keys to the corresponding applications.
+To reduce latency, the peer-to-peer queue is established by monitor(s) when the SYN command is distributed into a listener's backlog.
+However, if the SYN is stolen by another listener, a new queue needs to established between client and the new listener, as shown in the Wait-Server state of Figure~\ref{fig:conn-setup}.
+
+\parab{Finalize connection creation.}
+After the server sets up peer-to-peer queue, as the left side of Figure~\ref{fig:conn-setup} shows, the server application sends a ACK to client application containing the client FD in SYN request and its allocated server FD.
+Similar to TCP handshake, the server application can send data to the queue after sending the ACK.
+When the client application receives the ACK, as shown on the right side of Figure~\ref{fig:conn-setup}, it sets up the FD mapping and can start sending data.
+
+\parab{Connection close.}
+Closing a connection is fully peer-to-peer and does not need to involve the monitor.
+Because both shared memory and RDMA are reliable and ordered communication channels, the connection close procedure is simpler than TCP.
+However, we still require a handshake between peers before the FD is deleted and possibly reused by a new connection.
+Otherwise, the peer might not yet have received the close message, thus sends data to the wrong connection.
+Because socket is bidirectional, \texttt{close} is equivalent to \texttt{shutdown} on both send and receive directions.
+As Figure~\ref{fig:conn-close} shows, when application shuts down one direction of a connection, it sends a \emph{shutdown message} to the peer.
+The peer responds with a shutdown message.
+A process deletes an FD when it receives shutdown messages in both directions.
 
 
-\parab{Connection close.} in Figure~\ref{fig:conn-close}...
 
-\parab{Detect whether the peer supports \sys{}.}
-Goals: Both client and server can detect whether the peer supports SocksDirect. Use kernel TCP when the peer does not support SocksDirect. No change to kernel.
-Server monitor opens a raw socket with libpcap to capture SYN packets to listening ports.
-Client monitor opens a raw socket with libpcap to send TCP SYN with a special TCP option, then wait for SYN+ACK response.
-If server monitor receives a TCP SYN with special option, respond SYN+ACK with special option and begin SocksDirect establishment.
-If client monitor receives a TCP SYN+ACK with special option, the peer supports SocksDirect.
-To avoid the kernel TCP stack from sending RST packets, install firewall rules to block incoming SYN and outgoing RST.
-If the peer does not support SocksDirect:
-The monitor creates a kernel TCP connection using TCP restore functionality.
-If the application is able to share network namespace with the monitor, send the restored TCP connection to the application via “sendmsg”. Then the application can use the kernel TCP socket.
-Otherwise, the monitor proxies messages between the application and kernel TCP socket.
-
-
-\textbf{Above is draft.}
-
-\parab{\texttt{Socket}.}
-As shown in Figure~\ref{fig:socket-pseudo-code}, to create a socket connection, an application first calls \texttt{socket} to get a \textit{file descriptor} (FD). 
-%Although Linux globally allocates the lowest available file descriptor, this property is rarely used~\cite{han2012megapipe,huang2017high}. We relax the semantics and maintains an FD table in each process. 
-We maintains an FD table for each process. Upon allocation, \libipc{} finds an idle FD from the table or doubles the table size if none available. 
-%The table is a vector of socket information with an allocation pointer, indexed by FD. Upon allocation, \libipc{} linearly moves the allocation pointer and finds the first idle FD. When the vector is more than half full, its size is doubled. This allows amortized O(1) allocation and O(1) lookup and deletion.
-For multi-thread applications, since the FD namespace is shared, we partition the FD namespace to multiple ranges and each thread allocates FD in its range.
-%Because per-FD information is local to a process, APIs on socket options are also local.
-Because applications still need to access FDs in the kernel (\textit{e.g.} files and devices), we partition the FD space. The kernel assigns FD from zero up to $2^{30}-1$, while \libipc assigns FD from $2^{31}-1$ down to $2^{30}$.
+\iffalse
 
 \parab{\texttt{Bind} and \texttt{listen}.}
 A \emph{server} process \texttt{bind}s a socket and needs to detect IP and port conflict. In this case, \texttt{bind} is non-partitionable and goes to the monitor. The monitor also listens on the IP and port in a user-space TCP/IP stack (\textit{e.g.} mTCP~\cite{jeong2014mtcp}, LibVMA~\cite{libvma} or Seastar~\cite{seastar}) to receive connections from other hosts.
@@ -152,7 +188,7 @@ When application shuts down one direction of a connection, it sends a \textit{sh
 
 %Generally, each process in our design is treated as an endpoint in the network. Figure \ref{fig:conn-setup-close} shows the process of connection setup and close. When \textit{socket} is called, the process itself allocate per fd resources. When \textit{listen} is called, monitor is notified of port occupation. During the \textit{connect} operation, monitor first chooses one of the processes listen on this port then coordinates the creation of the shared memory between the two processes and notifies each other of the new connection. When \textit{close} happens, both of the endpoint notify each other and monitor is responsible to destroy the shared memory between them. 
 
-
+\fi
 
 
 
@@ -162,6 +198,7 @@ When application shuts down one direction of a connection, it sends a \textit{sh
 Process fork and thread creation are ubiquitous in modern applications. 
 For threads in a same process, all socket connections are shared.
 After process fork, both parent and child processes share existing sockets.
+Sockets can even be passed to another unrelated process through UNIX domain socket.
 Therefore, a socket connection is a multi-producer and multi-consumer FIFO.
 With a traditional mutual exclusion solution, the multi-thread and multi-process scalability of socket is limited.
 Our aim is to maximize the common-case performance while keeping compatibility with Linux socket.
@@ -296,10 +333,10 @@ When a process calls \texttt{close}, all its peers cannot send to or receive fro
 \subsection{Multiplex Sockets via One Queue}
 \label{subsec:multiplex-conn}
 
-To scale the system with multiple cores, each process should be able to transmit data directly to the peer without notifying monitor. As shown in Table~\ref{tab:socket-api}, we design all APIs in data transmission to be peer-to-peer or local.
+To scale the system with multiple cores, each process should be able to transmit data directly to the peer without notifying monitor.
 
 \parab{Multiplex connections in event-driven applications.}
-To reduce memory footprint and improve locality of memory accesses, we use one queue to multiplex all connections between a pair of processes. Each data item in the queue is marked with its FD. By using a single queue, we save per-socket memory footprint, and random memory accesses and cache misses are reduced (See Sec.~\ref{subsec:challenges}). However, head-of-line blocking problem would arise if the queue is FIFO. 
+To reduce memory footprint and improve locality of memory accesses, we use one queue to multiplex all connections between a pair of processes. Each data item in the queue is marked with its FD. By using a single queue, we save per-socket memory footprint, and random memory accesses and cache misses are reduced. However, head-of-line blocking problem would arise if the queue is FIFO. 
 %If we use a FIFO queue, the application would block if it \texttt{recv} from a connection with data not at the head of queue. 
 Therefore, the queue needs to support picking a message in the middle with a specific FD. 
 Fortunately, this does not happen frequently. Event-driven applications typically process incoming events in a FIFO order. For \texttt{epoll\_wait} in level trigger mode, we iterate through all messages in the queue and return those in the set of registered FDs. When applications call \texttt{recv}, \libipc{} would usually dequeue the message at head.
