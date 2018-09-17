@@ -72,7 +72,7 @@
 %\end{figure}
 
 
-We implement \sys in three components: a userspace library \libipc{} with 10K lines of C/C++ code, a monitor program and four system calls for zero copy.
+We implement \sys in three components: a user-space library \libipc{} and a monitor daemon with 10K lines of C++ code, as well a modified NIC driver for zero copy.
 We evaluate \sys in the following aspects:
 
 \parab{Use shared memory efficiently for intra-server socket.}
