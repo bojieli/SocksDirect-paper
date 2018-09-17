@@ -194,14 +194,9 @@ When application shuts down one direction of a connection, it sends a \textit{sh
 
 \subsection{Sharing a Socket Among Processes}
 \label{subsec:fork}
-Process fork and thread creation are ubiquitous in modern applications. 
-For threads in a same process, all socket connections are shared.
-After process fork, both parent and child processes share existing sockets.
-Sockets can even be passed to another unrelated process through UNIX domain socket.
-Therefore, a socket connection is a multi-producer and multi-consumer FIFO.
-With a traditional mutual exclusion solution, the multi-thread and multi-process scalability of socket is limited.
-Our aim is to maximize the common-case performance while keeping compatibility with Linux socket.
 
+As Sec.~\ref{subsec:performance-challenges} discussed, socket sharing among processes and threads are ubiquitous in modern applications.
+Our aim is to maximize the common-case performance while preserving the FIFO semantics.
 We make two observations: First, fork and thread creation are not frequent in high performance applications compared to connection creation and data transmission.
 Second, it is uncommon that several processes receive concurrently from a shared socket, because the byte-stream semantics of socket makes it hard to avoid receiving partial messages.
 %For such producer-consumer scenarios, message brokers~\cite{hintjens2013zeromq,rabbitmq2017rabbitmq,kreps2011kafka} are typically used.
@@ -331,8 +326,6 @@ When a process calls \texttt{close}, all its peers cannot send to or receive fro
 
 \subsection{Multiplex Sockets via One Queue}
 \label{subsec:multiplex-conn}
-
-To scale the system with multiple cores, each process should be able to transmit data directly to the peer without notifying monitor.
 
 \parab{Multiplex connections in event-driven applications.}
 To reduce memory footprint and improve locality of memory accesses, we use one queue to multiplex all connections between a pair of processes. Each data item in the queue is marked with its FD. By using a single queue, we save per-socket memory footprint, and random memory accesses and cache misses are reduced. However, head-of-line blocking problem would arise if the queue is FIFO. 

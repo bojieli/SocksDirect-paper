@@ -261,6 +261,7 @@ It uses RSocket to translate socket to RDMA, thus limits scalability with multip
 In addition, the virtual switch limits multi-core scalability.
 
 \subsection{Performance Challenges}
+\label{subsec:performance-challenges}
 
 We aim to deliver consistent high throughput and low latency regardless of the number of CPU cores, concurrent connections and threads.
 This subsection analyzes challenges to achieve this performance goal.
@@ -388,8 +389,9 @@ First, unlike FreeBSD, the asynchronous interface for reading and writing disk f
 Second, many web application frameworks prefer a synchronous programming model to process each user request because it is easier to write and debug~\cite{barroso2017attack}.
 
 Multiple threads in a process share socket connections.
-Parent and child processes after fork also share sockets.
-To this end, Linux kernel acquires a per-socket lock for each socket operation~\cite{boyd2010analysis,han2012megapipe,lin2016scalable}.
+After process fork, both parent and child processes share existing sockets.
+Sockets can even be passed to another process through UNIX domain socket.
+To protect concurrent operations, Linux kernel acquires a per-socket lock for each socket operation~\cite{boyd2010analysis,han2012megapipe,lin2016scalable}.
 Previous works~\cite{boyd2010analysis,clements2015scalable} suggest that many socket operations are not commutable and thus synchronization cannot always be avoided.
 
 We aim to minimize synchronization overhead in two ways.
