@@ -79,7 +79,8 @@ We design a per-host \emph{monitor} daemon as the control plane to enforce acces
 The data plane is composed of applications with a dynamically loaded user-space library \libipc{}.
 %Applications can take advantage of \libipc{} by simply using the \emph{LD\_PRELOAD} environment variable in Linux to load the library.
 \libipc{} intercepts Linux \emph{glibc} APIs, implements socket APIs in user space and forwards other APIs to the kernel.
-\libipc{} delegates connection creation to the local monitor, while implements data transmission and event polling peer-to-peer to achieve scalable performance.
+For security and scalability, we consider processes as a shared-nothing distributed system that communicates via peer-to-peer message queues.
+We design a secure and efficient protocol for \libipc{} to delegate connection creation to the local monitor, while implement data transmission and event polling peer-to-peer among applications.
 
 
 However, we face three performance challenges.
@@ -89,8 +90,9 @@ However, we face three performance challenges.
 
 In both multi-thread and multi-process scenarios, a connection may be shared by multiple senders and receivers.
 Existing approaches need locking to protect shared queue and metadata.
-To avoid locking overhead, we treat each thread as a separate process, even if the threads have shared memory address space.
-Therefore, all threads compose a shared-nothing distributed system that communicates via peer-to-peer message queues.
+To avoid locking overhead, we treat each thread as a separate process.
+%, even if the threads have shared memory address space.
+\libipc{} uses thread-specific storage and creates peer-to-peer queues between each pair of communicating threads.
 To preserve FIFO semantics, we optimize for the common case while prepare for the worst case, and take special care on fork and thread creation.
 
 To handle many concurrent connections efficiently, we need to save memory footprint and improve spatial locality.
