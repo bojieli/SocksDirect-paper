@@ -202,10 +202,11 @@ Socket is the standard communication primitive among applications and containers
 For example, a web service typically contains an HTTP load balancer, Web application, key-value store and database, which communicate via TCP or UNIX socket.
 Socket is also used to exchange data between parameter server and workers in Tensorflow and from mapper to reducer in Spark.
 
-The socket API was designed in 1980s when network communication has millisecond scale latency, so the computation overhead in OS networking stack is negligible.
-In contrast, modern data centers have networks with microsecond scale latency and throughput comparable to intra-host buses, making socket a well-known bottleneck for communication intensive applications.
+%The socket API was designed in 1980s when network communication has millisecond scale latency, so the computation overhead in OS networking stack is negligible.
+%In contrast, modern data centers have networks with microsecond scale latency and throughput comparable to intra-host buses, making socket a well-known bottleneck for communication intensive applications.
+Modern data centers have networks with microsecond scale latency and tens of Gbps throughput, making socket a well-known bottleneck for communication intensive applications.
 For example, under our stress tests, Nginx load balancer, memcached and Redis key-value store consume 50\% to 90\% CPU time in the kernel, mostly dealing with socket operations.
-Additionally, a modern server in data center contains tens of cores, therefore multiple applications and containers run on a same host, making intra-host socket communication increasingly important.
+Additionally, a server in data center contains tens of cores, therefore multiple applications and containers run on a same host, making intra-host socket communication increasingly important.
 
 Socket in a modern OS provides three functions:
 (1) address, locate and connect to another application in the system via IP and port;

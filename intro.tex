@@ -40,7 +40,7 @@ We design \sys{}, a user-space socket architecture with compatibility, security 
 	First, existing applications can use \sys{} as a drop-in replacement with no modification.
 	Second, it supports both intra-host and inter-host communication.
 	Third, it behaves correctly with fork or thread creation.
-	Finally, if the remote peer does not support \sys{}, it falls back to kernel TCP socket transparently.
+	Finally, if the remote peer does not support \sys{}, it falls back to TCP transparently.
 	\item \textbf{Security}.
 	\sys{} preserves isolation among applications and containers, as well enforces firewall rules and access control policies.
 	\item \textbf{High Performance}.
