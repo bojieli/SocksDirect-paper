@@ -46,7 +46,7 @@ In order to support receiving data from a specific FD, receiver needs to travers
 	\label{fig:zerocopy}
 \end{figure}
 
-The main challenge for zero copy is to maintain the semantics of socket API, as discussed in \ref{subsec:challenges}.
+The main challenge for zero copy is to maintain the semantics of socket API, as discussed in Sec.\ref{subsec:performance-challenges}.
 %A sender may write the send buffer after non-blocking \texttt{send}, and the receiver does not know the receive buffer before \texttt{recv}.
 Fortunately, virtual memory provides a layer of indirection, so we can remap virtual address of a buffer to another physical page if the data occupies entire 4~KiB pages.
 We wrap around \texttt{malloc} and \texttt{realloc} functions and allocate 4~KiB aligned addresses for large allocations, so most buffers will align to page boundary.

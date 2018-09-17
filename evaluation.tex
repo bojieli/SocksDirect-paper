@@ -197,14 +197,11 @@ Using RDMA for inter-server socket, \sys achieves 62~M messages per second throu
 Figure~\ref{fig:eval-conn-setup-tput} shows the throughput of connection creation with different number of cores. Each core can create 1.4~M new connections per second, which is 20x of Linux and 2x of mTCP~\cite{jeong2014mtcp}. The upper bound is 5.3~M connections per second, where the monitor process becomes a bottleneck.
 
 
-
-
-\subsection{Deep Dive}
-
-Cooperative multitasking requires pinning threads on cores. However, there may be multiple threads sharing a core, and each thread needs to wait for its turn to process messages.
+Now we evaluate the performance of cooperative multitasking.
+There may be multiple threads sharing a core, and each thread needs to wait for its turn to process messages.
 Figure~\ref{fig:eval-context-switch} shows the message processing latency in such scenario.
 First, when only a fraction of workers are active, the idle workers do not impact performance. 
 Second, although the latency increases with number of active workers, but it is still much lower than Linux, because cooperative context switch is faster than kernel event signaling.
 
 
-Finally, we benchmark the throughput and latency after \texttt{fork} and other corner-case operations. Initially, there is only one pair of sender and receiver. At time $T_0$, receiver forks, and the parent process keeps receiving. At time $T_1$, the child process begins to receives takes over the socket. At time $T_2$, sender forks, and only the parent sends. At time $T_3$, the child sender also starts sending. We find that both throughput and latency resume to initial maximal performance within 1~ms after each event.
+%Finally, we benchmark the throughput and latency after \texttt{fork} and other corner-case operations. Initially, there is only one pair of sender and receiver. At time $T_0$, receiver forks, and the parent process keeps receiving. At time $T_1$, the child process begins to receives takes over the socket. At time $T_2$, sender forks, and only the parent sends. At time $T_3$, the child sender also starts sending. We find that both throughput and latency resume to initial maximal performance within 1~ms after each event.
