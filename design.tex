@@ -127,11 +127,10 @@ If either client or server monitor finds that the peer is a regular TCP/IP host,
 
 \parab{Dispatch new connections to listeners.}
 Let's continue with the connect creation procedure assuming that both ends support \sys{}.
-The server monitor selects one application from all that listen on a same address and port, then forwards the SYN to server application.
-This differs from Linux where the new connection requests are queued in a \emph{backlog} in the kernel.
-In the Linux design, every time the server \texttt{accept}s a new connection, it accesses the kernel to dequeue a connection from the backlog, which requires synchronization and adds latency.
+In Linux, new connection requests are queued in a \emph{backlog} in the kernel.
+Every time the server calls \texttt{accept}, it accesses the kernel to dequeue from the backlog, which requires synchronization and adds latency.
 In contrast, we maintain a per-listener backlog for every thread that listens on the socket.
-The monitor distributes SYN commands into queues to listeners.
+The server monitor distributes SYN to a listener thread in round-robin manner.
 
 Dispatching connection to listeners may lead to starvation when a listener does not \texttt{accept} new connections.
 We devise a \textit{work stealing} approach.
