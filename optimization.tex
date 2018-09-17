@@ -12,7 +12,7 @@
 	\label{fig:locklessq-structure}
 \end{figure}
 
-In the previous section, we discuss requirements of the queue between a pair of communicating processes. A single sender enqueues data sequentially. At the same time, a single reader peeks and dequeues data at any position. In addition, the queue needs to support variable-sized data items to allow data copy from application send buffers when zero-copy is not applicable. In this section, we propose a high performance lockless queue design. As shown in Figure~\ref{fig:locklessq-structure}, the queue is a ring buffer in shared memory (for intra-server) or pinned receiver memory (for inter-server RDMA).
+In Sec.~\ref{sec:design}, we discuss requirements of the queue between a pair of communicating processes. A single sender enqueues data sequentially. At the same time, a single reader peeks and dequeues data at any position. In addition, the queue needs to support variable-sized data items to allow data copy from application send buffers when zero-copy is not applicable. In this section, we propose a high performance lockless queue design. As shown in Figure~\ref{fig:locklessq-structure}, the queue is a ring buffer in shared memory (for intra-server) or pinned receiver memory (for inter-server RDMA).
 
 \parab{Credit-based ring buffer.}
 Most ring buffer designs share \textit{head} and \textit{tail} pointers between sender and receiver, which introduces an additional cache migration or RDMA operation. To eliminate such overhead, we keep \textit{head} and \textit{tail} pointers locally in sender and receiver respectively.

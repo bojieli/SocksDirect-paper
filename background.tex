@@ -341,12 +341,15 @@ This architecture incurs the overhead of multiple context switches and packet co
 We aim to use the virtual switch for control plane only and implement data plane operations peer-to-peer.
 
 \parab{Offload transport to RDMA NIC.}
-For inter-host communication inside data centers, the main challenge of using RDMA is to bridge the semantics of socket and RDMA~\cite{dragojevic2014farm}.
+For inter-host communication inside data centers, there are two challenges for using RDMA.
+The first is to transparently determine whether or not the remote host supports \sys{}.
+We cannot use an out-of-band communication channel such as RDMA CM because it cannot pass through middleboxes in cloud network.
+The second is to bridge the semantics of socket and RDMA~\cite{dragojevic2014farm}.
 For example, RDMA preserves messages boundaries while TCP does not.
 For I/O multiplexing, RDMA provides a completion notification model while event polling in Linux socket requires a readiness model~\cite{han2012megapipe}.
 Further, one-sided and two-sided RDMA verbs have different efficiency and overheads~\cite{kalia2014using,kaminsky2016design}.
 
-We aim to use RDMA efficiently for socket applications.
+We aim to use RDMA efficiently for socket applications, while fall back to TCP transparently for non-RDMA peers.
 
 \parab{Many concurrent connections.}
 The vast number of connections from Internet users require cloud systems to serve millions of connections efficiently~\cite{nishtala2013scaling,lin2016scalable,belay2017ix}.
