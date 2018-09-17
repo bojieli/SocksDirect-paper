@@ -129,7 +129,7 @@ while (true) { // main event loop
 }
 \end{lstlisting}
 \vspace{-15pt}
-\caption{Pseudo-code of a typical socket server application, showing several most important socket operations.}
+\caption{Pseudo-code of a typical socket server application, showing several most important socket operations. A socket connection is a FIFO byte-stream channel identified by an integer \emph{file descriptor} (FD). Linux enables an readiness-driven I/O multiplexing model, in which the OS tells application which FDs are ready to receive or send, then the application may prepare buffers and issue socket operations.}
 \label{fig:socket-pseudo-code}
 \vspace{-10pt}
 \end{figure}
@@ -350,6 +350,8 @@ We aim to use RDMA efficiently for socket applications.
 
 \parab{Many concurrent connections.}
 The vast number of connections from Internet users require cloud systems to serve millions of connections efficiently~\cite{nishtala2013scaling,lin2016scalable,belay2017ix}.
+In addition, because a socket connection provides a FIFO abstraction and the OS offers event multiplexing, it is common for two processes to create multiple connections between them, where each connection handles a concurrent task.
+
 In Linux, each socket connection has dedicated send and receive buffers, each at least one page (4~KiB) in size. With millions of concurrent connections, the socket buffers can consume gigabytes of memory, most of which is empty.
 Random access to a large range of buffers also leads to CPU cache and TLB miss.
 This problem is amplified in RDMA NICs with limited on-chip memory.
@@ -372,11 +374,15 @@ We aim to bypass kernel without compromising security.
 
 \parab{Scale to multiple cores.}
 Linux kernel acquires several global locks during connection creation~\cite{boyd2010analysis}, while MegaPipe~\cite{han2012megapipe} and FastSocket~\cite{lin2016scalable} remove these bottlenecks.
-Several works~\cite{martins2014clickos,roghanchi2017ffwd,huang2017high,freeflow} delegate all operations to a virtual switch running as a daemon process, which is a scalability bottleneck.
+Several works~\cite{martins2014clickos,roghanchi2017ffwd,huang2017high,freeflow} delegate all operations to a virtual switch running as a daemon process, which is a scalability bottleneck in modern servers with tens of cores.
 
 We aim to minimize centralized coordination while preserving isolation.
 
 \parab{Multiple threads share a connection.}
+Many applications are multi-threaded for two reasons.
+First, unlike FreeBSD, the asynchronous interface for reading and writing disk files in Linux cannot leverage OS cache and buffer, so the applications keep using a synchronous interface with multiple threads~\cite{nginx-multi-thread}.
+Second, many web application frameworks prefer a synchronous programming model to process each user request because it is easier to write and debug~\cite{barroso2017attack}.
+
 Multiple threads in a process share socket connections.
 Parent and child processes after fork also share sockets.
 To this end, Linux kernel acquires a per-socket lock for each socket operation~\cite{boyd2010analysis,han2012megapipe,lin2016scalable}.
