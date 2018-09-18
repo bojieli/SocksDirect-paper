@@ -111,7 +111,8 @@ As shown in Figure~\ref{fig:conn-setup}, \libipc{} sends the request to monitor 
 \parab{Listen.}
 When a server application is ready to accept connections from clients, it calls \texttt{listen} and notifies the monitor.
 The monitor maintains a list of listening processes on each address and port to dispatch new connections.
-The monitor also uses a user-space networking stack (modified LibVMA~\cite{libvma} in our implementation) or \texttt{netfilter} to wait for incoming TCP SYN packets, and inserts flow steering rules in modern NICs or \texttt{iptables} filters to avoid the kernel networking stack from receiving the SYN.
+The monitor also uses a user-space networking stack (modified LibVMA~\cite{libvma} in our implementation) or \texttt{netfilter} to wait for incoming TCP SYN packets.
+To avoid the kernel networking stack from receiving the SYN, the monitor inserts flow steering rules in modern NICs or \texttt{iptables} filters.
 
 \parab{Connect.}
 The client application calls \texttt{connect} and sends a SYN command to monitor via shared memory queue.
@@ -203,7 +204,7 @@ Second, it is uncommon that several processes receive concurrently from a shared
 Based on the observations, we propose the following requirements:
 
 \begin{enumerate}[noitemsep,nolistsep]
- \item \textbf{Synchronization-free.} With multiple potential senders and receivers, if only one pair of sender and receiver is active, the throughput and latency should be comparable with that of a sender-receiver pair.
+ \item \textbf{Synchronization-free.} With multiple senders and receivers, if only one pair of sender and receiver is active, no synchronization should occur.
  \item \textbf{Multi-sender scalability.} Multiple processes may send data concurrently through a shared socket. With multiple active senders and a single receiver, if the receiver is not a bottleneck, the throughput should scale.
  \item \textbf{Self-stabilization.} Certain operations (\textit{e.g.} \texttt{fork}) may slow down the system temporarily, but after that the throughput should converge back to normal.
 \end{enumerate}
@@ -211,12 +212,12 @@ Based on the observations, we propose the following requirements:
 For compatibility with Linux semantics, we also need to ensure message ordering and liveness:
 \begin{enumerate}[noitemsep,nolistsep]
 \item \textbf{Single receiver ordering.} For a specific pair of sender and receiver, the received messages have the same ordering as they were sent.
-\item \textbf{Multiple receiver ordering.} The order of \texttt{send} and \texttt{recv} operations for one sender and multiple receivers should be linearizable. If receiver $R_1$ already receives $D_1$, then receiver $R_2$ calls \texttt{recv} and gets $D_2$, we guarantee that $D_1$ is sent before $D_2$.
+\item \textbf{Multiple receiver ordering.} The order of \texttt{send} and \texttt{recv} operations for one sender and multiple receivers should be linearizable. If receiver $R_1$ receives $D_1$ before receiver $R_2$ calls \texttt{recv} and gets $D_2$, we guarantee that $D_1$ is sent before $D_2$.
 \item \textbf{Deadlock-free.} If a socket buffer is not empty when \texttt{recv} is called by one or more receivers, at least one receiver should get data.
-\item \textbf{Starvation-free.} If a sender keeps sending, any receiver trying to \texttt{recv} will eventually get data.
+\item \textbf{Starvation-free.} If a sender keeps sending, any receiver trying to \texttt{recv} will eventually get some data.
 \end{enumerate}
 
-We present our scalable socket design in four parts: a) data transmission (\texttt{send} and \texttt{recv}), b) adding new senders and receivers (\texttt{fork} and \texttt{pthread\_create}), c) connection creation and d) connection close.
+We present our scalable socket design in four parts: a) data transmission (\texttt{send} and \texttt{recv}), b) adding new senders and receivers (\texttt{fork} and thread creation), c) connection creation and d) connection close.
 
 \subsubsection{Send/Recv Operation}
 \label{subsubsec:fork_rdwr}
