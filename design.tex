@@ -267,9 +267,10 @@ The remaining data needs to migrate from the old active queue to the new active 
 \end{figure}
 
 
-The first challenge with fork and thread creation is how to identify and isolate parent and child processes. As shown in Figure~\ref{fig:fork-fork}, when the application calls \texttt{fork}, \texttt{clone} or \texttt{pthread\_create}, \libipc{} first generates a secret for pairing, then invokes the corresponding system call. After fork, parent and child independently creates a \textit{bootstrap socket} to the monitor and sends the secret (child inherits parent memory space and knows the secret). The monitor can thus pairs the child process with the parent. 
+%The first challenge with fork and thread creation is how to identify and isolate parent and child processes. 
+As shown in Figure~\ref{fig:fork-fork}, when an application calls \texttt{fork}, \texttt{clone} or \texttt{pthread\_create}, \libipc{} first generates a secret for pairing, then invokes the corresponding system call. After fork, parent and child independently creates a shared memory queue to the monitor and sends the secret (child inherits parent memory space and knows the secret). The monitor can thus pairs the child process with the parent. 
 To maintain isolation between parent and child, monitor creates new shared memory queues to replace all queues in \emph{both} parent and child. We do not reuse queues due to potential isolation violation. %The monitor then sends credentials of new queues to parent and child via bootstrap sockets. 
-Each peer process is also notified of the new queues and the new process. From then on, parent and child processes have isolated queues to the monitor and peers.
+Each peer process is notified of the new queues and the new process. From then on, parent and child processes have isolated queues to the monitor and peers.
 
 %A harder challenge comes from socket connection sharing between parent and child processes. 
 Upon fork, each connection needs to add a sender to the sending direction and a receiver to the receiving direction. A major challenge is how to handle the remaining data in the original send and receive queues.
@@ -301,11 +302,9 @@ After a sender forks, the receivers still need the takeover mechanism to arbitra
 \subsubsection{Connection Creation}
 \label{subsubsec:fork_new}
 
-%A connection created after \texttt{fork} cannot be accessed by its sibling process, while 
-A connection created by a thread can be accessed by all threads in the same process. To minimize state sharing, \libipc assigns a unique file descriptor (FD) space to each thread, so that each thread can allocate FDs locally. 
-% and determine which thread a FD belongs to. 
-During connection creation, \libipc does not share the FD eagerly with other threads, because most threads in existing applications do not use connections created by other threads.
-When a thread do want to accesses a FD that belongs to another thread, \libipc sends a message to the owner thread and requests sharing the FD. This procedure is exactly the same as sharing existing connections during thread creation (Sec.~\ref{subsubsec:fork_fork}). %The sharing procedure only happens once for every connection and thread. Sharing existing connections eagerly during thread creation is an optimization. First, children threads are more likely to use existing connections than siblings. Second, batch processing improves performance.
+A connection created by a thread can be accessed by all threads in the same process.
+To avoid creating redundant queues, \libipc does not share the FD eagerly with other threads, because most threads in existing applications do not use connections created by other threads.
+When a thread do want to accesses a FD that belongs to another thread, \libipc sends a message to the owner thread and requests sharing the FD. %This procedure is exactly the same as sharing existing connections during thread creation (Sec.~\ref{subsubsec:fork_fork}). %The sharing procedure only happens once for every connection and thread. Sharing existing connections eagerly during thread creation is an optimization. First, children threads are more likely to use existing connections than siblings. Second, batch processing improves performance.
 
 \subsubsection{Connection Close}
 \label{subsubsec:fork_close}
@@ -315,7 +314,8 @@ When a thread do want to accesses a FD that belongs to another thread, \libipc s
 %To satisfy the synchronization requirements, the close function call is all completed by message passing. The caller of close need to wait for ACK from all the other peers before release resources. i.e. the status of the connection.
 
 %\parab{Broadcast.}
-When a process calls \texttt{close}, all its peers cannot send to or receive from the FD. In this sense, closing a shared connection needs to multicast a notification to the peers and collect responses from them. A challenge arise when \texttt{close} is interleaved with \texttt{fork}. Since \texttt{fork} and \texttt{close} do not commute~\cite{clements2015scalable}, we need a rule to determine their partial order. We make the choice that the ordering is determined by the initiator of \texttt{close}. If a process calls \texttt{close} before receiving fork notification, it will piggyback close notification with fork completion to both parent and child processes.
+%When a process calls \texttt{close}, all its peers cannot send to or receive from the FD. In this sense, 
+Closing a shared connection needs to multicast a notification to the peers and collect responses from them. A challenge arise when \texttt{close} is interleaved with \texttt{fork}. Since \texttt{fork} and \texttt{close} do not commute~\cite{clements2015scalable}, we need a rule to determine their partial order. We make the choice that the ordering is determined by the initiator of \texttt{close}. If a process calls \texttt{close} before receiving fork notification, it will piggyback close notification with fork completion to both parent and child processes.
 
 %\parab{Handshake before releasing resource.}
 %Another challenge is caused by FD reuse after close. As stated in Sec.~\ref{subsec:socket-api}, a FD is deleted after receiving shutdown message of both directions. With multiple processes sharing a connection, after one process calls \texttt{close}, others can still use the connection. Consequently, a process deletes a FD only after receiving shutdown messages of both directions from all peers of the FD.
@@ -328,7 +328,7 @@ When a process calls \texttt{close}, all its peers cannot send to or receive fro
 \subsection{Multiplex Sockets via One Queue}
 \label{subsec:multiplex-conn}
 
-\parab{Multiplex connections in event-driven applications.}
+%\parab{Multiplex connections in event-driven applications.}
 To reduce memory footprint and improve locality of memory accesses, we use one queue to multiplex all connections between a pair of processes. Each data item in the queue is marked with its FD. By using a single queue, we save per-socket memory footprint, and random memory accesses and cache misses are reduced. However, head-of-line blocking problem would arise if the queue is FIFO. 
 %If we use a FIFO queue, the application would block if it \texttt{recv} from a connection with data not at the head of queue. 
 Therefore, the queue needs to support picking a message in the middle with a specific FD. 
