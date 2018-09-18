@@ -1,20 +1,23 @@
 \section{Optimization}
 \label{sec:optimization}
 
-This section presents the design of
+This section addresses three performance challenges: How to use shared memory and RDMA efficiently? How to achieve socket-compatible zero copy? How to avoid thread wakeup cost when multiple threads share a CPU core?
 
-\subsection{Lockless Inter-Process Queue}
+\subsection{Lockless Inter-Thread Queue}
 \label{subsec:lockless-queue}
 
 \begin{figure}[t]
 	\centering
 	\includegraphics[width=0.4\textwidth]{images/locklessq_new}
-	\caption{The structure of an inter-process queue.}
+	\caption{The structure of an inter-thread queue.}
 	\vspace{-15pt}
 	\label{fig:locklessq-structure}
 \end{figure}
 
-In Sec.~\ref{sec:design}, we discuss requirements of the queue between a pair of communicating processes. A single sender enqueues data sequentially. At the same time, a single reader peeks and dequeues data at any position. In addition, the queue needs to support variable-sized data items to allow data copy from application send buffers when zero-copy is not applicable. In this section, we propose a high performance lockless queue design. As shown in Figure~\ref{fig:locklessq-structure}, the queue is a ring buffer in shared memory (for intra-server) or pinned receiver memory (for inter-server RDMA).
+We first revisit requirements of the queue between a pair of communicating threads in different applications or hosts. A sender enqueues messages sequentially. At the same time, a receiver peeks and dequeues messages at any position. The message may be a control command or data of a FD, so the message size is variable.
+Our aim is high throughput and low latency when messages in the queue are dequeued in the same order as enqueued, and preserve liveness when dequeuing in arbitrary order.
+
+For intra-server, the queue is in shared memory. For inter-server, the queue has two identical copies in pinned sender and receiver memory, and we use one-sided RDMA write to synchronize updates from sender to receiver.
 
 \parab{Credit-based ring buffer.}
 Most ring buffer designs share \textit{head} and \textit{tail} pointers between sender and receiver, which introduces an additional cache migration or RDMA operation. To eliminate such overhead, we keep \textit{head} and \textit{tail} pointers locally in sender and receiver respectively.
