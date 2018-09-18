@@ -136,8 +136,8 @@ The server monitor distributes SYN to a listener thread in round-robin manner.
 Dispatching connection to listeners may lead to starvation when a listener does not \texttt{accept} new connections.
 We devise a \textit{work stealing} approach.
 When a listener invokes \texttt{accept} while the backlog is empty, it requests the monitor to steal from others' backlog.
-To avoid polling empty backlogs, each listener notifies the monitor when its backlog becomes empty.
-To avoid contention between a listener and monitor, the monitor sends a request to the listener rather than stealing from the backlog directly.
+%To avoid polling empty backlogs, each listener notifies the monitor when its backlog becomes empty.
+To avoid contention between a listener and monitor, the monitor sends a request to the listener to steal from the backlog.
 
 \parab{Establish a peer-to-peer queue.}
 If it is the first time for the client and server applications to communicate, the server monitor helps the them establish a direct connection.
@@ -303,7 +303,7 @@ After a sender forks, the receivers still need the takeover mechanism to arbitra
 \label{subsubsec:fork_new}
 
 A connection created by a thread can be accessed by all threads in the same process.
-To avoid creating redundant queues, \libipc does not share the FD eagerly with other threads, because most threads in existing applications do not use connections created by other threads.
+To avoid creating redundant queues and connection states, \libipc does not share the FD eagerly with other threads, because most threads in existing applications do not use connections created by other threads.
 When a thread do want to accesses a FD that belongs to another thread, \libipc sends a message to the owner thread and requests sharing the FD. %This procedure is exactly the same as sharing existing connections during thread creation (Sec.~\ref{subsubsec:fork_fork}). %The sharing procedure only happens once for every connection and thread. Sharing existing connections eagerly during thread creation is an optimization. First, children threads are more likely to use existing connections than siblings. Second, batch processing improves performance.
 
 \subsubsection{Connection Close}
@@ -335,14 +335,12 @@ Therefore, the queue needs to support picking a message in the middle with a spe
 Fortunately, this does not happen frequently. Event-driven applications typically process incoming events in a FIFO order. For \texttt{epoll\_wait} in level trigger mode, we iterate through all messages in the queue and return those in the set of registered FDs. When applications call \texttt{recv}, \libipc{} would usually dequeue the message at head.
 
 We maintain a bitmap of the epoll FD set.
-When epoll\_wait() is called, we scan all data queues round-robin and check the FD of each data message against the bitmap. If the FD is in the bitmap, an event is returned to the application.
+When \texttt{epoll\_wait} is called, we scan all data queues round-robin and check the FD of each data message against the bitmap. If the FD is in the bitmap, an event is returned to the application.
 A global cursor is maintained to resume data queue scanning from the last position in the last scanned queue.
 A per-queue cursor records the last scanned position in each queue to avoid scanning a message twice.
 Each FD maintains the positions of the first and last scanned (but unread) message of the FD.
 When a new message of the FD is scanned, a pointer in the last message is updated to point to the new message. This chains received messages of a FD to a linked list.
 This is to speedup receive operation. When an application attempts to receive multiple messages from a FD, it can follow the linked list rather than scanning through the whole queue.
-
-%Because both \texttt{epoll\_wait} and \texttt{recv} access a same queue, each data transmission involves only one cache migration.
 
 To poll events from sockets and other FDs (handled by kernel) at the same time, \libipc{} creates an \textit{epoll thread} in each process to wait on all FDs handled by kernel. When it receives a kernel event, it broadcasts the event to application threads via shared memory queues. %\texttt{Epoll\_wait} in \libipc{} will return such kernel events in addition to socket events. %Note that Linux allows an event to be received by multiple threads sharing the FD.
 
