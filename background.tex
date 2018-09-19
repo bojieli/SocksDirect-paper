@@ -297,12 +297,12 @@ Most Linux applications use a readiness-driven I/O multiplexing model, in which 
 There are many high performance socket systems from both academia and commercial companies.
 Table~\ref{tab:related-work} compares several of them on three aspects: compatibility, security and performance.  
 
-The first line of research optimizes the kernel networking stack. These include FastSocket~\cite{lin2016scalable}, Affinity-Accept~\cite{pesterev2012improving}, FlexSC~\cite{soares2010flexsc} and zero-copy socket~\cite{thadani1995efficient,chu1996zero,linux-zero-copy}.
+The first line of research optimize the kernel networking stack. They include FastSocket~\cite{lin2016scalable}, Affinity-Accept~\cite{pesterev2012improving}, FlexSC~\cite{soares2010flexsc} and zero-copy socket~\cite{thadani1995efficient,chu1996zero,linux-zero-copy}.
 Kernel optimizations achieve good compatibility and security, but leave some performance optimizations on the table.
 MegaPipe~\cite{han2012megapipe} and StackMap~\cite{yasukata2016stackmap} propose new abstractions to achieve zero copy and improve I/O multiplexing, at the cost of requiring application modification.
 
-The second line of research completely eliminates the kernel networking stack and implements TCP/IP in user space.
-These stacks use high performance packet I/O frameworks (e.g., PacketShader~\cite{han2010packetshader}, netmap~\cite{rizzo2012netmap},  DPDK~\cite{dpdk} and PF\_RING~\cite{pf-ring}) to access NIC packet queues in user space.
+The second line of research completely remove the kernel networking stack and implement TCP/IP in user space.
+They use high performance packet I/O frameworks (e.g., PacketShader~\cite{han2010packetshader}, netmap~\cite{rizzo2012netmap},  DPDK~\cite{dpdk} and PF\_RING~\cite{pf-ring}) to access NIC packet queues in user space.
 In this category, IX~\cite{belay2017ix} and Arrakis~\cite{peter2016arrakis} are new OS architectures that ensure security and isolation.
 IX forwards every packet via the kernel for performance isolation among applications, while Arrakis offloads QoS to NIC, therefore bypasses kernel for data plane.
 However, large-scale deployment of a new OS kernel is complicated~\cite{andromeda}.
@@ -314,15 +314,14 @@ each application inserts flow steering rules to the NIC independently, which is 
 An application may also send arbitrary packets that violate access control policy.
 Moreover, most user-space stacks are not designed to accelerate intra-host connections and have compatibility limitations.
 
-The third line of research utilizes RDMA NICs available in modern data centers~\cite{guo2016rdma} and translates socket operations to RDMA verbs in user space.
+The third line of research utilize RDMA NICs available in modern data centers~\cite{guo2016rdma} and translate socket operations to RDMA verbs in user space.
 RDMA uses hardware offloading to provide lower latency and CPU utilization than software-based TCP/IP transport.
 However, RDMA or RoCEv2 are incompatible with TCP/IP, and existing socket to RDMA systems cannot seamlessly communicate with regular TCP/IP peers.
 RSocket~\cite{rsockets} and SDP~\cite{socketsdirect} converts each socket connection to an RDMA connection.
 RDMA NIC needs to keep track of transport states of each connection using a small on-chip memory as cache.
-The performance degrades significantly due to cache miss~\cite{mprdma,kaminsky2016design} with more than several hundred connections.
-FreeFlow~\cite{freeflow} is a software virtual switch to virtualize an RDMA NIC for container overlay network and enables intra-host RDMA communication.
+The performance degrades significantly due to cache miss with more than several hundred connections~\cite{mprdma,kaminsky2016design}.
+FreeFlow~\cite{freeflow} is a software switch to virtualize an RDMA NIC for container overlay network and enables intra-host RDMA communication.
 It uses RSocket to translate socket to RDMA, thus has limited scalability with multiple connections.
-Moreover, the virtual switch limits multi-core scalability.
 
 \subsection{Performance Challenges}
 \label{subsec:performance-challenges}
@@ -336,7 +335,7 @@ The kernel TCP stack has evolved to become quite complicated over the years~\cit
 for intra-server communication. % may not need many TCP features, e.g., congestion control and loss recovery.
 Arrakis uses the NIC to forward packets from one application to another.
 As shown in Figure~\ref{tab:operation-performance}, the hairpin latency from CPU to NIC is 25x higher than inter-core cache migration delay.
-The throughput is also limited by MMIO doorbell latency and PCIe bandwidth.
+The throughput is also limited by MMIO doorbell latency and PCIe bandwidth~\cite{neugebauer2018understanding,li2017kv}.
 
 We aim to leverage user-space shared memory for intra-host transport.
 
@@ -384,7 +383,7 @@ We aim to bypass kernel without compromising security.
 
 
 \parab{Scaling to multiple cores.}
-Linux kernel acquires several global locks during connection creation~\cite{boyd2010analysis}, while MegaPipe~\cite{han2012megapipe} and FastSocket~\cite{lin2016scalable} remove these bottlenecks.
+Linux kernel acquires several global locks during connection creation~\cite{boyd2008corey,boyd2010analysis}, while MegaPipe~\cite{han2012megapipe} and FastSocket~\cite{lin2016scalable} remove these bottlenecks.
 Several works~\cite{martins2014clickos,roghanchi2017ffwd,huang2017high,freeflow} delegate all operations to a virtual switch running as a daemon process, which is a scalability bottleneck in modern servers with tens of cores.
 
 We aim to minimize centralized coordination while preserving isolation.

@@ -7,14 +7,14 @@ In this scenario, after receiving the TCP SYN+ACK, the monitor can create an est
 Moreover, if the application and monitor share a network namespace, the monitor can send the kernel FD to the application via UNIX domain socket, then \libipc{} can use the FD directly without delegation to the monitor.
 
 \textbf{Connecting to a lot of RDMA capable hosts.}
-\sys{} multiplexes connections, but it cannot reduce the number of RDMA connections with a lot of hosts.
+\sys{} multiplexes connections among a pair of hosts, but it cannot reduce the number of RDMA connections with a lot of hosts.
 In this scenario, the NIC will still suffer from performance degradation.
 In contrast, user-space networking stack alleviates this problem because the NIC is stateless.
 We provide a socket option to enable applications to delegate operations to the monitor and use user-space networking stack even if the peer supports RDMA.
 An application can choose to use RDMA for latency sensitive and throughput demanding connections, and user-space networking stack for others.
 
 \textbf{QoS.}
-\sys{} offloads data-plane performance isolation and congestion control to the RDMA NIC, following an emerging line of work~\cite{peter2016arrakis,zhu2015congestion,lu2017memory,mprdma} in this direction, because NICs in data centers are becoming increasingly programmable~\cite{smartnic,cavium,kaufmann2015flexnic,li2016clicknp}.
+\sys{} offloads data-plane performance isolation and congestion control to the RDMA NIC, following an emerging line of work~\cite{peter2016arrakis,zhu2015congestion,lu2017memory,mprdma,mittal2018revisiting} in this direction, because NICs in data centers are becoming increasingly programmable~\cite{smartnic,cavium,kaufmann2015flexnic,li2016clicknp}.
 
 %\section{Related Work}
 %\label{sec:related-work}
