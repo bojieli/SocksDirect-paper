@@ -216,7 +216,7 @@ Socket systems in a modern OS have three functions:
 (1) address, locate and connect to another application in the system; % via IP and port;
 (2) provide a reliable and ordered communication channel, identified by an integer \emph{file descriptor} (FD);
 (3) multiplex events from multiple channels.
-Most Linux applications use a readiness-driven I/O multiplexing model, in which the OS tells application which FDs are ready to receive or send, then the application may prepare buffers and issue socket operations.
+Most Linux applications use a readiness-driven I/O multiplexing model, in which the OS tells application which FDs are ready to receive or send, then the application may prepare buffers and issue receive or send operations.
 %Most modern applications use socket in an event-driven style. similar to Figure~\ref{fig:socket-pseudo-code}.
 
 %Socket is a well-known bottleneck for communication intensive applications. We stress test Nginx load balancer, memcached and Redis with one request per TCP connection or a stream of requests on pre-established TCP connections, and find that 50\%$\sim$90\% CPU time is consumed in the kernel, mostly dealing with socket system calls. The one request per connection scenario shows much lower throughput, because of overhead in connection creation.
