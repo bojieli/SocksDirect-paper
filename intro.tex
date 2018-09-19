@@ -89,7 +89,7 @@ senders and receivers. Existing approaches need locking to protect shared queue 
 normal operations. To avoid locking overhead, we treat each thread as a separate process and creates peer-to-peer queues between each pair of 
 communicating threads. In our design, a single socket connection may corresponds to multiple queues, and we take special care to preserve
 FIFO semantics during fork and thread creation. The second challenge is how to scale to vast many concurrent connections. 
-To handle many concurrent connections efficiently, we need to save memory footprint and improve memory access locality. 
+To handle many concurrent connections efficiently, we need to reduce memory footprint and improve memory access locality. 
 Rather than maintaining a separate queue for each connection, \sys multiplexes socket connections through a single queue for each pair of communicating threads.
 We design \sys carefully to enable fetching from the middle of a queue and solve the head-of-line blocking problem. The third challenge is
 how to fully utilize hardware capabilities to support efficient communication. 
