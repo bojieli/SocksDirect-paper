@@ -130,11 +130,7 @@ while (true) { // main event loop
 }
 \end{lstlisting}
 \vspace{-15pt}
-<<<<<<< HEAD
-\caption{Pseudo-code of a typical socket server application, showing several most important socket operations. A socket connection is a FIFO byte-stream channel identified by an integer \emph{file descriptor} (FD). Linux enables a readiness-driven I/O multiplexing model, in which the OS tells application which FDs are ready to receive or send, then the application may prepare buffers and issue socket operations.}
-=======
-\caption{Pseudo-code of a typical socket server application, showing most important socket operations. A socket connection is a FIFO byte-stream channel identified by an integer \emph{file descriptor} (FD). Linux enables an readiness-driven I/O multiplexing model, in which the OS tells application which FDs are ready to receive or send, then the application may prepare buffers and issue socket operations.}
->>>>>>> 3dd512105423a7a8863d621b62307b63a31a4411
+\caption{Pseudo-code of a typical socket server application, showing most important socket operations. A socket connection is a FIFO byte-stream channel identified by an integer \emph{file descriptor} (FD). Linux enables a readiness-driven I/O multiplexing model, in which the OS tells application which FDs are ready to receive or send, then the application may prepare buffers and issue socket operations.}
 \label{fig:socket-pseudo-code}
 \vspace{-10pt}
 \end{figure}
@@ -199,79 +195,9 @@ while (true) { // main event loop
 	\vspace{-5pt}
 	\caption{Comparison of high performance socket systems.}
 	\label{tab:related-work}
-	\vspace{-10pt}
+	\vspace{-15pt}
 \end{table*}
 
-
-Socket is the standard communication primitive among applications and containers.
-%For example, a web service typically contains an HTTP load balancer, Web application, key-value store and database, which communicate via TCP or UNIX socket.
-%Socket is also used to exchange data between parameter server and workers in Tensorflow and from mapper to reducer in Spark.
-%The socket API was designed in 1980s when network communication has millisecond scale latency, so the computation overhead in OS networking stack is negligible.
-%In contrast, modern data centers have networks with microsecond scale latency and throughput comparable to intra-host buses, making socket a well-known bottleneck for communication intensive applications.
-Modern data centers have networks with microseconds latency and tens of Gbps throughput, making socket a well-known bottleneck for communication intensive applications.
-For example, under stress tests, we observe applications such as Nginx, memcached and Redis consume 50\% to 90\% CPU time in the kernel, mostly dealing with socket operations.
-In addition to inter-host communication, multiple applications and containers often run on the same host and communicating with each other in a data center, making intra-host socket communication increasingly important in the cloud age.
-
-Socket systems in a modern OS have three functions:
-(1) address, locate and connect to another application in the system; % via IP and port;
-(2) provide a reliable and ordered communication channel, identified by an integer \emph{file descriptor} (FD);
-(3) multiplex events from multiple channels.
-Most Linux applications use a readiness-driven I/O multiplexing model, in which the OS tells application which FDs are ready to receive or send, then the application may prepare buffers and issue receive or send operations.
-%Most modern applications use socket in an event-driven style. similar to Figure~\ref{fig:socket-pseudo-code}.
-
-%Socket is a well-known bottleneck for communication intensive applications. We stress test Nginx load balancer, memcached and Redis with one request per TCP connection or a stream of requests on pre-established TCP connections, and find that 50\%$\sim$90\% CPU time is consumed in the kernel, mostly dealing with socket system calls. The one request per connection scenario shows much lower throughput, because of overhead in connection creation.
-
-%If we were able to mitigate the overhead associated with sockets, application performance would be 2x$\sim$10x.
-%As another example, we replaced socket with RDMA and enabled zero copy gRPC in distributed Tensorflow~\cite{abadi2016tensorflow}, and training a VGG network shows 5x speedup.
-
-%Socket is a well-known bottleneck in fast data center networks \RED{(cite)}. In a data center, we categorize systems that process queries from Internet users to be \textit{front-end} (\textit{e.g.} DNS server, load balancer and Web service), and the other systems (\textit{e.g.} database, stream processing and machine learning) to be \textit{back-end}.
-
-%For front-end systems, as shown in Figure~\ref{fig:socket-kernel-time}, 70\% -- 90\% CPU time is used in socket system calls. They maintain a large number of socket connections to Internet users. Establishing a socket connection takes $\approx$40$\mu$s CPU time, so a CPU core can only serve 25K new connections per second~\cite{lin2016scalable}.
-
-%For back-end systems, the performance using socket is significantly worse than using RDMA or shared memory. This is because back-end systems interact frequently with other nodes and services, consequently the latency is vital for their performance. As shown in Figure~\ref{fig:socket-comparison}, socket latency between different processes in a same server is $\approx$10~$\mu$s, even much higher than inter-server RDMA latency ($\approx$2~$\mu$s).
-
-%\textbf{Event-driven programming.}
-
-%\textbf{Socket process: connection setup and data transmission.}
-
-\subsection{High Performance Socket Systems}
-\label{subsec:related-work}
-
-
-There are many high performance socket systems from both academia and commercial companies.
-Table~\ref{tab:related-work} compares several of them on three aspects: compatibility, security and performance.  
-
-The first line of research optimizes the kernel networking stack. These include FastSocket~\cite{lin2016scalable}, Affinity-Accept~\cite{pesterev2012improving}, FlexSC~\cite{soares2010flexsc} and Zero-copy socket~\cite{thadani1995efficient,chu1996zero}.
-Kernel optimizations achieve good compatibility and security, but leave some performance optimizations on the table.
-MegaPipe~\cite{han2012megapipe} and Stackmap~\cite{yasukata2016stackmap} propose new abstractions to achieve zero copy and improve I/O multiplexing, at the cost of requiring application modification.
-
-The second line of research completely eliminates the kernel networking stack and implements TCP/IP in user space.
-These stacks use high performance packet I/O frameworks (e.g., PacketShader~\cite{han2010packetshader}, netmap~\cite{rizzo2012netmap},  DPDK~\cite{dpdk} and PF\_RING~\cite{pf-ring}) to access NIC packet queues in user space.
-In this category, IX~\cite{belay2017ix} and Arrakis~\cite{peter2016arrakis} are new OS architectures that ensure security and isolation.
-IX forwards every packet via the kernel for performance isolation among applications, while Arrakis offloads QoS to NIC, therefore bypasses kernel for data plane.
-SandStorm~\cite{marinos2014network}, mTCP~\cite{jeong2014mtcp}, Seastar~\cite{seastar}, F-Stack~\cite{fstack} proposes new abstractions to specialize network stack to applications.
-LibVMA~\cite{libvma}, OpenOnload~\cite{openonload}, DBL~\cite{dbl} and LOS~\cite{huang2017high} are designed to be compatible with existing applications.
-This design often sacrifices security. Multiple applications of a user-space stack may share a NIC.
-In order to direct received packets of listening ports and established connections to the application, 
-each application inserts flow steering rules to the NIC independently, which is insecure and leads to conflict when multiple applications listen on the same port.
-An application may also send arbitrary packets that violate access control policy.
-Moreover, most user-space stacks are not designed to accelerate intra-host connections and have compatibility limitations.
-
-The third line of research utilizes RDMA NICs available in modern data centers~\cite{guo2016rdma} and translates socket operations to RDMA verbs in user space.
-RDMA uses hardware offloading to provide lower latency and CPU utilization than software-based TCP/IP transport.
-However, RDMA or RoCEv2 are incompatible with TCP/IP, and existing socket to RDMA systems cannot seamlessly communicate with regular TCP/IP peers.
-RSocket~\cite{rsockets} and SDP~\cite{socketsdirect} converts each socket connection to an RDMA connection.
-RDMA NIC needs to keep track of transport states of each connection using a small on-chip memory as cache.
-The performance degrades significantly due to cache miss~\cite{mprdma,kaminsky2016design} with more than several hundred connections.
-FreeFlow~\cite{freeflow} is a software virtual switch to virtualize an RDMA NIC for container overlay network and enables intra-host RDMA communication.
-It uses RSocket to translate socket to RDMA, thus has limited scalability with multiple connections.
-Moreover, the virtual switch limits multi-core scalability.
-
-\subsection{Performance Challenges}
-\label{subsec:performance-challenges}
-
-We aim to deliver consistent high throughput and low latency regardless of the number of CPU cores, concurrent connections and threads.
-This subsection analyzes challenges to achieve this performance goal.
 
 \begin{table}[t]
 	\centering
@@ -328,9 +254,81 @@ This subsection analyzes challenges to achieve this performance goal.
 	}
 	\vspace{-5pt}
 	\caption{Round-trip latency and per-core throughput of operations (testbed settings in Sec.\ref{subsec:methodology}). Message size is 8 bytes if not specified.}
-	\vspace{-10pt}
 	\label{tab:operation-performance}
+	\vspace{-15pt}
 \end{table}
+
+
+Socket is the standard communication primitive among applications and containers.
+%For example, a web service typically contains an HTTP load balancer, Web application, key-value store and database, which communicate via TCP or UNIX socket.
+%Socket is also used to exchange data between parameter server and workers in Tensorflow and from mapper to reducer in Spark.
+%The socket API was designed in 1980s when network communication has millisecond scale latency, so the computation overhead in OS networking stack is negligible.
+%In contrast, modern data centers have networks with microsecond scale latency and throughput comparable to intra-host buses, making socket a well-known bottleneck for communication intensive applications.
+Modern data centers have networks with microseconds latency and tens of Gbps throughput, making socket a well-known bottleneck for communication intensive applications.
+For example, under stress tests, we observe applications such as Nginx~\cite{reese2008nginx}, memcached~\cite{fitzpatrick2004distributed} and Redis~\cite{carlson2013redis} consume 50\% to 90\% CPU time in the kernel, mostly dealing with socket operations.
+In addition to inter-host communication, multiple applications and containers often run on the same host and communicating with each other in a data center, making intra-host socket communication increasingly important in the cloud age.
+
+Socket systems in a modern OS have three functions:
+(1) address, locate and connect to another application in the system; % via IP and port;
+(2) provide a reliable and ordered communication channel, identified by an integer \emph{file descriptor} (FD);
+(3) multiplex events from multiple channels.
+Most Linux applications use a readiness-driven I/O multiplexing model, in which the OS tells application which FDs are ready to receive or send, then the application may prepare buffers and issue receive or send operations.
+%Most modern applications use socket in an event-driven style. similar to Figure~\ref{fig:socket-pseudo-code}.
+
+%Socket is a well-known bottleneck for communication intensive applications. We stress test Nginx load balancer, memcached and Redis with one request per TCP connection or a stream of requests on pre-established TCP connections, and find that 50\%$\sim$90\% CPU time is consumed in the kernel, mostly dealing with socket system calls. The one request per connection scenario shows much lower throughput, because of overhead in connection creation.
+
+%If we were able to mitigate the overhead associated with sockets, application performance would be 2x$\sim$10x.
+%As another example, we replaced socket with RDMA and enabled zero copy gRPC in distributed Tensorflow~\cite{abadi2016tensorflow}, and training a VGG network shows 5x speedup.
+
+%Socket is a well-known bottleneck in fast data center networks \RED{(cite)}. In a data center, we categorize systems that process queries from Internet users to be \textit{front-end} (\textit{e.g.} DNS server, load balancer and Web service), and the other systems (\textit{e.g.} database, stream processing and machine learning) to be \textit{back-end}.
+
+%For front-end systems, as shown in Figure~\ref{fig:socket-kernel-time}, 70\% -- 90\% CPU time is used in socket system calls. They maintain a large number of socket connections to Internet users. Establishing a socket connection takes $\approx$40$\mu$s CPU time, so a CPU core can only serve 25K new connections per second~\cite{lin2016scalable}.
+
+%For back-end systems, the performance using socket is significantly worse than using RDMA or shared memory. This is because back-end systems interact frequently with other nodes and services, consequently the latency is vital for their performance. As shown in Figure~\ref{fig:socket-comparison}, socket latency between different processes in a same server is $\approx$10~$\mu$s, even much higher than inter-server RDMA latency ($\approx$2~$\mu$s).
+
+%\textbf{Event-driven programming.}
+
+%\textbf{Socket process: connection setup and data transmission.}
+
+\subsection{High Performance Socket Systems}
+\label{subsec:related-work}
+
+
+There are many high performance socket systems from both academia and commercial companies.
+Table~\ref{tab:related-work} compares several of them on three aspects: compatibility, security and performance.  
+
+The first line of research optimizes the kernel networking stack. These include FastSocket~\cite{lin2016scalable}, Affinity-Accept~\cite{pesterev2012improving}, FlexSC~\cite{soares2010flexsc} and zero-copy socket~\cite{thadani1995efficient,chu1996zero,linux-zero-copy}.
+Kernel optimizations achieve good compatibility and security, but leave some performance optimizations on the table.
+MegaPipe~\cite{han2012megapipe} and StackMap~\cite{yasukata2016stackmap} propose new abstractions to achieve zero copy and improve I/O multiplexing, at the cost of requiring application modification.
+
+The second line of research completely eliminates the kernel networking stack and implements TCP/IP in user space.
+These stacks use high performance packet I/O frameworks (e.g., PacketShader~\cite{han2010packetshader}, netmap~\cite{rizzo2012netmap},  DPDK~\cite{dpdk} and PF\_RING~\cite{pf-ring}) to access NIC packet queues in user space.
+In this category, IX~\cite{belay2017ix} and Arrakis~\cite{peter2016arrakis} are new OS architectures that ensure security and isolation.
+IX forwards every packet via the kernel for performance isolation among applications, while Arrakis offloads QoS to NIC, therefore bypasses kernel for data plane.
+However, large-scale deployment of a new OS kernel is complicated~\cite{andromeda}.
+SandStorm~\cite{marinos2014network}, mTCP~\cite{jeong2014mtcp}, Seastar~\cite{seastar} and F-Stack~\cite{fstack} proposes new abstractions to specialize network stack to applications.
+LibVMA~\cite{libvma}, OpenOnload~\cite{openonload}, DBL~\cite{dbl} and LOS~\cite{huang2017high} are designed to be compatible with existing applications.
+This design often sacrifices security. Multiple applications of a user-space stack may share a NIC.
+In order to direct received packets of listening ports and established connections to the application, 
+each application inserts flow steering rules to the NIC independently, which is insecure and leads to conflict when multiple applications listen on the same port.
+An application may also send arbitrary packets that violate access control policy.
+Moreover, most user-space stacks are not designed to accelerate intra-host connections and have compatibility limitations.
+
+The third line of research utilizes RDMA NICs available in modern data centers~\cite{guo2016rdma} and translates socket operations to RDMA verbs in user space.
+RDMA uses hardware offloading to provide lower latency and CPU utilization than software-based TCP/IP transport.
+However, RDMA or RoCEv2 are incompatible with TCP/IP, and existing socket to RDMA systems cannot seamlessly communicate with regular TCP/IP peers.
+RSocket~\cite{rsockets} and SDP~\cite{socketsdirect} converts each socket connection to an RDMA connection.
+RDMA NIC needs to keep track of transport states of each connection using a small on-chip memory as cache.
+The performance degrades significantly due to cache miss~\cite{mprdma,kaminsky2016design} with more than several hundred connections.
+FreeFlow~\cite{freeflow} is a software virtual switch to virtualize an RDMA NIC for container overlay network and enables intra-host RDMA communication.
+It uses RSocket to translate socket to RDMA, thus has limited scalability with multiple connections.
+Moreover, the virtual switch limits multi-core scalability.
+
+\subsection{Performance Challenges}
+\label{subsec:performance-challenges}
+
+We aim to deliver consistent high throughput and low latency regardless of the number of CPU cores, concurrent connections and threads.
+This subsection analyzes challenges to achieve this performance goal.
 
 \parab{Intra-host communication.}
 Most existing approaches to intra-host socket either use kernel TCP stack or the NIC.
@@ -344,8 +342,8 @@ We aim to leverage user-space shared memory for intra-host transport.
 
 \parab{Container overlay network.}
 Many container deployments use isolated network namespaces for containers, which communicate via a virtual overlay network.
-In Linux, a virtual switch daemon forwards packets among host NIC and virtual NICs in containers.
-This architecture incurs the overhead of multiple context switches and memory copies on each packet, and the virtual switch is a scalability bottleneck.
+In Linux, a virtual switch daemon~\cite{pfaff2015design} forwards packets among host NIC and virtual NICs in containers.
+This architecture incurs the overhead of multiple context switches and memory copies on each packet, and the virtual switch is a scalability bottleneck~\cite{pfefferle2015hybrid}.
 
 We aim to use the virtual switch for control plane only and implement data plane operations peer-to-peer.
 
@@ -365,7 +363,7 @@ We aim to use RDMA efficiently for socket applications, while fall back to TCP t
 Internet facing applications often need to serve millions of concurrent connections efficiently~\cite{nishtala2013scaling,lin2016scalable,belay2017ix}.
 %In addition, because a socket connection provides a FIFO abstraction and the OS offers event multiplexing, 
 Moreover, it is also common for two processes to create large number of connections between them, where each connection handles a concurrent task.
-In Linux, a socket connection has dedicated send and receive buffers, each is at least one page (4~KiB) in size. With millions of concurrent connections, the socket buffers can consume gigabytes of memory, most of which is empty.
+In Linux, a socket connection has dedicated send and receive buffers, each is at least one page (4~KiB) in size~\cite{davidskbs}. With millions of concurrent connections, the socket buffers can consume gigabytes of memory, most of which is empty.
 Random access to a large number of buffers also leads to CPU cache and TLB miss.
 This issue is also significant in RDMA NICs with limited on-chip memory for maintaining connection states.
 %, which is slower than sequential access to a single buffer~\cite{li2017kv}. 
