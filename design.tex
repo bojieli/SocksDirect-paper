@@ -13,11 +13,18 @@
 		\vspace{-10pt}
 \end{figure}
 
+
 \begin{figure}[t!]
 	\centering
-	\includegraphics[width=0.4\textwidth]{images/fork_rdwr}
+	\subfloat[Traditional.]{
+		\includegraphics[width=0.4\textwidth]{images/fork_linux}
+	}
 	\vspace{-5pt}
-	\caption{The queue structure. Assume sender and receiver each has two threads. Peer-to-peer queues are created between each pair of sender and receiver threads. Data from all connections (FDs) are multiplexed through one queue. Each FD is held by a receiver thread to avoid contention.}
+	\subfloat[\sys{}]{
+		\includegraphics[width=0.4\textwidth]{images/fork_rdwr}
+	}
+	\vspace{-5pt}
+	\caption{Comparison of queue structures. Assume sender and receiver each has two threads. First, \sys{} creates peer-to-peer queues between each pair of sender and receiver threads. Rather than protecting the queue with locks, we designate each FD to a receiver thread to ensure ordering. Second, data from all connections (FDs) are multiplexed through a shared queue, instead of one queue per FD.}
 	\label{fig:fork-rdwr}
 	\vspace{-10pt}
 \end{figure}

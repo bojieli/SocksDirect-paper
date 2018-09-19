@@ -396,7 +396,7 @@ Multiple threads in a process share socket connections.
 For example, after a process forks, both parent and child processes share existing sockets.
 Sockets can also be passed to another process through Unix domain socket.
 To protect concurrent operations, Linux kernel acquires a per-socket lock for each socket operation~\cite{boyd2010analysis,han2012megapipe,lin2016scalable}.
-Table~\ref{tab:operation-performance} shows that a shared memory queue protected by atomic operations has 4x latency and 22\% throughput of a lockless queue.
+Table~\ref{tab:operation-performance} shows that a shared memory queue protected by atomic operations has 4x latency and 22\% throughput of a lockless queue, even if there is no contention.
 Previous works~\cite{boyd2010analysis,clements2015scalable} suggest that many socket operations are not commutable and thus synchronization cannot always be avoided.
 
 We aim to minimize synchronization overhead in two ways.
