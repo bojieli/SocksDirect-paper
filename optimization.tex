@@ -9,6 +9,16 @@ This section addresses three performance challenges: How to use shared memory an
 \begin{figure}[t]
 	\centering
 	\includegraphics[width=0.4\textwidth]{images/locklessq_new}
+	\vspace{-5pt}
+	\caption{Performance comparison of queues.}
+	\vspace{-10pt}
+	\label{fig:queue-performance}
+\end{figure}
+
+\begin{figure}[t]
+	\centering
+	\includegraphics[width=0.4\textwidth]{images/locklessq_new}
+	\vspace{-5pt}
 	\caption{The structure of an inter-thread queue.}
 	\vspace{-15pt}
 	\label{fig:locklessq-structure}
@@ -17,6 +27,7 @@ This section addresses three performance challenges: How to use shared memory an
 We first revisit requirements of the queue between a pair of communicating threads in different applications or hosts. A sender enqueues messages sequentially. At the same time, a receiver peeks and dequeues messages at any position. The message may be a control command or data of a FD, so the message size is variable.
 Our aim is high throughput and low latency when messages in the queue are dequeued in the same order as enqueued, and preserve liveness when dequeuing in arbitrary order.
 Shared memory and RDMA are state-of-the-art methods for inter-core and inter-host communication.
+However, as Figure~\ref{fig:queue-performance} shows, their performance largely depends on the access pattern.
 
 
 For intra-server, the queue is in shared memory. For inter-server, the queue has two identical copies in pinned sender and receiver memory, and we use one-sided RDMA write to synchronize updates from sender to receiver.

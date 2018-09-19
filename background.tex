@@ -216,21 +216,23 @@ while (true) { // main event loop
 			\hline
 			Atomic operation & 0.10 & 5$\sim$10 \\
 			\hline
-			Shared memory queue & 0.25 & 27 \\
+			Lockless shared memory queue & 0.25 & 27 \\
 			\hline
 			\textbf{Intra-host \sys} & 0.30 & 22 \\
 			\hline
-			System call (after KPTI) & 0.20 & 5 \\
+			System call (after KPTI) & 0.20 & 5.0 \\
 			\hline
-			Copy one page (4~KiB) & 0.40 & 5 \\
+			Copy one page (4~KiB) & 0.40 & 5.0 \\
 			\hline
 			NIC cache miss & 0.45 & 2.2 \\
 			\hline
 			Cooperative context switch & 0.52 & 2.0 \\
 			\hline
-			CPU to NIC hairpin RDMA & 0.75 & 14 \\
-			\hline
 			Map 1 page (4~KiB) & 0.78 & 1.3 \\
+			\hline
+			CPU to NIC hairpin RDMA & 1.0 & 14 \\
+			\hline
+			Atomic shared memory queue & 1.0 & 6.1 \\
 			\hline
 			Map 32 pages (128~KiB) & 1.2 & 0.8 \\
 			\hline
@@ -242,13 +244,11 @@ while (true) { // main event loop
 			\hline
 			Semaphore, mutex, futex & 2.8$\sim$5.5 & 0.2$\sim$0.4 \\
 			\hline
-			Intra-host TCP & 11 & 0.9 \\
+			Intra-host Linux TCP & 11 & 0.9 \\
 			\hline
 			Copy 32 pages (128~KiB) & 13 & 0.08 \\
 			\hline
-			Create TCP socket & 14 & 0.07 \\
-			\hline
-			Inter-server TCP & 30 & 0.3 \\
+			Inter-host Linux TCP & 30 & 0.3 \\
 			\hline
 		\end{tabular}
 	}
@@ -396,6 +396,7 @@ Multiple threads in a process share socket connections.
 For example, after a process forks, both parent and child processes share existing sockets.
 Sockets can also be passed to another process through Unix domain socket.
 To protect concurrent operations, Linux kernel acquires a per-socket lock for each socket operation~\cite{boyd2010analysis,han2012megapipe,lin2016scalable}.
+Table~\ref{tab:operation-performance} shows that a shared memory queue protected by atomic operations has 4x latency and 22\% throughput of a lockless queue.
 Previous works~\cite{boyd2010analysis,clements2015scalable} suggest that many socket operations are not commutable and thus synchronization cannot always be avoided.
 
 We aim to minimize synchronization overhead in two ways.

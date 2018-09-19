@@ -199,7 +199,7 @@ When application shuts down one direction of a connection, it sends a \textit{sh
 \subsection{Sharing a Socket Among Processes}
 \label{subsec:fork}
 
-As Sec.~\ref{subsec:performance-challenges} discussed, socket sharing among processes and threads are ubiquitous in modern applications.
+Socket sharing among processes and threads are ubiquitous in modern applications.
 Our aim is to maximize the common-case performance while preserving the FIFO semantics.
 We make two observations: First, fork and thread creation are not frequent in high performance applications compared to connection creation and data transmission.
 Second, it is uncommon that several processes receive concurrently from a shared socket, because the byte-stream semantics of socket makes it hard to avoid receiving partial messages.
@@ -250,6 +250,7 @@ A challenge arise when there is remaining data in the queue when a receiver requ
 The remaining data needs to migrate from the old active queue to the new active queue. When the sender processes a takeover request, it first forwards it to the current receiver. Upon receiving takeover request, the current receiver returns all remaining data to sender via \textit{takeover completion} messages, which the sender forwards to the new receiver. During migration, the sender blocks \texttt{send} operations and takeover requests to ensure message ordering.
 
 
+
 %\begin{figure}[t]
 %	\centering
 %	\includegraphics[width=0.3\textwidth]{images/fixme}
@@ -264,6 +265,7 @@ The remaining data needs to migrate from the old active queue to the new active 
 \begin{figure}[t]
 	\centering
 	\includegraphics[width=0.4\textwidth]{images/fork}
+	\vspace{-5pt}
 	\caption{Message flow during \texttt{fork}.}
 	\label{fig:fork-fork}
 	\vspace{-15pt}
@@ -331,8 +333,19 @@ Closing a shared connection needs to multicast a notification to the peers and c
 \subsection{Multiplex Sockets via One Queue}
 \label{subsec:multiplex-conn}
 
+
+\begin{figure}[t]
+	\centering
+	\includegraphics[width=0.4\textwidth]{images/fork}
+	\vspace{-5pt}
+	\caption{Performance of one shared queue compared with per-FD queues.}
+	\label{fig:multiplex-queue}
+	\vspace{-15pt}
+\end{figure}
+
+
 %\parab{Multiplex connections in event-driven applications.}
-To reduce memory footprint and improve locality of memory accesses, we use one queue to multiplex all connections between a pair of processes. Each data item in the queue is marked with its FD. By using a single queue, we save per-socket memory footprint, and random memory accesses and cache misses are reduced. However, head-of-line blocking problem would arise if the queue is FIFO. 
+To reduce memory footprint and improve locality of memory accesses, we use one queue to multiplex all connections between a pair of threads. Each data item in the queue is marked with its FD. By using a single queue, we reduce per-socket memory footprint, random memory accesses and cache misses, as Figure~\ref{fig:multiplex-queue} shows. However, head-of-line blocking problem would arise if the queue is FIFO. 
 %If we use a FIFO queue, the application would block if it \texttt{recv} from a connection with data not at the head of queue. 
 Therefore, the queue needs to support picking a message in the middle with a specific FD. 
 Fortunately, this does not happen frequently. Event-driven applications typically process incoming events in a FIFO order. For \texttt{epoll\_wait} in level trigger mode, we iterate through all messages in the queue and return those in the set of registered FDs. When applications call \texttt{recv}, \libipc{} would usually dequeue the message at head.
