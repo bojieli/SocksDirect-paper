@@ -266,10 +266,10 @@ Socket is the standard communication primitive among applications and containers
 %In contrast, modern data centers have networks with microsecond scale latency and throughput comparable to intra-host buses, making socket a well-known bottleneck for communication intensive applications.
 Modern data centers have networks with microseconds latency and tens of Gbps throughput, making socket a well-known bottleneck for communication intensive applications.
 For example, under stress tests, we observe applications such as Nginx~\cite{reese2008nginx}, memcached~\cite{fitzpatrick2004distributed} and Redis~\cite{carlson2013redis} consume 50\% to 90\% CPU time in the kernel, mostly dealing with socket operations.
-In addition to inter-host communication, multiple applications and containers often run on the same host and communicating with each other in a data center, making intra-host socket communication increasingly important in the cloud age.
+In addition to inter-host communication, in data centers multiple applications and containers often run on the same host and communicating with each other, making intra-host socket communication increasingly important in the cloud age.
 
 Socket systems in a modern OS have three functions:
-(1) address, locate and connect to another application in the system; % via IP and port;
+(1) address, locate and connect to another application;% in the system via IP and port;
 (2) provide a reliable and ordered communication channel, identified by an integer \emph{file descriptor} (FD);
 (3) multiplex events from multiple channels.
 Most Linux applications use a readiness-driven I/O multiplexing model, in which the OS tells application which FDs are ready to receive or send, then the application may prepare buffers and issue receive or send operations.
@@ -330,7 +330,7 @@ We aim to deliver consistent high throughput and low latency regardless of the n
 This subsection analyzes challenges to achieve this performance goal.
 
 \parab{Intra-host communication.}
-Most existing approaches to intra-host socket either use kernel TCP stack or the NIC.
+Most existing approaches to intra-host socket either use kernel TCP stack or NIC loopback.
 The kernel TCP stack has evolved to become quite complicated over the years~\cite{yasukata2016stackmap}, which is an overkill 
 for intra-server communication. % may not need many TCP features, e.g., congestion control and loss recovery.
 Arrakis uses the NIC to forward packets from one application to another.
@@ -364,7 +364,7 @@ Internet facing applications often need to serve millions of concurrent connecti
 Moreover, it is also common for two processes to create large number of connections between them, where each connection handles a concurrent task.
 In Linux, a socket connection has dedicated send and receive buffers, each is at least one page (4~KiB) in size~\cite{davidskbs}. With millions of concurrent connections, the socket buffers can consume gigabytes of memory, most of which is empty.
 Random access to a large number of buffers also leads to CPU cache and TLB miss.
-This issue is also significant in RDMA NICs with limited on-chip memory for maintaining connection states.
+Similar issue exists in RDMA NICs with limited on-chip memory for maintaining connection states.
 %, which is slower than sequential access to a single buffer~\cite{li2017kv}. 
 %This problem is exaggerated in RDMA. RDMA NIC caches connection states in limited on-board memory. Just over a few hundred active RDMA connections could cause cache misses and degrade performance~\cite{mprdma,kaminsky2016design}. 
 %Moreover, event-driven applications use \texttt{epoll} to detect which connections are ready for send or receive. If the event queue is separated from data queues, each \texttt{recv} operation involves two cache migrations for event and data~\cite{yasukata2016stackmap}. 

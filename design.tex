@@ -1,7 +1,7 @@
 \section{Design}
 \label{sec:design}
 
-\subsection{Architecture}
+\subsection{Architecture Overview}
 \label{subsec:architecture}
 
 \begin{figure}[t!]
@@ -29,33 +29,33 @@
 	\vspace{-10pt}
 \end{figure}
 
-To achieve high performance while preserving security, we design a \emph{monitor} daemon in each host to coordinate control-plane operations, while establish queues between each pair of applications for data-plane.
-As shown in Figure~\ref{fig:architecture}, the core component of \sys{} is a user-space library \libipc{}.
-An application can load \libipc{} simply by setting the \texttt{LD\_PRELOAD} environment variable.
+To achieve high performance while preserving security, we design a \emph{monitor} daemon in each host to coordinate control-plane operations, while establish queues between each pair of applications for data-plane. The \emph{monitor} daemon is started at OS initialization time.
+%As shown in Figure~\ref{fig:architecture}, the core component of \sys{} is a user-space library \libipc{}.
+To use \sys, an application loads a user-space library \libipc{} by setting the \texttt{LD\_PRELOAD} environment variable.
 \libipc{} intercepts all Linux APIs in \texttt{glibc} that are related to file descriptor operations.
 It implements socket APIs in user space and forwards other APIs to the kernel.
 From a security point of view, because \libipc{} resides in the application address space, we cannot trust its behavior.
-To this end, we regard processes as a shared-nothing distributed system that communicates through message passing.
-We design a secure control-plane protocol between applications and the monitor, and a data-plane protocol between applications.
+%To this end, we regard processes as a shared-nothing distributed system that communicates through message passing.
+%We design a secure control-plane protocol between applications and the monitor, and a data-plane protocol between applications.
 
 To achieve low latency and high throughput, \sys{} uses shared memory for intra-host and RDMA for inter-host communication.
 During initialization, \libipc{} connects to the local monitor via shared memory queue.
 To enforce access control policy and support overlay networks, % and load balance new connections to multiple listeners, 
-every new connection request is sent to the local monitor.
-If the peer is local, the monitor establishes a shared memory queue between the two applications (possibly in different containers), so that they can communicate directly.
+connection request is always sent to the local monitor.
+For local peer, the monitor just construct a shared memory queue between the two applications (possibly in different containers), so that they can communicate directly.
 
 When the monitor connects to another host for the first time, it establishes a regular TCP connection and detects whether the remote host supports \sys{}.
 If so, it establishes an RDMA queue between the two monitors, so that future connections between the two hosts can be created faster.
-The monitor on the remote side dispatches the connection to peer application and helps the two applications establish an RDMA queue, as in between host 1 and 2 in Figure~\ref{fig:architecture}.
-If the remote host does not support \sys{}, it keeps using the TCP connection, as in between host 1 and 3 in Figure~\ref{fig:architecture}.
+The monitor on the remote side dispatches the connection to the target and helps the two applications establish an RDMA queue, as between host 1 and 2 in Figure~\ref{fig:architecture}.
+If the remote host does not support \sys{}, it keeps using the TCP connection, as between host 1 and 3 in Figure~\ref{fig:architecture}.
 The detailed connection management protocol is presented in Sec.~\ref{subsec:connection-management}.
 
 In order to remove synchronization overhead for multi-threaded applications, we treat each thread as a separate process.
 %Although threads in a process share memory, we use thread-specific storage for most states in \libipc{}.
-For a pair of communicating applications, we create peer-to-peer queues between each pair of sender and receiver threads to avoid synchronization cost of contending on the same queue, as shown in Figure~\ref{fig:fork-rdwr}.
+For two communicating applications, we create peer-to-peer queues between each pair of sender and receiver threads to avoid synchronization cost of contending on the same queue, as shown in Figure~\ref{fig:fork-rdwr}.
 In Sec.~\ref{subsec:fork}, we present the peer-to-peer queue design that preserves FIFO ordering semantics and avoids starvation, especially when a process forks or creates a new thread.
-To scale performance in the scenario with many concurrent connections, rather than creating separate queues for each connection, we multiplex data from all connections through one queue.
-In Sec.~\ref{subsec:multiplex-conn}, we present the design of multiplexed queue that avoids head-of-line blocking and supports fetching data from any connections.
+To maintain performance with many concurrent connections, rather than creating separate queues for each connection, we multiplex data from all connections through one queue.
+In Sec.~\ref{subsec:multiplex-conn}, we present the design of multiplexed queue that avoids head-of-line blocking and supports fetching data from any multiplexed connections.
 
 %Inspired by Unikernels~\cite{madhavapeddy2013unikernels}, we move networking and IPC functions from the kernel to user space. Similar to existing works~\cite{peter2016arrakis,jeong2014mtcp,libvma}, we leverage multiple queues in modern NICs to enable user-space direct access to network. %The kernel is still responsible for process creation, scheduling, virtual memory and device management, but no longer on the critical path of performance.
 %To maintain compatibility with existing Linux applications, we design a user-mode library \libipc as a drop-in replacement of the system call wrappers in the GNU C library (glibc). \libipc{} implements network socket functions in user mode, and adds a wrapper to other system calls to track process creation and memory allocation. \libipc{} is not considered a secure domain, as it shares memory space with the application. When \libipc{} is loaded, it creates a Linux native \textit{bootstrap socket} to the \textit{monitor} daemon, then creates a shared memory queue to the monitor.
@@ -106,10 +106,10 @@ After that, communication between the application and monitor goes through the s
 An application first creates a socket identified by an integer \emph{file descriptor} (FD).
 Socket FDs and other FDs (e.g. disk files) share a namespace and Linux always allocates the lowest available FD.
 To preserve this semantics without allocating dummy FDs in the kernel, \libipc{} intercepts all FD-related Linux APIs and maintains a FD translation table to map each application FD to a user-space socket FD or a kernel FD.
-When a FD is closed, \libipc{} put it to a \emph{FD recycle pool}.
+When an FD is closed, \libipc{} put it to a \emph{FD recycle pool}.
 Upon FD allocation, \libipc{} first tries to obtain an FD from the recycle pool.
 If the pool is empty, it allocates a new FD by incrementing a \emph{FD allocation counter}.
-The FD recycle pool and allocation counter are shared among all threads in a process and allow wait-free access with atomic operations.
+The FD recycle pool and allocation counter are shared among all threads in a process.% and allow wait-free access with atomic operations.
 
 \parab{Bind.}
 After socket creation, the application calls \texttt{bind} to allocate address and port.
@@ -121,17 +121,17 @@ As shown in Figure~\ref{fig:conn-setup}, \libipc{} sends the request to monitor 
 When a server application is ready to accept connections from clients, it calls \texttt{listen} and notifies the monitor.
 The monitor maintains a list of listening processes on each address and port to dispatch new connections.
 The monitor also uses a user-space networking stack (modified LibVMA~\cite{libvma} in our implementation) or \texttt{netfilter} to wait for incoming TCP SYN packets.
-To avoid the kernel networking stack from receiving the SYN, the monitor inserts flow steering rules in modern NICs or \texttt{iptables} filters.
+To avoid the kernel networking stack from receiving SYN, the monitor inserts flow steering rules in modern NICs or \texttt{iptables} filters.
 
 \parab{Connect.}
-The client application calls \texttt{connect} and sends a SYN command to monitor via shared memory queue.
-The monitor translates IP addresses and ports for overlay network, then forwards the SYN to the server application.
-If the server application is in the same host, forward the SYN to it directly.
+A client application calls \texttt{connect} and sends a SYN command to monitor via shared memory queue.
+The monitor translates IP addresses and ports for overlay network, then forwards the SYN to the target server application.
+If it is in the same host, forward the SYN to it directly.
 
 \parab{Differentiate \sys{} peers from regular TCP/IP peers.}
-If the server application is in a different host, the monitor first needs to detect whether the server supports \sys{}.
+If the target is in a different host, the monitor first needs to detect whether the host supports \sys{}.
 To this end, the monitor sends a TCP SYN packet with a special option over the network.
-If the server is \sys{} capable, its monitor would receive the special SYN and knows the client is \sys{} capable.
+If the host is \sys{} capable, its monitor would receive the special SYN and knows the client is \sys{} capable.
 The server then responds SYN+ACK with special option, including credentials to setup an RDMA connection, so that the two monitors can communicate through RDMA afterwards.
 If either the client or the server monitor finds out that the peer is a regular TCP/IP host, it notifies the application to delegate future operations to itself, 
 then executes delegated socket operations via the user-space TCP stack, as shown between host 1 and 3 in Figure~\ref{fig:architecture}.
@@ -150,11 +150,11 @@ When a listener invokes \texttt{accept} while the backlog is empty, it requests 
 To avoid contention between a listener and monitor, the monitor sends a request to the listener to steal from the backlog.
 
 \parab{Establish a peer-to-peer queue.}
-If it is the first time for the client and server applications to communicate, the server monitor helps them establish a direct connection.
-For intra-host, the monitor allocates a shared memory and sends the shared memory key to both client and server applications.
+The first time a client and a server application communicates, the server monitor helps them establish a direct connection.
+For intra-host, the monitor allocates a shared memory queue and sends the shared memory key to both client and server applications.
 For inter-host, the client and server monitors establish a new RDMA QP, and send the local and remote keys to the corresponding applications.
 To reduce latency, the peer-to-peer queue is established by monitor(s) when the SYN command is distributed into a listener's backlog.
-However, if the SYN is stolen by another listener, a new queue needs to established between client and the new listener, as shown in the Wait-Server state of Figure~\ref{fig:conn-setup}.
+However, if the SYN is stolen by another listener, a new queue needs to be established between client and the new listener, as shown in the Wait-Server state of Figure~\ref{fig:conn-setup}.
 
 \parab{Finalize connection creation.}
 After the server sets up peer-to-peer queue, as the left side of Figure~\ref{fig:conn-setup} shows, the server application sends a ACK to client application containing the client FD in SYN request and its allocated server FD.
@@ -360,7 +360,7 @@ Fortunately, this does not happen frequently. Event-driven applications typicall
 We maintain a bitmap of the epoll FD set.
 When \texttt{epoll\_wait} is called, we scan all data queues round-robin and check the FD of each data message against the bitmap. If the FD is in the bitmap, an event is returned to the application.
 A global cursor is maintained to resume data queue scanning from the last position in the last scanned queue.
-A per-queue cursor records the last scanned position in each queue to avoid scanning a message twice.
+A per-queue cursor records the last scanned position in each queue to avoid scanning a message multiple times.
 Each FD maintains the positions of the first and last scanned (but unread) message of the FD.
 When a new message of the FD is scanned, a pointer in the last message is updated to point to the new message. This chains received messages of a FD to a linked list.
 This is to speedup receive operation. When an application attempts to receive multiple messages from a FD, it can follow the linked list rather than scanning through the whole queue.
@@ -369,7 +369,7 @@ To poll events from sockets and other FDs (handled by kernel) at the same time, 
 
 \parab{Head-of-line blocking.}
 Head-of-line blocking causes two problems.
-First is to receive control messages when the queue is full. For example, in order to close the receive direction while sending data, the shutdown message should not be blocked by unconsumed data in the queue. To transfer control messages out-of-band, we add an \textit{emergency queue} alongside each data queue.
+The first problem is with receiving control messages when the queue is full. For example, in order to close the receive direction while sending data, the shutdown message should not be blocked by unconsumed data in the queue. To transfer control messages out-of-band, we add an \textit{emergency queue} alongside each data queue.
 A receiver will always retrieve messages in the emergency queue immediately.
 
 Second, if application does not receive from an FD for a long time, data items of the FD may fill up the queue and starve other FDs.
