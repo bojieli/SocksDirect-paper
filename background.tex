@@ -96,6 +96,7 @@
 \end{table*}
 \fi
 
+\iffalse
 \begin{figure}
 \begin{lstlisting}[style=CStyle]
 int lfd = socket(...); // listen file descriptor (fd)
@@ -129,11 +130,15 @@ while (true) { // main event loop
 }
 \end{lstlisting}
 \vspace{-15pt}
+<<<<<<< HEAD
+\caption{Pseudo-code of a typical socket server application, showing several most important socket operations. A socket connection is a FIFO byte-stream channel identified by an integer \emph{file descriptor} (FD). Linux enables a readiness-driven I/O multiplexing model, in which the OS tells application which FDs are ready to receive or send, then the application may prepare buffers and issue socket operations.}
+=======
 \caption{Pseudo-code of a typical socket server application, showing most important socket operations. A socket connection is a FIFO byte-stream channel identified by an integer \emph{file descriptor} (FD). Linux enables an readiness-driven I/O multiplexing model, in which the OS tells application which FDs are ready to receive or send, then the application may prepare buffers and issue socket operations.}
+>>>>>>> 3dd512105423a7a8863d621b62307b63a31a4411
 \label{fig:socket-pseudo-code}
 \vspace{-10pt}
 \end{figure}
-
+\fi
 
 
 \begin{table*}[t]
@@ -208,10 +213,11 @@ For example, under stress tests, we observe applications such as Nginx, memcache
 In addition to inter-host communication, multiple applications and containers often run on the same host and communicating with each other in a data center, making intra-host socket communication increasingly important in the cloud age.
 
 Socket systems in a modern OS have three functions:
-(1) address, locate and connect to another application in the system. % via IP and port;
-(2) provide a reliable and ordered communication channel;
+(1) address, locate and connect to another application in the system; % via IP and port;
+(2) provide a reliable and ordered communication channel, identified by an integer \emph{file descriptor} (FD);
 (3) multiplex events from multiple channels.
-Most modern applications use socket in an event-driven style similar to Figure~\ref{fig:socket-pseudo-code}.
+Most Linux applications use a readiness-driven I/O multiplexing model, in which the OS tells application which FDs are ready to receive or send, then the application may prepare buffers and issue receive or send operations.
+%Most modern applications use socket in an event-driven style. similar to Figure~\ref{fig:socket-pseudo-code}.
 
 %Socket is a well-known bottleneck for communication intensive applications. We stress test Nginx load balancer, memcached and Redis with one request per TCP connection or a stream of requests on pre-established TCP connections, and find that 50\%$\sim$90\% CPU time is consumed in the kernel, mostly dealing with socket system calls. The one request per connection scenario shows much lower throughput, because of overhead in connection creation.
 
