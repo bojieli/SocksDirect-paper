@@ -208,7 +208,7 @@ When application shuts down one direction of a connection, it sends a \textit{sh
 
 Socket sharing among processes and threads are ubiquitous in modern applications.
 Our aim is to maximize the common-case performance while preserving the FIFO semantics.
-We make two observations: First, fork and thread creation are not frequent in high performance applications compared to connection creation and data transmission.
+We make two observations: First, fork and thread creation are infrequent in high performance applications.% compared to connection creation and data transmission.
 Second, it is uncommon that several processes receive concurrently from a shared socket, because the byte-stream semantics of socket makes it hard to avoid receiving partial messages.
 %For such producer-consumer scenarios, message brokers~\cite{hintjens2013zeromq,rabbitmq2017rabbitmq,kreps2011kafka} are typically used.
 Based on the observations, we propose the following requirements:
@@ -216,7 +216,7 @@ Based on the observations, we propose the following requirements:
 \begin{enumerate}[noitemsep,nolistsep]
  \item \textbf{Synchronization-free.} With multiple senders and receivers, if only one pair of sender and receiver is active, no synchronization should occur.
  \item \textbf{Multi-sender scalability.} Multiple processes may send data concurrently through a shared socket. With multiple active senders and a single receiver, if the receiver is not a bottleneck, the throughput should scale.
- \item \textbf{Self-stabilization.} Certain operations (\textit{e.g.} \texttt{fork}) may slow down the system temporarily, but after that the throughput should converge back to normal.
+ \item \textbf{Self-stabilization.} Certain operations (\textit{e.g.} \texttt{fork}) may slow down the system temporarily, but after that the performance should converge back to normal.
 \end{enumerate}
 
 For compatibility with Linux semantics, we also need to ensure message ordering and liveness:
@@ -350,31 +350,49 @@ Closing a shared connection needs to multicast a notification to the peers and c
 	\vspace{-15pt}
 \end{figure}
 
+\begin{figure}[t]
+	\centering
+	\includegraphics[width=0.4\textwidth]{images/locklessq_new}
+	\vspace{-5pt}
+	\caption{The structure of an inter-thread queue.}
+	\vspace{-15pt}
+	\label{fig:locklessq-structure}
+\end{figure}
+
 
 %\parab{Multiplex connections in event-driven applications.}
-To reduce memory footprint and improve locality of memory accesses, we use one queue to multiplex all connections between a pair of threads. Each data item in the queue is marked with its FD. By using a single queue, we reduce per-socket memory footprint, random memory accesses and cache misses, as Figure~\ref{fig:multiplex-queue} shows. However, head-of-line blocking problem would arise if the queue is FIFO. 
-%If we use a FIFO queue, the application would block if it \texttt{recv} from a connection with data not at the head of queue. 
-Therefore, the queue needs to support picking a message in the middle with a specific FD. 
-Fortunately, this does not happen frequently. Event-driven applications typically process incoming events in a FIFO order. For \texttt{epoll\_wait} in level trigger mode, we iterate through all messages in the queue and return those in the set of registered FDs. When applications call \texttt{recv}, \libipc{} would usually dequeue the message at head.
+To reduce memory footprint and improve locality of memory accesses, we use one queue to multiplex all connections between a pair of threads. Each data item in the queue is marked with its FD. By using a single queue, we reduce per-socket memory footprint, random memory accesses and cache misses, as Figure~\ref{fig:multiplex-queue} shows.
 
-We maintain a bitmap of the epoll FD set.
+\parab{Message format.}
+As shown in Figure~\ref{fig:locklessq-structure}, the main component of the queue is a \emph{data ring buffer}, where messages are stored back-to-back.
+Each message in the ring buffer consists of an 8-byte header and a variably sized payload. The header consists of an \textit{isvalid} flag, an opcode, the receiver's FD number and the payload size. Messages are aligned to 8 bytes to ensure header write atomicity and accelerate payload copy.
+
+\parab{Event polling.}
+We maintain a bitmap of each epoll FD set.
 When \texttt{epoll\_wait} is called, we scan all data queues round-robin and check the FD of each data message against the bitmap. If the FD is in the bitmap, an event is returned to the application.
 A global cursor is maintained to resume data queue scanning from the last position in the last scanned queue.
 A per-queue cursor records the last scanned position in each queue to avoid scanning a message twice.
-Each FD maintains the positions of the first and last scanned (but unread) message of the FD.
-When a new message of the FD is scanned, a pointer in the last message is updated to point to the new message. This chains received messages of a FD to a linked list.
-This is to speedup receive operation. When an application attempts to receive multiple messages from a FD, it can follow the linked list rather than scanning through the whole queue.
+To speedup repeated receive operations of a specific FD, we build a linked list of messages for each FD as a side product of event polling.
+Each FD maintains positions of the first and last scanned but unread messages of the FD.
+When a new message of the FD is scanned, the \emph{nextptr} pointer in the last message is updated to point to the new message.
 
 To poll events from sockets and other FDs (handled by kernel) at the same time, \libipc{} creates an \textit{epoll thread} in each process to wait on all FDs handled by kernel. When it receives a kernel event, it broadcasts the event to application threads via shared memory queues. %\texttt{Epoll\_wait} in \libipc{} will return such kernel events in addition to socket events. %Note that Linux allows an event to be received by multiple threads sharing the FD.
 
-\parab{Head-of-line blocking.}
-Head-of-line blocking causes two problems.
-First is to receive control messages when the queue is full. For example, in order to close the receive direction while sending data, the shutdown message should not be blocked by unconsumed data in the queue. To transfer control messages out-of-band, we add an \textit{emergency queue} alongside each data queue.
-A receiver will always retrieve messages in the emergency queue immediately.
+\parab{Pick from middle of queue.}
+In order to support receiving data from a specific FD, the queue needs to support picking a message in the middle with a specific FD.
+Fortunately, this does not happen frequently. Event-driven applications typically process incoming events in a FIFO order. For \texttt{epoll\_wait} in level trigger mode, we iterate through all messages in the queue and return those in the set of registered FDs. When applications call \texttt{recv}, \libipc{} would usually dequeue the message at head.
 
-Second, if application does not receive from an FD for a long time, data items of the FD may fill up the queue and starve other FDs.
+To pick from middle of queue, receiver traverses messages in the ring buffer. During traversal, receiver iterates messages from \textit{head} until free space in ring buffer, determined by \textit{isvalid}. Hence, receiver cannot clear \textit{isvalid} when a non-head message is dequeued. That's why each message has an \textit{isdel} flag. When a message is dequeued from the middle, its \textit{isdel} is set. %If the message at \textit{head} has \textit{isdel} set, the receiver advances \textit{head} and repeats this step.
+
+\parab{Head-of-line blocking.}
+%Second, if application does not receive from a FD for a long time, data items of the FD may fill up the queue and starve other FDs.
+If application does not receive from a FD for a long time, the empty space in queue will become fragmented.
 When data queue is full, the sender sends a message via emergency queue to trigger garbage collection in the receiver.
-The receiver scans empty space in the middle of queue and moves messages closer to the tail, so that empty space are collected at the head and can be returned to the sender.
+The receiver scans empty space in the middle of queue and moves remaining messages, so that empty space can be returned to the sender.
 %To avoid starvation, we need at least one byte of headroom per FD. Accordingly, we design a single byte \textit{headroom slot} per FD. When data queue is full and the per-FD headroom slot is free, sender uses it and sends a notification via emergency queue. Receiver receives from data queue first, then from the headroom slot if it received a notification.
+
+\parab{Emergency queue.}
+Control messages may need to be delivered out-of-band when the queue is full. For example, in order to close the receive direction while sending data, the shutdown message should not be blocked by unconsumed data in the queue. To this end, we add an \textit{emergency queue} alongside each data queue.
+A receiver will always retrieve messages in the emergency queue immediately.
 
 

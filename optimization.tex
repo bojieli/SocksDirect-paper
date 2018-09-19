@@ -3,7 +3,7 @@
 
 This section addresses three performance challenges: How to use shared memory and RDMA efficiently? How to achieve socket-compatible zero copy? How to avoid thread wakeup cost when multiple threads share a CPU core?
 
-\subsection{Lockless Inter-Thread Queue}
+\subsection{High Performance Queue}
 \label{subsec:lockless-queue}
 
 \begin{figure}[t]
@@ -15,43 +15,38 @@ This section addresses three performance challenges: How to use shared memory an
 	\label{fig:queue-performance}
 \end{figure}
 
-\begin{figure}[t]
-	\centering
-	\includegraphics[width=0.4\textwidth]{images/locklessq_new}
-	\vspace{-5pt}
-	\caption{The structure of an inter-thread queue.}
-	\vspace{-15pt}
-	\label{fig:locklessq-structure}
-\end{figure}
-
-We first revisit requirements of the queue between a pair of communicating threads in different applications or hosts. A sender enqueues messages sequentially. At the same time, a receiver peeks and dequeues messages at any position. The message may be a control command or data of a FD, so the message size is variable.
-Our aim is high throughput and low latency when messages in the queue are dequeued in the same order as enqueued, and preserve liveness when dequeuing in arbitrary order.
+%We first revisit requirements of the queue between a pair of communicating threads in different applications or hosts. A sender enqueues messages sequentially. At the same time, a receiver peeks and dequeues messages at any position. The message may be a control command or data of a FD, so the message size is variable.
+%Our aim is high throughput and low latency when messages in the queue are dequeued in the same order as enqueued, and preserve liveness when dequeuing in arbitrary order.
 Shared memory and RDMA are state-of-the-art methods for inter-core and inter-host communication.
-However, as Figure~\ref{fig:queue-performance} shows, their performance largely depends on the access pattern.
-
-
-For intra-server, the queue is in shared memory. For inter-server, the queue has two identical copies in pinned sender and receiver memory, and we use one-sided RDMA write to synchronize updates from sender to receiver.
+However, as Figure~\ref{fig:queue-performance} shows, sharing \emph{head} and \emph{tail} pointers between sender and receiver introduces inter-core cache migration overheads in shared memory and unacceptable latency for RDMA.
+For high throughput and low latency, our principle is that each shared memory region is either writable by the sender or receiver, but never both.
+Because the receiver needs to modify \emph{isdel} and \emph{nextptr} fields, we create a \emph{shadow ring buffer} in receiver's private memory and update the corresponding offset in place of shared memory.
 
 \parab{Credit-based ring buffer.}
-Most ring buffer designs share \textit{head} and \textit{tail} pointers between sender and receiver, which introduces an additional cache migration or RDMA operation. To eliminate such overhead, we keep \textit{head} and \textit{tail} pointers locally in sender and receiver respectively.
+%Most ring buffer designs share \textit{head} and \textit{tail} pointers between sender and receiver, which introduces an additional cache migration or RDMA operation. To eliminate such overhead, we keep \textit{head} and \textit{tail} pointers locally in sender and receiver respectively.
 To tell whether the ring buffer is full, the sender maintains a \textit{credits} count, indicating the number of free bytes in ring buffer. When sender enqueues a message, it consumes a credit. When receiver dequeues a message, it increments a counter locally, and writes a \textit{credit return flag} in sender's memory once the counter exceeds half the size of ring buffer. The sender regains credits upon detecting the flag.
 
-\parab{Message format.}
-Messages are stored back-to-back in the ring buffer. Each message in the ring buffer consists of an 8-byte header and a variably sized payload. The header consists of an \textit{isvalid} flag, an \textit{isdel} flag, an opcode, the receiver's FD number and the payload size. Messages are aligned to 8 bytes to ensure header write atomicity and accelerate payload copy. Sender enqueues message at \textit{head} pointer. For intra-server communication, first, sender clears header of the next message to prevent the receiver from considering junk data in the ring buffer to be a message. Next, sender writes payload, then writes header, finally advances \textit{head}. Receiver polls \textit{isvalid} at \textit{tail} pointer, then copies the message, finally advances \textit{tail}.
+\parab{Enqueue and dequeue.}
+Sender enqueues message at \textit{tail} pointer. For shared memory queue, first, sender clears header of the next message to prevent the receiver from considering junk data in the ring buffer to be a message. Next, sender writes payload, then writes header, finally advances \textit{tail}. Receiver polls \textit{isvalid} at \textit{head} pointer, then copies the message, finally advances \textit{head}.
 
-For inter-server communication, to save RDMA messages, the sender uses a single RDMA message to write a ring buffer message and clear header of the next message. Because RDMA does not ensure write ordering within a message~\cite{infiniband2000infiniband}, sender uses \textit{RDMA write with immediate} verb to generate completions on receiver. The receiver polls RDMA completion queue rather than the ring buffer.
+For RDMA, it is known that one-sided verbs has higher throughput than two-sided ones; short messages has lower throughput than large ones~\cite{kalia2014using,kaminsky2016design}.
+In light of this, the inter-host queue has two identical copies in pinned sender and receiver memory, and we use one-sided RDMA write to synchronize updates from sender to receiver.
+\libipc{} polls CQ to limit the number of in-flight (sent but not acknowledged) messages, which is not only required by RDMA NIC, but also enables \emph{adapative batching}~\cite{li2016clicknp,li2017kv}.
+When a message is enqueued to the ring buffer and the RDMA send queue is not full, it is immediately sent as an RDMA message.
+When \libipc{} polls CQ and finds an empty slot in send queue, it sends all queued but unsent data in queue as an RDMA message, because the messages are stored back-to-back in the queue.
+
 
 \parab{Consistency between payload and metadata.}
-One may think that out-of-order execution may mandate the use of memory fence instructions. Actually, memory fence is unnecessary. For intra-server communication, X86 processors from Intel and AMD provides total store ordering~\cite{sewell2010x86,intel-manual}, which implies that two writes are observed by other cores in the same order as they were written. An 8-byte \texttt{MOV} instruction is atomic, so writing a header is atomic. Because sender writes header after payload, the receiver would read a consistent message after polling \textit{isvalid} flag. For inter-server communication, RDMA ensures cache consistency on receiver, and the completion is guaranteed to be delivered after writing the data~\cite{infiniband2000infiniband}.
+One may think that out-of-order execution may mandate the use of memory fence instructions. Actually, memory fence is unnecessary. For shared-memory queue, X86 processors from Intel and AMD provides total store ordering~\cite{sewell2010x86,intel-manual}, which implies that two writes are observed by other cores in the same order as they were written. An 8-byte \texttt{MOV} instruction is atomic, so writing a header is atomic. Because sender writes header after payload, the receiver would read a consistent message after polling \textit{isvalid} flag.
+Because RDMA does not ensure write ordering within a message~\cite{infiniband2000infiniband}, sender uses \textit{RDMA write with immediate} verb to generate completions on receiver. The receiver polls RDMA completion queue rather than the ring buffer. RDMA ensures cache consistency on receiver, and the completion is guaranteed to be delivered after writing the data.
+
 
 \parab{Amortize polling overhead.}
-Polling the inter-process queue wastes CPU cycles of the receiver when a pair of processes do not communicate frequently. To this end, we amortize polling overhead of multiple inter-process queues by multiplexing their event notifications into a single queue.
-For inter-server connections, we use RDMA NIC as the multiplexer. A process uses a \textit{shared completion queue} for all RDMA connections, so it only needs to poll one queue rather than multiple ring buffers.
+Polling queues wastes CPU cycles of the receiver when a pair of threads do not communicate frequently. To this end, we amortize polling overhead using two techniques.
+For RDMA queues, we leverage the RDMA NIC to multiplex event notifications into a single queue.
+A thread uses a \textit{shared completion queue} for all RDMA connections, so it only needs to poll one queue rather than multiple queues.
+For shared memory queues, each queue can switch between \textit{polling} and \textit{interrupt} modes. The queue to the monitor is always in polling mode. Receiver of each queue maintains a counter of consecutive empty polls. When it exceeds a threshold, the receiver sends a notification to sender and stops polling after a while. When sender writes to a queue in interrupt mode, it also notifies the monitor and the monitor will signal the receiver to resume polling.
 
-For intra-server connections, we use the monitor as the multiplexer. Each queue can switch between \textit{polling} and \textit{interrupt} modes. The queue to the monitor process is always in polling mode. Receiver of each queue maintains a counter of consecutive empty polls. When it exceeds a threshold, the receiver sends a \textit{stop polling} request to sender and stops polling after receiving ACK. When sender writes to a queue in interrupt mode, it sends an \textit{interrupt} message to the monitor and the monitor will signal the receiver to resume polling. 
-
-\parab{Pick from middle of queue.}
-In order to support receiving data from a specific FD, receiver needs to traverse messages in the ring buffer. During traversal, receiver iterates messages from \textit{tail} until free space in ring buffer, determined by \textit{isvalid}. Hence, receiver cannot clear \textit{isvalid} when a non-tail message is dequeued. That's why each message has an \textit{isdel} flag. When a message is dequeued, its \textit{isdel} is set. If the message at \textit{tail} has \textit{isdel} set, the receiver advances \textit{tail} and repeats this step.
 
 \subsection{Zero Copy}
 \label{subsec:zerocopy}
