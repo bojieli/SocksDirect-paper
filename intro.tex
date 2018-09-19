@@ -82,7 +82,8 @@ For security and scalability, we consider processes as a shared-nothing distribu
 We design a secure and efficient protocol for \libipc{} to delegate connection creation to the local monitor, while implement data transmission and event polling in a peer-to-peer fashion between processes.
 
 %\iffalse
-We face many performance challenges designing \sys{}. We briefly discuss three of them here, and will elaborate in much more detail in the rest of the paper. 
+We face many challenges designing \sys{} to achieve high performance while maintaining compatibility. 
+We briefly discuss three of them here, and will elaborate in much more detail in the rest of the paper. 
 The first challenge is how to share a socket among threads and forked processes without locking. A socket connection may be shared by multiple 
 senders and receivers. Existing approaches need locking to protect shared queue and metadata, which significantly slows down the system during 
 normal operations. To avoid locking overhead, we treat each thread as a separate process and creates peer-to-peer queues between each pair of 
@@ -92,11 +93,11 @@ To handle many concurrent connections efficiently, we need to save memory footpr
 Rather than maintaining a separate queue for each connection, \sys multiplexes socket connections through a single queue for each pair of communicating threads.
 We design \sys carefully to enable fetching from the middle of a queue and solve the head-of-line blocking problem. The third challenge is
 how to fully utilize hardware capabilities to support efficient communication. 
-We leverage different transports to push performance to the hardware limits.
+We leverage different transports to push performance to hardware limits.
 For communication within the same host, we use a high performance user space shared memory queue.
 For communication among hosts in an RDMA enabled data center, we use RDMA hardware for transport. 
 To remove memory copy for large messages, we use \emph{page remapping} to achieve transparent zero copy.
-To share a CPU core efficiently among multiple active threads, \sys uses \emph{cooperative multitasking} to remove thread wakeup overhead.
+To share a CPU core efficiently among multiple active threads without thread wakeup overhead, \sys uses \emph{cooperative multitasking}. 
 %\fi
 
 \iffalse
