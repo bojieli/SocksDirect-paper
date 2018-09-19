@@ -395,7 +395,7 @@ We aim to minimize centralized coordination while preserving isolation.
 %Second, many web application frameworks prefer a synchronous programming model to process each user request because it is easier to write and debug~\cite{barroso2017attack}.
 Multiple threads in a process share socket connections.
 For example, after a process forks, both parent and child processes share existing sockets.
-Sockets can also be passed to another process through UNIX domain socket.
+Sockets can also be passed to another process through Unix domain socket.
 To protect concurrent operations, Linux kernel acquires a per-socket lock for each socket operation~\cite{boyd2010analysis,han2012megapipe,lin2016scalable}.
 Previous works~\cite{boyd2010analysis,clements2015scalable} suggest that many socket operations are not commutable and thus synchronization cannot always be avoided.
 
