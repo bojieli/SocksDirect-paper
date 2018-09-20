@@ -365,12 +365,12 @@ To reduce memory footprint and improve locality of memory accesses, we use one q
 
 \parab{Message format.}
 As shown in Figure~\ref{fig:locklessq-structure}, the main component of the queue is a \emph{data ring buffer}, where messages are stored back-to-back.
-Each message in the ring buffer consists of an 8-byte header and a variably sized payload. The header consists of an \textit{isvalid} flag, an opcode, the receiver's FD number and the payload size. Messages are aligned to 8 bytes to ensure header write atomicity and accelerate payload copy.
+Each message in the ring buffer consists of an 8-byte header and a variably sized payload. The header consists of an \textit{isvalid} flag, an opcode, the receiver's FD number and the payload size. Messages are aligned to 8 bytes to ensure header write atomicity.% and accelerate payload copy.
 
 \parab{Event polling.}
 We maintain a bitmap of each epoll FD set.
 When \texttt{epoll\_wait} is called, we scan all data queues round-robin and check the FD of each data message against the bitmap. If the FD is in the bitmap, an event is returned to the application.
-A global cursor is maintained to resume data queue scanning from the last position in the last scanned queue.
+A global cursor exists to resume data queue scanning from the last position in the last scanned queue.
 
 A per-queue cursor records the last scanned position in each queue to avoid scanning a message multiple times.
 To speedup repeated receive operations of a specific FD, we build a linked list of messages for each FD as a side product of event polling.
@@ -395,4 +395,3 @@ The receiver scans empty space in the middle of queue and moves remaining messag
 \parab{Emergency queue.}
 Control messages may need to be delivered out-of-band when the queue is full. For example, in order to close the receive direction while sending data, the shutdown message should not be blocked by unconsumed data in the queue. To this end, we add an \textit{emergency queue} alongside each data queue.
 A receiver will always retrieve messages in the emergency queue immediately.
-
