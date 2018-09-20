@@ -70,7 +70,7 @@ The main challenge for zero copy is to maintain the semantics of socket API (Sec
 %A sender may write the send buffer after non-blocking \texttt{send}, and the receiver does not know the receive buffer before \texttt{recv}.
 Fortunately, virtual memory provides a layer of indirection. % so we can remap virtual address of a buffer to another physical page if the data occupies entire 4~KiB pages.
 Rather than copying, we remap the physical pages from sender's virtual addresses to receiver's.
-This approach has been explored by zero-copy sockets~\cite{thadani1995efficient,chu1996zero,linux-zero-copy}, but they still have several challenges.
+This approach has been explored by zero-copy sockets~\cite{thadani1995efficient,chu1996zero,linux-zero-copy}, but still has several challenges.
 
 \parab{Page alignment.}
 Page remapping only works when the send and receive addresses are page aligned and the transfer contains entire pages.
@@ -78,38 +78,40 @@ We intercept \texttt{malloc} and \texttt{realloc} functions and allocate 4~KiB a
 If the size of sent message is not a multiple of 4~KiB, the last chunk of data is copied on \texttt{send} and \texttt{recv}.
 
 \parab{Amortize page remapping cost.}
-As Table~\ref{tab:operation-performance} shows, remapping a single page is more expensive than copying it because of kernel crossing and TLB flush costs. Hence, we use one syscall to remap multiple pages in one socket operation.
-We use zero copy for \texttt{send} or \texttt{recv} with at least 8~KiB size.
+As Table~\ref{tab:operation-performance} shows, remapping a single page is more expensive than copying it because of kernel crossing and TLB flush costs. Hence, we use zero copy only for \texttt{send} or \texttt{recv} with at least 8~KiB size.
+We use a single syscall to remap multiple pages in one socket operation.
 
 \parab{Minimize copy-on-write.}
-After \texttt{send}, because the application may read the buffer or send the buffer to other receivers, it needs to write-protect the buffer.
-\texttt{recv} also needs to write-protect received buffers.
+%After \texttt{send}, because the application may read the buffer or send the buffer to other receivers, it needs to write-protect the buffer.
+%\texttt{recv} also needs to write-protect received buffers.
 When sender writes the buffer after \texttt{send}, existing designs use copy-on-write. %Copy is required because the sender may read the non-written part of the page.
 Because applications almost always reuse the buffer for subsequent send operations, copy-on-write is invoked in most cases, making zero-copy essentially useless on sender.
-Our observation is that most applications overwrite entire pages of the send buffer via \texttt{recv} or \texttt{memcpy}. %so it is unnecessary to copy old data when the first byte of the page is written.
-For \texttt{recv}, the old read-only mapping can be safely discarded.
+Our observation is that most applications do not modify the buffer. Instead, they overwrite entire pages of the send buffer via \texttt{recv} or \texttt{memcpy}. %so it is unnecessary to copy old data when the first byte of the page is written.
+%For \texttt{recv}, the old read-only mapping can be safely discarded.
+For \texttt{recv}, the zero-copy page remapping mechanism already handles the case and the received buffer can be safely used for send. 
 For \texttt{memcpy}, we add preamble code to \texttt{memcpy} in both \libipc{} and compiler inline library, so that
 for page-aligned copy to \libipc{} buffers, the preamble code invokes the kernel to remap new pages and disable write protection.
 
 \parab{Page allocation overhead.}
 Page remapping requires the kernel to allocate and free pages for each zero copy \texttt{send} and \texttt{recv}. 
-Page allocation in kernel uses a global lock, therefore it is inefficient. Instead, \libipc{} manages a pool of free pages in each process.
+Page allocation in kernel uses a global lock, which is inefficient. \libipc{} manages a pool of free pages in each process locally.
 \libipc{} also tracks the origin of received zero-copy pages.
-Whenever a page is remapped, if it is from another process, \libipc{} sends a message to the original process to return the pages.
+Whenever a page is remapped, if it is from another process, \libipc{} return the pages to the owner through a message.
 
 \parab{Send page addresses securely in user space.}
-For intra-host socket, rather than sending page addresses to the receiver via kernel, we send the addresses in a message in user-space queues.
+For intra-host socket, we send the physical page addresses in a message in user-space queues.
 We must prevent unsolicited remapping of arbitrary pages.
-To this end, \libipc{} invokes our modified NIC driver to 
+To this end, \libipc{} invokes a modified NIC driver to 
 get obfuscated physical page addresses of the send buffer and send the address to receiver via shared memory queue.
 On the receiving side, \libipc{} invokes the kernel to remap the obfuscated physical pages to the application-provided receive buffer virtual address.
 
 \parab{Using RDMA to send pages.}
-On receiver, \libipc{} initializes a pinned page pool for the sender to use.
-On sender, \libipc{} pins the send buffer if it has not been pinned, then allocates pages from the pool to determine the remote address of RDMA write.
-When \texttt{recv} is called, \libipc invokes the NIC driver to remap pages in the pool to application buffer virtual address.
-After the remapped pages are freed (e.g. overwritten by another \texttt{recv}), \libipc{} returns them to the pool manager in sender.
-If the OS runs out of memory, \libipc{} unpins pages to reclaim memory.
+\libipc{} initializes a pinned page pool on receiver and send the physical addresses of the pages to the sender to manage and use.
+On sender, \libipc{} %pins the send buffer if it has not been pinned, then 
+allocates pages from the remote receiver page pool to determine the remote address of RDMA write.
+On receiver, when \texttt{recv} is called, \libipc invokes the NIC driver to map pages in the pool to application buffer virtual address.
+After the remapped pages are freed (e.g. overwritten by another \texttt{recv}), \libipc{} returns them to the pool manager in sender through message.
+%If the OS runs out of memory, \libipc{} unpins pages to reclaim memory.
 %For security, kernel validates that page numbers are in the huge-page receive buffer.
 
 %\subsubsection{Zero Copy TCP}
