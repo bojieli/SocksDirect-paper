@@ -144,6 +144,7 @@ while (true) { // main event loop
 			\hline
 			& FastSocket & MegaPipe / StackMap & IX & Arrakis & SandStorm / mTCP & LibVMA & OpenOnload & Rsocket / SDP & FreeFlow & SocksDirect \\
 			\hline
+			\hline
 			Reliable transport location & \multicolumn{2}{c|}{Kernel} & \multicolumn{5}{c|}{User space} & \multicolumn{3}{c|}{NIC hardware} \\
 			\hline
 			Wire protocol & \multicolumn{7}{c|}{TCP/IP} & \multicolumn{3}{c|}{RDMA} \\
@@ -253,7 +254,7 @@ SandStorm~\cite{marinos2014network}, mTCP~\cite{jeong2014mtcp}, Seastar~\cite{se
 These designs often sacrifice security, because multiple applications of a packet I/O framework share a NIC. To receive packets of listening ports and established connections from the NIC directly, each application inserts flow steering rules to the NIC independently, which is insecure and leads to conflicts when multiple applications listen on a same port. An application may send arbitrary packets that violate access control policy. Moreover, most user-space stacks are not designed to accelerate intra-host connections and have limited fork support.
 %\RED{Wei: The above paragraph looks very confusing.}
 
-\parab{RDMA offloading:} The third line of research utilizes RDMA NICs~\cite{mellanox} that are widely available in production data centers~\cite{guo2016rdma} and translate socket operations to RDMA verbs. RDMA uses hardware offloading to provide ultra low latency and near zero CPU utilization compared to software-based TCP/IP network stacks. RSocket~\cite{rsockets} and SDP~\cite{socketsdirect} converts each socket connection to an RDMA connection. However, such simple translations suffer from throughput degradation with a large number of concurrent connections. This is because RDMA NIC keeps per-connection states using a $\approx$2~MB~\cite{kalia2018datacenter} on-NIC memory as cache. With hundreds of concurrent connections, we will suffer from frequent cache misses, resulting in serious throughput degradation~\cite{mprdma,kaminsky2016design}. FreeFlow~\cite{freeflow, nsdi19freeflow} is a software switch to virtualize an RDMA NIC for container overlay network and enables intra-host RDMA communication. It uses RSocket to translate socket to RDMA, thus also suffering from cache miss problem. 
+\parab{RDMA offloading:} The third line of research utilizes RDMA NICs~\cite{mellanox} that are widely available in production data centers~\cite{guo2016rdma} and translate socket operations to RDMA verbs. RDMA uses hardware offloading to provide ultra low latency and near zero CPU utilization compared to software-based TCP/IP network stacks. RSocket~\cite{rsockets} and SDP~\cite{socketsdirect} convert each socket connection to an RDMA connection (RC QP). However, such simple translations suffer from throughput degradation with a large number of concurrent connections. This is because RDMA NIC keeps per-connection states using a $\approx$2~MB~\cite{kalia2018datacenter} on-NIC memory as cache. With hundreds of concurrent connections, we will suffer from frequent cache misses, resulting in serious throughput degradation~\cite{mprdma,kaminsky2016design}. FreeFlow~\cite{freeflow, nsdi19freeflow} is a software switch to virtualize an RDMA NIC for container overlay network and enables intra-host RDMA communication. It uses RSocket to translate socket to RDMA, thus also suffering from cache miss problem. 
 
 \subsection{Performance Challenges}
 \label{subsec:performance-challenges}
@@ -298,7 +299,7 @@ We aim to minimize memory cache misses per data transmission by multiplexing soc
 
 
 \parab{Kernel bypassing.}
-Traditionally, socket APIs are implemented in kernel, thus requiring kernel crossing for each socket operation. To make it worse, the Kernel Page-Table Isolation patches~\cite{kpti} to protect against Meltdown~\cite{Lipp2018meltdown} attacks make kernel crossings 4x expensive.
+Traditionally, socket APIs are implemented in kernel, thus requiring kernel crossing for each socket operation. To make it worse, the Kernel Page-Table Isolation (KPTI) patches~\cite{kpti} to protect against Meltdown~\cite{Lipp2018meltdown} attacks make kernel crossings 4x expensive.
 % (from 47~ns on Linux 4.11 to 200~ns on Linux 4.16 per system call). 
 %Together with additional cache invalidations, KPTI patches reduce TCP socket throughput by 40\% for 64-byte messages. %These side-channel attacks also make us rethink the Linux security model in which the complicated network stack needs to be trusted and protected. %, while sharing cores with applications.
 %To ensure isolation among processes, one category of dataplane operating systems~\cite{belay2017ix,tsai2017lite} use kernel-based network stacks. However, non-batched system calls have context switch overhead, while batched system calls increase latency.
@@ -383,7 +384,7 @@ We aim to allow transparent zero copy for large transfers.
 			\hline
 			One-sided inter-host RDMA & 1.6 & 13 \\
 			\hline
-			\textbf{\sys via RDMA} & 1.6 & 8 \\
+			\textbf{\sys via RDMA} & 1.7 & 8 \\
 			\hline
 			Semaphore, mutex, futex & 2.8$\sim$5.5 & 0.2$\sim$0.4 \\
 			\hline

@@ -39,7 +39,7 @@ We design \sys{}, a user-space socket architecture with compatibility, security 
 	\item \textbf{Compatibility}.
 	Existing applications can use \sys{} as a drop-in replacement with no modification.
 	It supports both intra-host and inter-host communication, and behaves correctly during process fork and thread creation.
-	If remote peer does not support \sys{}, the system falls back to TCP transparently.
+	If a remote peer does not support \sys{}, the system falls back to TCP transparently.
 	\item \textbf{Security}.
 	\sys{} preserves isolation among applications and containers, and it enforces firewall rules and access control policies.
 	\item \textbf{High Performance}.
@@ -91,7 +91,7 @@ To handle many concurrent connections efficiently, we need to reduce memory foot
 Rather than maintaining a separate queue for each connection, \sys multiplexes socket connections through a single queue for each pair of communicating threads.
 We design the queue carefully to enable fetching from the middle of a queue and solve the head-of-line blocking problem. 
 
-We exploit many techniques to effectively utilize hardware and improve system efficiency. 
+We exploit multiple techniques to effectively utilize hardware and improve system efficiency. 
 For communication within a same host, we design a high performance user space shared memory queue.
 For communication among hosts in an RDMA enabled data center, we use RDMA NIC hardware for transport. 
 To remove memory copy cost for large messages, we use \emph{page remapping} to achieve transparent zero copy.
