@@ -72,7 +72,7 @@
 %\end{figure}
 
 
-We implement \sys in three components: a user-space library \libipc{} and a monitor daemon with 10K lines of C++ code, as well a modified NIC driver for zero copy.
+We implement \sys in three components: a user-space library \libipc{} and a monitor daemon with about 10K lines of C++ code, as well a modified NIC driver for zero copy.
 We evaluate \sys in the following aspects:
 
 \parab{Use shared memory efficiently for intra-host socket.}
@@ -81,14 +81,14 @@ For small messages, \sys achieves 0.3$\mu$s round-trip latency and up to 23~M me
 \parab{Use RDMA efficiently for inter-host socket.}
 For small messages, \sys achieves  1.7$\mu$s round-trip latency and 8M messages per second throughput, close to raw RDMA performance.
 
-\parab{Scale with number of connections.}
-The performance above scales to 100 million concurrent connections.
+\parab{Robust with number of connections.}
+The performance above can be maintained with up to 100 million concurrent connections.
 
 \parab{Scale with number of cores.}
-The performance above is linearly scalable with number of cores. In addition, a CPU core can create 1.4~M per connections per second.
+The performance above is linearly scalable with number of cores. In addition, a single CPU core can create 1.4~M connections per second.
 
 \parab{Corner-case operations does not affect long-term performance.}
-After corner-case operations such as \texttt{fork}, the performance converges quickly.
+After corner-case operations such as \texttt{fork}, the performance recovers quickly.
 
 
 
@@ -181,7 +181,7 @@ For 2~KiB and larger messages, \sys saturates the network bandwidth, which is 2x
 Figure~\ref{fig:eval-connnum-tput} shows the throughput with different number of concurrent connections.
 We establish connections between two processes before testing, then send and receive data from the connections in a round-robin order.
 \sys can support more than 100 million concurrent connections with 16~GiB of memory, and the throughput does not degrade under such high concurrency.
-\sys achieves connection scalability by multiplexing connections via a single queue.
+\sys achieves connection stability by multiplexing connections via a single queue.
 In comparison, the performance of RDMA, LibVMA and Linux drops quickly as the number of connections increase. There is a sharp performance drop with more than 512 RDMA connections, because the working set saturates the NIC cache.
 
 
