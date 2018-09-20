@@ -208,7 +208,7 @@ Now we evaluate the performance of cooperative multitasking.
 There may be multiple threads sharing a core, and each thread needs to wait for its turn to process messages.
 Figure~\ref{fig:eval-context-switch} shows the message processing latency in such scenario.
 First, when only a fraction of workers are active, the idle workers do not impact performance. 
-Second, although the latency increases almost linearly with number of active workers, but it is still 20x to 30x lower than Linux, because cooperative context switch is faster than kernel event signaling.
+Second, although the latency increases almost linearly with number of active workers, but it is still 20x to 30x lower than Linux, because cooperative context switch is faster than kernel wakeup.
 
 
 %Finally, we benchmark the throughput and latency after \texttt{fork} and other corner-case operations. Initially, there is only one pair of sender and receiver. At time $T_0$, receiver forks, and the parent process keeps receiving. At time $T_1$, the child process begins to receives takes over the socket. At time $T_2$, sender forks, and only the parent sends. At time $T_3$, the child sender also starts sending. We find that both throughput and latency resume to initial maximal performance within 1~ms after each event.
