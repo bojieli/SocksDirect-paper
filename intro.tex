@@ -94,8 +94,8 @@ We design the queue carefully to enable fetching from the middle of a queue and 
 We exploit many techniques to effectively utilize hardware and improve system efficiency. 
 For communication within a same host, we design a high performance user space shared memory queue.
 For communication among hosts in an RDMA enabled data center, we use RDMA NIC hardware for transport. 
-To remove memory copy cost for large messages, we use \emph{page remapping} to achieve transparent zero copy.
-To share a CPU core efficiently among multiple active threads without thread wakeup overhead, we use \emph{cooperative multitasking}. 
+To remove memory copy cost for large messages, we take advantage of \emph{page remapping} to achieve transparent zero copy.
+To share a CPU core efficiently among multiple active threads without thread wakeup overhead, we leverage \emph{cooperative multitasking}. 
 %\fi
 
 \iffalse

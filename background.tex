@@ -332,7 +332,7 @@ We aim to use cooperative multitasking instead of kernel thread wakeup mechanism
 
 
 \parab{Zero copy.}
-The semantics \texttt{send} and \texttt{recv} cause memory copies between application and network stack. For non-blocking \texttt{send}, the system needs to copy data out of the buffer because the application may overwrite the buffer right after \texttt{send} returns. %Simply removing these copies may violate application correctness. 
+The semantics of \texttt{send} and \texttt{recv} cause memory copies between application and network stack. For non-blocking \texttt{send}, the system needs to copy data out of the buffer because the application may overwrite the buffer right after \texttt{send} returns. %Simply removing these copies may violate application correctness. 
 For \texttt{recv}, application provides a buffer as the data destination. %If we buffer data on the sender and only transmit it on \texttt{recv}, the receiver needs to wait for a round-trip time. For this reason, socket implementations buffer data on the receiver and copy it to application on \texttt{recv}.
 System needs to copy data received into the buffer. 
 Many user-space TCP/IP stacks and socket-to-RDMA libraries provide both standard socket API and an alternative zero-copy API, but none of them achieves zero copy for the standard API on both send and receive paths.%\RED{I think this problem also exists for RSocket.}
