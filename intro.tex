@@ -138,8 +138,8 @@ To share a CPU core efficiently among multiple active threads, \sys uses \emph{c
 %As a result, we achieve zero copy for both shared memory, RDMA and TCP transport.
 
 \sys{} achieves latency and throughput close to the raw performance achievable from the underlying shared memory queue and RDMA.
-On the latency side, \sys{} achieves $0.3\mu$s RTT for intra-server socket, 35x lower than Linux and only $0.05\mu$s higher than a bare-metal shared memory queue. For inter-server socket, \sys{} achieves $1.7\mu$s RTT between RDMA hosts, almost the same as raw RDMA verbs and 17x lower than Linux.
-On the throughput side, a single thread can send 23~M intra-server messages per second (20x Linux) or 8~M inter-server (7x Linux). For large messages, with zero copy, a single connection saturates an 100~Gbps NIC. Each thread can establish 1.4~M new connections per second (20x Linux). The performance above is scalable with number of cores, and do not degrade significantly with multiple threads or concurrent connections.
+On the latency side, \sys{} achieves $0.3\mu$s RTT for intra-host socket, 35x lower than Linux and only $0.05\mu$s higher than a bare-metal shared memory queue. For inter-host socket, \sys{} achieves $1.7\mu$s RTT between RDMA hosts, almost the same as raw RDMA verbs and 17x lower than Linux.
+On the throughput side, a single thread can send 23~M intra-host messages per second (20x Linux) or 8~M inter-host (7x Linux). For large messages, with zero copy, a single connection saturates NIC bandwidth. Each thread can establish 1.4~M new connections per second (20x Linux). The performance above is scalable with number of cores, and do not degrade significantly with concurrent connections.
 
 %\textbf{End-to-end performance.}
 
