@@ -55,13 +55,13 @@ For shared memory queues, each queue can switch between \textit{polling} and \te
 \subsection{Zero Copy}
 \label{subsec:zerocopy}
 
-\begin{figure}[t]
-	\centering
-	\includegraphics[width=0.3\textwidth]{images/zerocopy}
-	\caption{Zero copy via page remapping. Step 1: \texttt{send}, sender get physical address and send via shared memory. Step 2: \texttt{recv}, receiver maps the page to buffer. Step 3: sender remaps buffer on memory write.}
-	\vspace{-15pt}
-	\label{fig:zerocopy}
-\end{figure}
+%\begin{figure}[t]
+%	\centering
+%	\includegraphics[width=0.3\textwidth]{images/zerocopy}
+%	\caption{Zero copy via page remapping. Step 1: \texttt{send}, sender get physical address and send via shared memory. Step 2: \texttt{recv}, receiver maps the page to buffer. Step 3: sender remaps buffer on memory write.}
+%	\vspace{-15pt}
+%	\label{fig:zerocopy}
+%\end{figure}
 
 The main challenge for zero copy is to maintain the semantics of socket API, as discussed in Sec.\ref{subsec:performance-challenges}.
 %A sender may write the send buffer after non-blocking \texttt{send}, and the receiver does not know the receive buffer before \texttt{recv}.
@@ -73,7 +73,7 @@ If the size of send message is not a multiple of 4~KiB, the last chunk of data i
 \label{subsec:zero-copy-intra}
 
 \parab{Page remapping.}
-As shown in Figure~\ref{fig:zerocopy}, for \texttt{send} operation that is aligned to page boundary and at least 8~KiB, \libipc{} invokes the kernel to 
+For \texttt{send} operation that is aligned to page boundary and at least 8~KiB, \libipc{} invokes the kernel to 
 get obfuscated physical page addresses of the send buffer and send the address to receiver via shared memory queue.
 The address is obfuscated to prevent unsolicited remapping of arbitrary pages.
 Because the sender may read the buffer after \texttt{send} or send the buffer to multiple receivers,
