@@ -23,6 +23,7 @@ Shared memory and RDMA are state-of-the-art methods for inter-core and inter-hos
 %As Figure~\ref{fig:queue-performance} shows, 
 Sharing \emph{head} and \emph{tail} pointers between sender and receiver introduces inter-core cache migration overheads in shared memory and unacceptable latency for RDMA.
 For high throughput and low latency, our principle is that each shared memory region is either writable by the sender or receiver, but never both.
+So we keep \textit{head} and \textit{tail} pointers locally in sender and receiver respectively.
 Because the receiver needs to modify \emph{isdel} and \emph{nextptr} fields, we create a \emph{shadow ring buffer} in receiver's private memory and update the corresponding offset in place of shared memory.
 
 \parab{Credit-based ring buffer.}
@@ -74,8 +75,10 @@ The main challenge for zero copy is to maintain the semantics of socket API (Sec
 Fortunately, virtual memory provides a layer of indirection. % so we can remap virtual address of a buffer to another physical page if the data occupies entire 4~KiB pages.
 Rather than copying, we remap the physical pages from sender's virtual addresses to receiver's.
 To enable zero-copy, we need to modify the NIC driver to expose several kernel functions related to page remapping. 
-Due to the remapping overhead (Table~\ref{tab:operation-performance}), we only use zero-copy for \texttt{send} or \texttt{recv} with at least 8~KiB payload size. Smaller messages are copied instead.
-Similar technique has been explored by zero-copy sockets~\cite{thadani1995efficient,chu1996zero,linux-zero-copy} and we make following improvements.
+%Due to the remapping overhead (Table~\ref{tab:operation-performance}), we only use zero-copy for \texttt{send} or \texttt{recv} with at least 8~KiB payload size. Smaller messages are copied instead.
+As Table~\ref{tab:operation-performance} shows, remapping a single page is more expensive than copying it because of kernel crossing and TLB flush costs. Hence, we only use zero copy for \texttt{send} or \texttt{recv} with at least 8~KiB payload size.
+Smaller messages are copied instead.
+Page remapping has been used by zero-copy sockets~\cite{thadani1995efficient,chu1996zero,linux-zero-copy} and we make following improvements.
 
 \parab{Page alignment.}
 Page remapping only works when the send and receive addresses are page aligned and the transfer contains entire pages.
@@ -83,8 +86,7 @@ We intercept \texttt{malloc} and \texttt{realloc} functions and allocate 4~KiB a
 If the size of sent message is not a multiple of 4~KiB, the last chunk of data is copied on \texttt{send} and \texttt{recv}.
 
 %\parab{Amortize page remapping cost.}
-%As Table~\ref{tab:operation-performance} shows, remapping a single page is more expensive than copying it because of kernel crossing and TLB flush costs. Hence, we use zero copy only for \texttt{send} or \texttt{recv} with at least 8~KiB size.
-%We use a single syscall to remap multiple pages in one socket operation.
+
 
 \parab{Minimize copy-on-write.}
 %After \texttt{send}, because the application may read the buffer or send the buffer to other receivers, it needs to write-protect the buffer.

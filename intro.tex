@@ -83,17 +83,16 @@ The data plane is handled by a dynamically loaded user-space library \libipc{}, 
 
 We face several challenges designing \sys{} to achieve high performance while maintaining compatibility. 
 One challenge is to share a socket among threads and processes without locking. A socket connection is a FIFO channel. 
-The most straight-forward approach is to implement each connection as a single queue. However, a socket connection may be shared by multiple 
-senders and receivers, locking is thus needed to protect the shared queue, which significantly slows down the system during 
-normal operations. To avoid locking overhead, we treat each thread as a separate process and creates peer-to-peer queues between each pair of 
-communicating threads. In our design, a single socket connection may corresponds to multiple queues, and we take special care to preserve
+The most straight-forward approach is to implement each connection as a single queue. However, a socket may be shared by multiple 
+senders and receivers, locking is thus needed to protect the shared queue, which significantly slows down the system. To avoid locking overhead, we treat each thread as a separate process and create peer-to-peer queues between each pair of 
+communicating threads. In our design, a single socket connection may correspond to multiple queues, and we take special care to preserve
 FIFO semantics during fork and thread creation. Another challenge is to maintain performance with vast number of concurrent connections. 
 To handle many concurrent connections efficiently, we need to reduce memory footprint and improve memory access locality. 
 Rather than maintaining a separate queue for each connection, \sys multiplexes socket connections through a single queue for each pair of communicating threads.
 We design the queue carefully to enable fetching from the middle of a queue and solve the head-of-line blocking problem. 
 
 We exploit many techniques to effectively utilize hardware and improve system efficiency. 
-For communication within a same host, we use a high performance user space shared memory queue.
+For communication within a same host, we design a high performance user space shared memory queue.
 For communication among hosts in an RDMA enabled data center, we use RDMA NIC hardware for transport. 
 To remove memory copy cost for large messages, we use \emph{page remapping} to achieve transparent zero copy.
 To share a CPU core efficiently among multiple active threads without thread wakeup overhead, we use \emph{cooperative multitasking}. 

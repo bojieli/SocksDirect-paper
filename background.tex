@@ -203,74 +203,13 @@ while (true) { // main event loop
 \end{table*}
 
 
-\begin{table}[t]
-	\centering
-	\scalebox{0.8}{
-		\begin{tabular}{l|l|l|}
-			\hline
-			Operation	& Latency  & Throughput  \\
-			& ($\mu$s) & (M~op/s) \\
-			\hline
-			\hline
-			Inter-core cache migration	& 0.03 & 50 \\
-			\hline
-			Poll 32 empty queues & 0.04 & 24 \\
-			\hline
-			System call (before KPTI) & 0.05 & 21 \\
-			\hline
-			CPU L3 cache miss & 0.07 & 14 \\
-			\hline
-			Spinlock (atomic instruction) & 0.10 & 5$\sim$10 \\
-			\hline
-			Lockless shared memory queue & 0.25 & 27 \\
-			\hline
-			\textbf{Intra-host \sys} & 0.30 & 22 \\
-			\hline
-			System call (after KPTI) & 0.20 & 5.0 \\
-			\hline
-			Copy one page (4~KiB) & 0.40 & 5.0 \\
-			\hline
-			NIC cache miss & 0.45 & 2.2 \\
-			\hline
-			Cooperative context switch & 0.52 & 2.0 \\
-			\hline
-			Map 1 page (4~KiB) & 0.78 & 1.3 \\
-			\hline
-			CPU to NIC hairpin RDMA & 1.0 & 14 \\
-			\hline
-			Atomic shared memory queue & 1.0 & 6.1 \\
-			\hline
-			Map 32 pages (128~KiB) & 1.2 & 0.8 \\
-			\hline
-			Two-sided inter-host RDMA & 1.6 & 8 \\
-			\hline
-			One-sided inter-host RDMA & 1.6 & 13 \\
-			\hline
-			\textbf{\sys via RDMA} & 1.6 & 8 \\
-			\hline
-			Semaphore, mutex, futex & 2.8$\sim$5.5 & 0.2$\sim$0.4 \\
-			\hline
-			Intra-host Linux TCP & 11 & 0.9 \\
-			\hline
-			Copy 32 pages (128~KiB) & 13 & 0.08 \\
-			\hline
-			Inter-host Linux TCP & 30 & 0.3 \\
-			\hline
-		\end{tabular}
-	}
-	\vspace{-5pt}
-	\caption{Round-trip latency and per-core throughput of operations (testbed settings in Sec.\ref{subsec:methodology}). Message size is 8 bytes if not specified.}
-	\label{tab:operation-performance}
-	\vspace{-15pt}
-\end{table}
-
 
 Socket is the standard communication primitive among applications and containers.
 %For example, a web service typically contains an HTTP load balancer, Web application, key-value store and database, which communicate via TCP or UNIX socket.
 %Socket is also used to exchange data between parameter server and workers in Tensorflow and from mapper to reducer in Spark.
 %The socket API was designed in 1980s when network communication has millisecond scale latency, so the computation overhead in OS networking stack is negligible.
 %In contrast, modern data centers have networks with microsecond scale latency and throughput comparable to intra-host buses, making socket a well-known bottleneck for communication intensive applications.
-Modern data center networks have microsecond-level base latency and tens of Gbps throughput, making socket a well-known bottleneck for communication intensive applications running on multiple hosts. In addition to inter-host communications, cloud applications and containers at the same host often communicate with each other, making intra-host socket communication increasingly important in the cloud era. Under stress tests in our testbed, we observe applications such as Nginx~\cite{reese2008nginx}, memcached~\cite{fitzpatrick2004distributed} and Redis~\cite{carlson2013redis} consume 50\% to 90\% CPU time in the kernel, mostly dealing with TCP socket operations. This agrees with previous results~\cite{jeong2014mtcp}.
+Modern data center networks have microsecond-level base latency and tens of Gbps throughput. However, traditional Linux socket is implemented in the OS kernel space with shared data structures, making socket a well-known bottleneck for communication intensive applications running on multiple hosts~\cite{barroso2017attack}. In addition to inter-host communications, cloud applications and containers at the same host often communicate with each other, making intra-host socket communication increasingly important in the cloud era. Under stress tests, we observe applications such as Nginx~\cite{reese2008nginx}, memcached~\cite{fitzpatrick2004distributed} and Redis~\cite{carlson2013redis} consume 50\% to 90\% CPU time in the kernel, mostly dealing with TCP socket operations. This agrees with previous results~\cite{jeong2014mtcp}.
 
 %To understand the cost of socket, we first need to know the functions of socket.
 TCP socket in a modern OS typically has three functions:
@@ -280,7 +219,6 @@ TCP socket in a modern OS typically has three functions:
 	\item Multiplex events from multiple channels， e.g., poll and epoll. Most Linux applications use a readiness-driven I/O multiplexing model. The OS tells application which FDs are ready to receive or send, then the application may prepare buffers and issue receive or send operations.
 \end{ecompact}
 
-Traditional Linux socket is implemented in the OS kernel space with shared data structures. It is not optimized for high performance due to expensive kernel context switching and data structure synchronization costs.
 %Most modern applications use socket in an event-driven style. similar to Figure~\ref{fig:socket-pseudo-code}.
 
 %Socket is a well-known bottleneck for communication intensive applications. We stress test Nginx load balancer, memcached and Redis with one request per TCP connection or a stream of requests on pre-established TCP connections, and find that 50\%$\sim$90\% CPU time is consumed in the kernel, mostly dealing with socket system calls. The one request per connection scenario shows much lower throughput, because of overhead in connection creation.
@@ -400,6 +338,68 @@ System needs to copy data received into the buffer.
 Many user-space TCP/IP stacks and socket-to-RDMA libraries provide both standard socket API and an alternative zero-copy API, but none of them achieves zero copy for the standard API on both send and receive paths.%\RED{I think this problem also exists for RSocket.}
 
 We aim to allow transparent zero copy for large transfers.
+
+
+\begin{table}[t]
+	\centering
+	\scalebox{0.8}{
+		\begin{tabular}{l|l|l|}
+			\hline
+			Operation	& Latency  & Throughput  \\
+			& ($\mu$s) & (M~op/s) \\
+			\hline
+			\hline
+			Inter-core cache migration	& 0.03 & 50 \\
+			\hline
+			Poll 32 empty queues & 0.04 & 24 \\
+			\hline
+			System call (before KPTI) & 0.05 & 21 \\
+			\hline
+			CPU L3 cache miss & 0.07 & 14 \\
+			\hline
+			Spinlock (atomic instruction) & 0.10 & 5$\sim$10 \\
+			\hline
+			Lockless shared memory queue & 0.25 & 27 \\
+			\hline
+			\textbf{Intra-host \sys} & 0.30 & 22 \\
+			\hline
+			System call (after KPTI) & 0.20 & 5.0 \\
+			\hline
+			Copy one page (4~KiB) & 0.40 & 5.0 \\
+			\hline
+			NIC cache miss & 0.45 & 2.2 \\
+			\hline
+			Cooperative context switch & 0.52 & 2.0 \\
+			\hline
+			Map 1 page (4~KiB) & 0.78 & 1.3 \\
+			\hline
+			CPU to NIC hairpin RDMA & 1.0 & 14 \\
+			\hline
+			Atomic shared memory queue & 1.0 & 6.1 \\
+			\hline
+			Map 32 pages (128~KiB) & 1.2 & 0.8 \\
+			\hline
+			Two-sided inter-host RDMA & 1.6 & 8 \\
+			\hline
+			One-sided inter-host RDMA & 1.6 & 13 \\
+			\hline
+			\textbf{\sys via RDMA} & 1.6 & 8 \\
+			\hline
+			Semaphore, mutex, futex & 2.8$\sim$5.5 & 0.2$\sim$0.4 \\
+			\hline
+			Intra-host Linux TCP & 11 & 0.9 \\
+			\hline
+			Copy 32 pages (128~KiB) & 13 & 0.08 \\
+			\hline
+			Inter-host Linux TCP & 30 & 0.3 \\
+			\hline
+		\end{tabular}
+	}
+	\vspace{-5pt}
+	\caption{Round-trip latency and per-core throughput of operations (testbed settings in Sec.~\ref{subsec:methodology}). Message size is 8 bytes if not specified.}
+	\label{tab:operation-performance}
+	\vspace{-15pt}
+\end{table}
 
 
 
