@@ -339,7 +339,7 @@ We aim to leverage user-space shared memory for intra-host transport.
 
 \parab{Container overlay network.}
 Many container deployments use isolated network namespaces for containers, which communicate via a virtual overlay network.
-In Linux, a virtual switch daemon~\cite{pfaff2015design} forwards packets among host NIC and virtual NICs in containers.
+In Linux, a virtual switch~\cite{pfaff2015design} forwards packets among host NIC and virtual NICs in containers.
 This architecture incurs the overhead of multiple context switches and memory copies on each packet, and the virtual switch is a scalability bottleneck~\cite{pfefferle2015hybrid}.
 
 We aim to use the virtual switch for control plane only and implement data plane operations peer-to-peer.
