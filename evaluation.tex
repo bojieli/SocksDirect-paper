@@ -99,9 +99,9 @@ The performance above is linearly scalable with number of cores. In addition, a 
 \subsection{Methodology}
 \label{subsec:methodology}
 
-We evaluate \sys on servers with two Xeon E5-2698 v3 CPUs, 256~GiB memory and a Mellanox ConnectX-4 NIC. Two servers are interconnected directly with 100~Gbps Ethernet cable. We use Ubuntu 16.04 with Linux 4.15, RoCEv2 for RDMA and poll completion queue every 64 messages.
+We evaluate \sys on servers with two Xeon E5-2698 v3 CPUs, 256~GiB memory and a Mellanox ConnectX-4 NIC. Two servers are interconnected directly with 56~Gbps Ethernet cable. We use Ubuntu 16.04 with Linux 4.15, RoCEv2 for RDMA and poll completion queue every 64 messages.
 Each thread is pinned on a CPU core. We run tests for enough warm-up rounds before collecting data. For latency, we report the mean, with error bars representing 1\% and 99\% percentile.
-We compare with LibVMA~\cite{libvma}, a user-space TCP/IP networking stack optimized for Mellanox NICs, and RSocket~\cite{rsockets}, a socket-to-RDMA translation library.
+We compare with Linux and LibVMA~\cite{libvma}, a user-space TCP/IP stack optimized for Mellanox NICs.
 
 \subsection{Performance}
 
@@ -119,7 +119,7 @@ Due to memory copy, for 8~KiB messages, the throughput of \sys is only 60\% high
 Figure~\ref{fig:eval-msgsize-inter} shows inter-host socket performance between a pair of threads.
 For 8-byte messages, \sys achieves 8M messages per second throughput (7x Linux) and 1.7$\mu$s round-trip latency (17x lower than Linux).
 The throughput and latency is close to raw RDMA write operations (shown as dashed line), which does not have socket semantics.
-LibVMA~\cite{libvma} uses batching to achieve 19M throughput, but the latency is 7x of \sys.
+LibVMA uses batching to achieve 19M throughput, but the latency is 7x of \sys.
 For 2~KiB and larger messages, \sys saturates the network bandwidth, which is 2x of LibVMA and Linux. This performance gain mainly comes from zero copy.
 
 
@@ -134,13 +134,14 @@ For 2~KiB and larger messages, \sys saturates the network bandwidth, which is 2x
 			\label{fig:eval-cornum-ipc}
 			%\end{minipage}
 		}
-		
+		\vspace{-5pt}
 		\subfloat[inter-host]{
 			%\begin{minipage}{0.4\textwidth}
 			\centering \includegraphics[width=\textwidth]{eval/microbenchmark/corenum-network-tput.pdf}
 			\label{fig:eval-cornum-network}
 			%\end{minipage}
 		}
+		\vspace{-5pt}
 		\caption{Data transmission throughput with number of cores.}
 		\label{fig:eval-corenum-tput}
 	\end{minipage}
@@ -191,7 +192,7 @@ Figure~\ref{fig:eval-connnum-tput} shows the throughput with different number of
 We establish connections between two processes before testing, then send and receive data from the connections in a round-robin order.
 \sys can support more than 100 million concurrent connections with 16~GiB of memory, and the throughput does not degrade under such high concurrency.
 \sys achieves connection stability by multiplexing connections via a single queue.
-In comparison, the performance of RDMA, RSocket, LibVMA and Linux drops quickly as the number of connections increase. There is a sharp performance drop with more than 512 RDMA or RSocket connections, because the RDMA transport states saturate the NIC cache. Although LibVMA and Linux do not use RDMA as transport, they maintain per-FD buffers, which lead to CPU cache and TLB miss with thousands of connections. Furthermore, LibVMA installs flow steering rules to NIC for each connection, which also leads to NIC cache miss.
+In comparison, the performance of RDMA, LibVMA and Linux drops quickly as the number of connections increase. There is a sharp performance drop with more than 512 RDMA connections, because the RDMA transport states saturate the NIC cache. Although LibVMA and Linux do not use RDMA as transport, they maintain per-FD buffers, which lead to CPU cache and TLB miss with thousands of connections. Furthermore, LibVMA installs flow steering rules to NIC for each connection, which also leads to NIC cache miss.
 
 
 
@@ -200,7 +201,7 @@ Figure~\ref{fig:eval-corenum-tput} shows the throughput with different number of
 Sender and receiver process each creates several threads, then each thread pins on a core and communicates with a peer thread.
 \sys achieves almost linear scalability for both intra-host and inter-host sockets.
 For intra-host socket, \sys provides 306~M message per second throughput between 16 pairs of sender and receiver cores, which is 40x of Linux.
-LibVMA and RSocket fall back to Linux for intra-host socket.
+LibVMA falls back to Linux for intra-host socket.
 Using RDMA for inter-host socket, \sys achieves 62~M messages per second throughput (8x Linux and 24x LibVMA).
 Although \sys{} creates $n^2$ queues for $n$ sender and receiver threads, in this workload only $n$ of them are active.
 Because the NIC only caches active RDMA connections and \libipc{} only polls active queues, the idle queues do not degrade performance.
