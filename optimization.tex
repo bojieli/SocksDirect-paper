@@ -77,16 +77,9 @@ Page remapping only works when the send and receive addresses are page aligned a
 We intercept \texttt{malloc} and \texttt{realloc} functions and allocate 4~KiB aligned addresses for allocations with multiple-of-4K sizes, so most buffers will align to page boundary, while not wasting memory for small allocations.
 If the size of sent message is not a multiple of 4~KiB, the last chunk of data is copied on \texttt{send} and \texttt{recv}.
 
-\parab{Batch page remapping.}
-As Table~\ref{tab:operation-performance} shows, remapping a single page is more expensive than copying it because of kernel crossing and TLB flush costs. Hence, we batch page mapping operations to amortize the overhead.
-We use zero copy for page-aligned \texttt{send} with at least 8~KiB data size.
-
-\parab{Send pages securely in user space.}
-For intra-host socket, rather than sending page addresses to the receiver via kernel, we send the addresses in a message in user-space queues.
-We must prevent unsolicited remapping of arbitrary pages.
-To this end, \libipc{} invokes our modified NIC driver to 
-get obfuscated physical page addresses of the send buffer and send the address to receiver via shared memory queue.
-On the receiving side, \libipc{} invokes the kernel to remap the obfuscated physical pages to the application-provided receive buffer virtual address.
+\parab{Amortize page remapping cost.}
+As Table~\ref{tab:operation-performance} shows, remapping a single page is more expensive than copying it because of kernel crossing and TLB flush costs. Hence, we use one syscall to remap multiple pages in one socket operation.
+We use zero copy for \texttt{send} or \texttt{recv} with at least 8~KiB size.
 
 \parab{Minimize copy-on-write.}
 After \texttt{send}, because the application may read the buffer or send the buffer to other receivers, it needs to write-protect the buffer.
@@ -100,11 +93,18 @@ for page-aligned copy to \libipc{} buffers, the preamble code invokes the kernel
 
 \parab{Page allocation overhead.}
 Page remapping requires the kernel to allocate and free pages for each zero copy \texttt{send} and \texttt{recv}. 
-Page allocation in kernel requires a global lock, therefore it is inefficient. Instead, \libipc{} manages a pool of free pages in each process.
+Page allocation in kernel uses a global lock, therefore it is inefficient. Instead, \libipc{} manages a pool of free pages in each process.
 \libipc{} also tracks the origin of received zero-copy pages.
 Whenever a page is remapped, if it is from another process, \libipc{} sends a message to the original process to return the pages.
 
-\parab{Using RDMA NIC to send pages.}
+\parab{Send page addresses securely in user space.}
+For intra-host socket, rather than sending page addresses to the receiver via kernel, we send the addresses in a message in user-space queues.
+We must prevent unsolicited remapping of arbitrary pages.
+To this end, \libipc{} invokes our modified NIC driver to 
+get obfuscated physical page addresses of the send buffer and send the address to receiver via shared memory queue.
+On the receiving side, \libipc{} invokes the kernel to remap the obfuscated physical pages to the application-provided receive buffer virtual address.
+
+\parab{Using RDMA to send pages.}
 On receiver, \libipc{} initializes a pinned page pool for the sender to use.
 On sender, \libipc{} pins the send buffer if it has not been pinned, then allocates pages from the pool to determine the remote address of RDMA write.
 When \texttt{recv} is called, \libipc invokes the NIC driver to remap pages in the pool to application buffer virtual address.
