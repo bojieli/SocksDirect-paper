@@ -216,7 +216,7 @@ When application shuts down one direction of a connection, it sends a \textit{sh
 
 Socket sharing among processes and threads are ubiquitous in modern applications.
 Our aim is to maximize the common-case performance while preserving the FIFO semantics.
-We make two observations: First, fork and thread creation are infrequent in high performance applications. 
+We make two observations: First, fork and thread creation are infrequent in high performance applications because of their high cost.
 Second, it is uncommon that several processes receive concurrently from a shared socket, because the byte-stream semantics of socket makes it hard to avoid receiving partial messages.
 %For such producer-consumer scenarios, message brokers~\cite{hintjens2013zeromq,rabbitmq2017rabbitmq,kreps2011kafka} are typically used.
 Based on the observations, we propose the following requirements:
