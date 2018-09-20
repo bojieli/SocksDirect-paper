@@ -2,10 +2,10 @@
 \label{sec:application}
 
 In this section, we demonstrate that \sys{} can significantly improve the performance of real-world applications without modifying the code.
-For web applications, we conduct experiment for a widely used scenario: One load balancer is connected with the backend web service, while the web service accesses the key value store for multiple round-trips.
+We conduct experiment for a widely used Web service scenario: One Nginx load balancer is connected with the backend web service, while the web service accesses memcached key value store for multiple round-trips.
 
-Figure \ref{fig:eval-nginx-multiround} shows the end-to-end latency with different number of round-trips between the web service and key value store. As we measured, the Linux socket takes 69\% of the total CPU time before using \libipc. Since the intra-server latency of \sys{} is 30x lower than Linux socket, the end-to-end latency of the system with \sys{}  is 1/3 of that of original Linux socket.
-
+Figure~\ref{fig:eval-nginx-multiround} shows the end-to-end latency with different number of round-trips between the web service and key value store. As we measured, the Linux socket takes 69\% of the total CPU time before using \libipc. The base latency of Linux and. The end-to-end latency of the system with \sys{} is 1/3 of that of original Linux socket.
+Figure~\ref{fig:eval-demowebservice-tput} shows that the throughput of web service scales with multiple cores.
 
 
 %\subsection{Network Function}
