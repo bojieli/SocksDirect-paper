@@ -14,11 +14,10 @@ Traditional Linux socket implementation is not optimal. It can only achieve late
 Communication intensive applications such as distributed key-value stores and web servers could spend 50\%$\sim$90\% of CPU time in the OS kernel, mostly processing socket operations.
 
 There has been extensive work aiming at reducing the socket overhead, but existing approaches are not satisfactory.
-First, many user-space sockets are not fully compatible with native Socket in areas such as when a process forks, when multiple processes listen to the same port, and when communication is intra-host.
-Second, some user-space sockets have security issues because applications can directly access shared NIC queues, thus violate process isolation and access control policies.
+First, many user-space sockets are not fully compatible with native socket in areas such as when a process forks, when multiple processes listen to the same port, and when communication is intra-host.
+Second, some user-space sockets have security issues because applications can directly access shared NIC queues, thus violating process isolation and access control policies.
 Those solutions that do preserve security often incur the overhead of kernel crossing or virtual switch.
-Third, even in the performance front, there are still much room for improvement. For example, none of existing works can achieve performance close to raw RDMA, 
-because they fail to remove some important overheads such as multi-thread synchronization, memory copy and TCP/IP packet processing.
+Third, even in the performance front, there are still much room for improvement. For example, none of existing works can achieve performance close to raw RDMA, because they fail to remove some important overheads such as multi-thread synchronization, memory copy and TCP/IP packet processing.
 %In addition, when the number of active threads is larger than that of CPU cores, polling and kernel event notification are a dilemma.
 %Finally, they cannot take advantage of low latency networking provided by RDMA.
 %These approaches still have limitations, either not fully removing some of the important overheads such as context switch and synchronization~\cite{lin2016scalable,han2012megapipe,jeong2014mtcp,baumann2009multikernel}, not fully compatible with Linux socket API, or cannot take advantage of modern networking hardware capabilities such as RDMA~\cite{dunkels2001design,jeong2014mtcp,libvma,openonload}.
@@ -77,7 +76,7 @@ At its heart, \sys{} follows the principle of separating control and data plane 
 We design a per-host \emph{monitor} daemon as the control plane to enforce access control policies, dispatch new connections, perform address translation for overlay networks and establish transport channel between communication peers.
 The data plane is handled by a dynamically loaded user-space library \libipc{}, which implements data transmission and event polling in a peer-to-peer fashion between processes while delegates connection creation to the local monitor.
 %Applications can take advantage of \libipc{} by simply using the \emph{LD\_PRELOAD} environment variable in Linux to load the library.
-\libipc{} intercepts Linux \emph{glibc}, implements all socket-related functions in user space and forwards other APIs to the kernel.
+\libipc{} intercepts Linux \emph{glibc}, implements all socket-related functions in user space and forwards the other APIs to the kernel.
 
 %\iffalse
 
