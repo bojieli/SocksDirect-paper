@@ -315,32 +315,28 @@ SandStorm~\cite{marinos2014network}, mTCP~\cite{jeong2014mtcp}, Seastar~\cite{se
 These designs often sacrifice security, because multiple applications of a packet I/O framework share a NIC. To receive packets of listening ports and established connections from the NIC directly, each application inserts flow steering rules to the NIC independently, which is insecure and leads to conflicts when multiple applications listen on the same port. An application may also send arbitrary packets that violate access control policy. Moreover, most user-space stacks are not designed to accelerate intra-host connections and have limited fork support.
 \RED{Wei: The above paragraph looks very confusing.}
 
-\parab{RDMA acceleration:} The third line of research utilizes RDMA NICs~\cite{mellanox} that are widely available in production data centers~\cite{guo2016rdma} and translate socket operations to RDMA verbs. RDMA uses hardware offloading to provide ultra low latency and near zero CPU utilization compared to software-based TCP/IP network stacks. RSocket~\cite{rsockets} and SDP~\cite{socketsdirect} converts each socket connection to an RDMA connection. However, such simple translations suffer from throughput degradation with a large number of concurrent connections. This is because RDMA NIC keeps per-connection states using a $\approx$2~MB~\cite{kalia2018datacenter} on-NIC memory as cache. With hundreds of concurrent connections, we will suffer from frequent cache misses, resulting in serious throughput degradation~\cite{mprdma,kaminsky2016design}. FreeFlow~\cite{freeflow, nsdi19freeflow} is a software switch to virtualize an RDMA NIC for container overlay network and enables intra-host RDMA communication. It uses RSocket to translate socket to RDMA, thus also suffering from cache miss problem. 
+\parab{RDMA offloading:} The third line of research utilizes RDMA NICs~\cite{mellanox} that are widely available in production data centers~\cite{guo2016rdma} and translate socket operations to RDMA verbs. RDMA uses hardware offloading to provide ultra low latency and near zero CPU utilization compared to software-based TCP/IP network stacks. RSocket~\cite{rsockets} and SDP~\cite{socketsdirect} converts each socket connection to an RDMA connection. However, such simple translations suffer from throughput degradation with a large number of concurrent connections. This is because RDMA NIC keeps per-connection states using a $\approx$2~MB~\cite{kalia2018datacenter} on-NIC memory as cache. With hundreds of concurrent connections, we will suffer from frequent cache misses, resulting in serious throughput degradation~\cite{mprdma,kaminsky2016design}. FreeFlow~\cite{freeflow, nsdi19freeflow} is a software switch to virtualize an RDMA NIC for container overlay network and enables intra-host RDMA communication. It uses RSocket to translate socket to RDMA, thus also suffering from cache miss problem. 
 
 \subsection{Performance Challenges}
 \label{subsec:performance-challenges}
 
-We aim to deliver consistent high throughput and low latency regardless of the number of CPU cores, concurrent connections and threads.
-This subsection analyzes challenges to achieve this performance goal.
+We aim to deliver persistent high throughput and low latency regardless of the number of concurrent connections. In addition, the performance should scale linearly with the number of CPU cores. This subsection analyzes challenges to achieve above goals.
 
 \parab{Intra-host communication.}
-Most existing approaches to intra-host socket either use kernel TCP stack or NIC loopback.
-The kernel TCP stack has evolved to become quite complicated over the years~\cite{yasukata2016stackmap}, which is an overkill 
-for intra-server communication. % may not need many TCP features, e.g., congestion control and loss recovery.
-Arrakis uses the NIC to forward packets from one application to another.
-As shown in Table~\ref{tab:operation-performance}, the hairpin latency from CPU to NIC is 25x higher than inter-core cache migration delay.
-The throughput is also limited by MMIO doorbell latency and PCIe bandwidth~\cite{neugebauer2018understanding,li2017kv}.
+Most existing approaches for intra-host socket either use kernel network stack or NIC loopback.
+The kernel network stack has evolved to become quite complicated over the years~\cite{yasukata2016stackmap}, which is an overkill for intra-host communication. % may not need many TCP features, e.g., congestion control and loss recovery.
 
-We aim to leverage user-space shared memory for intra-host transport.
+Arrakis uses the NIC to forward packets from one application to another.
+As shown in Table~\ref{tab:operation-performance}, the hairpin latency from CPU to NIC is still 25x higher than inter-core cache migration delay ($\sim$30ns). The throughput is also limited by Memory-Mapped I/O (MMIO) doorbell latency and PCIe bandwidth~\cite{neugebauer2018understanding,li2017kv}.
+
+We aim to leverage user-space shared memory for intra-host socket communication.
 
 \parab{Container overlay network.}
-Many container deployments use isolated network namespaces for containers, which communicate via a virtual overlay network.
-In Linux, a virtual switch~\cite{pfaff2015design} forwards packets among host NIC and virtual NICs in containers.
-This architecture incurs the overhead of multiple context switches and memory copies on each packet, and the virtual switch is a scalability bottleneck~\cite{pfefferle2015hybrid}.
+Many container deployments use isolated network namespaces for containers, which communicate via a virtual overlay network. In Linux, a virtual switch~\cite{pfaff2015design} forwards packets among host NIC and virtual NICs in containers. This architecture incurs the overhead of multiple context switches and memory copies on each packet, and the virtual switch becomes the bottleneck~\cite{pfefferle2015hybrid}.
 
-We aim to use the virtual switch for control plane only and implement data plane operations peer-to-peer.
+We aim to use the virtual switch for only control plane and implement peer-to-peer data plane operations.
 
-\parab{Offloading transport to RDMA NIC.}
+\parab{RDMA offloading.}
 %For inter-host communication inside data centers, there are two challenges for using RDMA.
 %The first is to transparently determine whether or not the remote host supports \sys{}.
 %We cannot use an out-of-band communication channel such as RDMA CM because it cannot pass through middleboxes in cloud network.
@@ -350,25 +346,21 @@ For example, RDMA preserves messages boundaries while TCP does not.
 For I/O multiplexing, RDMA provides a completion notification model while event polling in Linux socket requires a readiness model~\cite{han2012megapipe}.
 Further, one-sided and two-sided RDMA verbs have different efficiency and overheads~\cite{kalia2014using,kaminsky2016design}.
 
-We aim to use RDMA efficiently for socket applications, while fall back to TCP transparently for non-RDMA peers.
+We aim to use RDMA efficiently for inter-host socket communication, while falling back to TCP transparently in case of non-RDMA peers.
 
 \parab{Many concurrent connections.}
 Internet facing applications often need to serve millions of concurrent connections efficiently~\cite{nishtala2013scaling,lin2016scalable,belay2017ix}.
 %In addition, because a socket connection provides a FIFO abstraction and the OS offers event multiplexing, 
-Moreover, it is also common for two processes to create large number of connections between them, where each connection handles a concurrent task.
-In Linux, a socket connection has dedicated send and receive buffers, each is at least one page (4~KiB) in size~\cite{davidskbs}. With millions of concurrent connections, the socket buffers can consume gigabytes of memory, most of which is empty.
-Random access to a large number of buffers also leads to CPU cache and TLB miss.
-Similar issue exists in RDMA NICs with limited on-chip memory for maintaining connection states.
+Moreover, it is also common for two processes to create large number of connections between them, where each connection handles a concurrent task~\RED{cite}. In Linux, a socket connection has dedicated send and receive buffers, each is at least one page (4~KB) in size~\cite{davidskbs}. With millions of concurrent connections, the socket buffers can consume gigabytes of memory, most of which is empty. Random accesses to a large number of buffers also cause CPU cache misses and TLB misses. Similar issue exists in RDMA NICs with limited on-chip memory for caching connection states.
 %, which is slower than sequential access to a single buffer~\cite{li2017kv}. 
 %This problem is exaggerated in RDMA. RDMA NIC caches connection states in limited on-board memory. Just over a few hundred active RDMA connections could cause cache misses and degrade performance~\cite{mprdma,kaminsky2016design}. 
 %Moreover, event-driven applications use \texttt{epoll} to detect which connections are ready for send or receive. If the event queue is separated from data queues, each \texttt{recv} operation involves two cache migrations for event and data~\cite{yasukata2016stackmap}. 
 
-We aim to minimize memory cache miss per data transmission by multiplex socket connections.
+We aim to minimize memory cache misses per data transmission by multiplexing socket connections.
 
 
 \parab{Kernel bypassing.}
-Traditionally, socket APIs are implemented in kernel and thus require kernel crossing for each socket operation.
-To make it worse, the Kernel Page-Table Isolation patches~\cite{kpti} to protect against Meltdown~\cite{Lipp2018meltdown} attacks make kernel crossings 4x expensive.
+Traditionally, socket APIs are implemented in kernel, thus requiring kernel crossing for each socket operation. To make it worse, the Kernel Page-Table Isolation patches~\cite{kpti} to protect against Meltdown~\cite{Lipp2018meltdown} attacks make kernel crossings 4x expensive.
 % (from 47~ns on Linux 4.11 to 200~ns on Linux 4.16 per system call). 
 %Together with additional cache invalidations, KPTI patches reduce TCP socket throughput by 40\% for 64-byte messages. %These side-channel attacks also make us rethink the Linux security model in which the complicated network stack needs to be trusted and protected. %, while sharing cores with applications.
 %To ensure isolation among processes, one category of dataplane operating systems~\cite{belay2017ix,tsai2017lite} use kernel-based network stacks. However, non-batched system calls have context switch overhead, while batched system calls increase latency.
@@ -377,30 +369,23 @@ We aim to bypass kernel without compromising security.
 
 
 \parab{Scaling to multiple cores.}
-Linux kernel acquires several global locks during connection creation~\cite{boyd2008corey,boyd2010analysis}, while MegaPipe~\cite{han2012megapipe} and FastSocket~\cite{lin2016scalable} remove these bottlenecks.
-Several works~\cite{martins2014clickos,roghanchi2017ffwd,huang2017high,freeflow} delegate all operations to a virtual switch running as a daemon process, which is a scalability bottleneck in modern servers with tens of cores.
+Linux kernel acquires several global locks during connection creation~\cite{boyd2008corey,boyd2010analysis}, while MegaPipe~\cite{han2012megapipe} and FastSocket~\cite{lin2016scalable} remove these bottlenecks.\RED{What are problems of MegaPipe and FastSocket}
+Several efforts~\cite{martins2014clickos,roghanchi2017ffwd,huang2017high,freeflow} delegate all operations to a virtual switch running as a daemon process, which is a scalability bottleneck in modern servers with tens of cores.
 
-We aim to minimize centralized coordination while preserving isolation.
+We aim to minimize centralized coordinations while preserving isolation among \RED{TBA}.
 
 \parab{Multiple threads sharing a connection.}
 %Many applications are multi-threaded for two reasons.
 %First, unlike FreeBSD, the asynchronous interface for reading and writing disk files in Linux cannot leverage OS cache and buffer, so the applications keep using a synchronous interface with multiple threads~\cite{nginx-multi-thread}.
 %Second, many web application frameworks prefer a synchronous programming model to process each user request because it is easier to write and debug~\cite{barroso2017attack}.
-Multiple threads in a process share socket connections.
-For example, after a process forks, both parent and child processes share existing sockets.
-Sockets can also be passed to another process through Unix domain socket.
-To protect concurrent operations, Linux kernel acquires a per-socket lock for each socket operation~\cite{boyd2010analysis,han2012megapipe,lin2016scalable}.
-Table~\ref{tab:operation-performance} shows that a shared memory queue protected by atomic operations has 4x latency and 22\% throughput of a lockless queue, even if there is no contention.
-Previous works~\cite{boyd2010analysis,clements2015scalable} suggest that many socket operations are not commutable and thus synchronization cannot always be avoided.
+Multiple threads in a process share socket connections. For example, after a process forks, both parent and child processes share existing sockets. Sockets can also be passed to another process through Unix domain socket. To protect concurrent operations, Linux kernel acquires a per-socket lock for each socket operation~\cite{boyd2010analysis,han2012megapipe,lin2016scalable}. Table~\ref{tab:operation-performance} shows that a shared memory queue protected by atomic operations has 4x latency and 22\% throughput of a lockless queue, even if there is no contention.
+Previous work~\cite{boyd2010analysis,clements2015scalable} suggests that many socket operations are not commutable and synchronizations cannot always be avoided.
 
-We aim to minimize synchronization overhead in two ways.
-First, we optimize for the common case and remove synchronization in frequent socket operations.
-Second, we leverage the fact that shared memory message passing is much cheaper than locking~\cite{roghanchi2017ffwd}, and use message passing as the exclusive synchronization mechanism.
+We aim to minimize synchronization overhead in two ways. First, we optimize for the common cases and remove synchronizations in frequently used socket operations. Second, we leverage the fact that shared memory message passing is much cheaper than locking~\cite{roghanchi2017ffwd}, and use message passing as the exclusive synchronization mechanism.
 
 
 \parab{Multiple threads sharing a CPU core.}
-Most user-space socket stacks use polling to avoid the overhead of interrupt and thread wakeup in the kernel.
-However, polling does not work when multiple threads have to share a core.
+Most user-space network stacks use polling to avoid the overhead of interrupt and thread wakeup in the kernel. However, polling does not work when multiple threads have to share a core.
 To switch thread contexts, as Table~\ref{tab:operation-performance} shows, using semaphore, mutex or \texttt{futex} to wake up a sleeping thread is 5x$\sim$10x slower than cooperative context switch via \texttt{sched\_yield}.
 %This extra latency is due to event notification mechanism and process scheduler in kernel.
 
@@ -410,8 +395,8 @@ We aim to use cooperative multitasking instead of kernel thread wakeup mechanism
 \parab{Zero copy.}
 The semantics \texttt{send} and \texttt{recv} cause memory copies between application and network stack. For non-blocking \texttt{send}, the system needs to copy data out of the buffer because the application may overwrite the buffer right after \texttt{send} returns. %Simply removing these copies may violate application correctness. 
 For \texttt{recv}, application provides a buffer as the data destination. %If we buffer data on the sender and only transmit it on \texttt{recv}, the receiver needs to wait for a round-trip time. For this reason, socket implementations buffer data on the receiver and copy it to application on \texttt{recv}.
-System needs to copy data received into the buffer.
-Many user-space sockets provide both standard socket API and an alternative zero-copy API, but none of them achieves zero copy for the standard API on both send and receive paths.
+System needs to copy data received into the buffer. 
+Many user-space sockets provide both standard socket API and an alternative zero-copy API, but none of them achieves zero copy for the standard API on both send and receive paths.\RED{I think this problem also exists for RSocket.}
 
 We aim to allow transparent zero copy for large transfers.
 
