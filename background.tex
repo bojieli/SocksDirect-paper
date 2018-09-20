@@ -417,7 +417,7 @@ For \texttt{recv}, application provides a buffer as the data destination. %If we
 System needs to copy data received into the buffer.
 Many user-space sockets provide both standard socket API and an alternative zero-copy API, but none of them achieves zero copy for the standard API on both send and receive paths.
 
-We aim to allow zero copy for large transfers.
+We aim to allow transparent zero copy for large transfers.
 
 
 

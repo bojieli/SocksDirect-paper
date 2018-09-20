@@ -72,7 +72,7 @@
 %\end{figure}
 
 
-We implement \sys in three components: a user-space library \libipc{} and a monitor daemon with about 10K lines of C++ code, as well a modified NIC driver for zero copy.
+We implement \sys in three components: a user-space library \libipc{} and a monitor daemon with about 10K lines of C++ code, and a modified NIC driver for zero copy.
 We evaluate \sys in the following aspects:
 
 \parab{Use shared memory efficiently for intra-host socket.}
@@ -194,7 +194,7 @@ For intra-host socket, \sys provides 306~M message per second throughput between
 LibVMA and RSocket fall back to Linux for intra-host socket.
 Using RDMA for inter-host socket, \sys achieves 62~M messages per second throughput (8x Linux and 24x LibVMA).
 Although \sys{} creates $n^2$ queues for $n$ sender and receiver threads, only $n$ of them are active.
-Because the NIC only caches active connections, the idle queues do not degrade performance.
+Because the NIC only caches active RDMA connections and \libipc{} only polls active queues, the idle queues do not degrade performance.
 Due to lock contention on shared NIC queues, compared to one thread, the throughput of LibVMA reduces to 1/4 with two threads, and 1/10 with three threads.
 The Linux throughput scales linearly from 1 to 7 cores and bottlenecks on the loopback or NIC queues with more cores.
 %The multi-thread scalability of \sys attributes to the partitioning of states and removal of synchronization.

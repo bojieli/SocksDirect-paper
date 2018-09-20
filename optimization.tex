@@ -49,10 +49,10 @@ Because RDMA does not ensure write ordering within a message~\cite{infiniband200
 
 \parab{Amortize polling overhead.}
 Polling queues wastes CPU cycles of the receiver when a pair of threads do not communicate frequently. We amortize polling overhead using two techniques.
-For RDMA queues, we leverage the RDMA NIC to multiplex event notifications into a single queue.
+First, for RDMA queues, we leverage the RDMA NIC to multiplex event notifications into a single queue.
 A thread uses a shared completion queue for all RDMA connections, so it only needs to poll one queue rather than multiple queues.
 
-For shared memory queues, each queue can switch between \textit{polling} and \textit{interrupt} modes. The queue to the monitor is always in polling mode. Receiver of each queue maintains a counter of consecutive empty polls. When it exceeds a threshold, the receiver sends a message to sender notifying that the queue is entering interrupt mode, and stops polling after a short period. When sender writes to a queue in interrupt mode, it also notifies the monitor and the monitor will signal the receiver to resume polling.
+Second, each queue can switch between \textit{polling} and \textit{interrupt} modes. The queue to the monitor is always in polling mode. Receiver of each queue maintains a counter of consecutive empty polls. When it exceeds a threshold, the receiver sends a message to sender notifying that the queue is entering interrupt mode, and stops polling after a short period. When sender writes to a queue in interrupt mode, it also notifies the monitor and the monitor will signal the receiver to resume polling.
 
 
 \subsection{Zero Copy}
@@ -66,43 +66,50 @@ For shared memory queues, each queue can switch between \textit{polling} and \te
 %	\label{fig:zerocopy}
 %\end{figure}
 
-The main challenge for zero copy is to maintain the semantics of socket API, as discussed in Sec.\ref{subsec:performance-challenges}.
+The main challenge for zero copy is to maintain the semantics of socket API (Sec.\ref{subsec:performance-challenges}).
 %A sender may write the send buffer after non-blocking \texttt{send}, and the receiver does not know the receive buffer before \texttt{recv}.
-Fortunately, virtual memory provides a layer of indirection, so we can remap virtual address of a buffer to another physical page if the data occupies entire 4~KiB pages.
-We wrap around \texttt{malloc} and \texttt{realloc} functions and allocate 4~KiB aligned addresses for large allocations, so most buffers will align to page boundary.
-If the size of send message is not a multiple of 4~KiB, the last chunk of data is copied on \texttt{send} and \texttt{recv}.
+Fortunately, virtual memory provides a layer of indirection.% so we can remap virtual address of a buffer to another physical page if the data occupies entire 4~KiB pages.
+Rather than copying, we remap the physical pages from sender's virtual addresses to receiver's.
+This approach has been explored by zero-copy sockets~\cite{thadani1995efficient,chu1996zero,linux-zero-copy}, but they still have several challenges.
 
-\subsubsection{Zero Copy for Intra-Server Socket}
-\label{subsec:zero-copy-intra}
+\parab{Page alignment.}
+Page remapping only works when the send and receive addresses are page aligned and the transfer contains entire pages.
+We intercept \texttt{malloc} and \texttt{realloc} functions and allocate 4~KiB aligned addresses for allocations with multiple-of-4K sizes, so most buffers will align to page boundary, while not wasting memory for small allocations.
+If the size of sent message is not a multiple of 4~KiB, the last chunk of data is copied on \texttt{send} and \texttt{recv}.
 
-\parab{Page remapping.}
-For \texttt{send} operation that is aligned to page boundary and at least 8~KiB, \libipc{} invokes the kernel to 
+\parab{Batch page remapping.}
+As Table~\ref{tab:operation-performance} shows, remapping a single page is more expensive than copying it because of kernel crossing and TLB flush costs. Hence, we batch page mapping operations to amortize the overhead.
+We use zero copy for page-aligned \texttt{send} with at least 8~KiB data size.
+
+\parab{Send pages securely in user space.}
+For intra-host socket, rather than sending page addresses to the receiver via kernel, we send the addresses in a message in user-space queues.
+We must prevent unsolicited remapping of arbitrary pages.
+To this end, \libipc{} invokes our modified NIC driver to 
 get obfuscated physical page addresses of the send buffer and send the address to receiver via shared memory queue.
-The address is obfuscated to prevent unsolicited remapping of arbitrary pages.
-Because the sender may read the buffer after \texttt{send} or send the buffer to multiple receivers,
-\texttt{send} needs to write-protect the buffer. % because the receiver needs to read it.
 On the receiving side, \libipc{} invokes the kernel to remap the obfuscated physical pages to the application-provided receive buffer virtual address.
-\texttt{recv} also needs to write-protect the buffer.
 
 \parab{Minimize copy-on-write.}
-A challenge arises when sender writes the buffer after \texttt{send}.
-Existing zero-copy socket designs~\cite{thadani1995efficient,chu1996zero} use copy-on-write. %Copy is required because the sender may read the non-written part of the page.
+After \texttt{send}, because the application may read the buffer or send the buffer to other receivers, it needs to write-protect the buffer.
+\texttt{recv} also needs to write-protect received buffers.
+When sender writes the buffer after \texttt{send}, existing designs use copy-on-write. %Copy is required because the sender may read the non-written part of the page.
 Because applications almost always reuse the buffer for subsequent send operations, copy-on-write is invoked in most cases, making zero-copy essentially useless on sender.
 Our observation is that most applications overwrite entire pages of the send buffer via \texttt{recv} or \texttt{memcpy}. %so it is unnecessary to copy old data when the first byte of the page is written.
-For \texttt{recv}, zero-copy by \texttt{recv} already remaps the buffer without triggering copy-on-write.
-For \texttt{memcpy}, we add preamble code to \texttt{memcpy} in both \libipc{} runtime and compiler inline library, so that
+For \texttt{recv}, the old read-only mapping can be safely discarded.
+For \texttt{memcpy}, we add preamble code to \texttt{memcpy} in both \libipc{} and compiler inline library, so that
 for page-aligned copy to \libipc{} buffers, the preamble code invokes the kernel to remap new pages and disable write protection.
 
-\parab{Page pool in user space.}
-A second challenge is that page remapping requires the kernel to allocate and free pages for each \texttt{send} and \texttt{recv}. 
+\parab{Page allocation overhead.}
+Page remapping requires the kernel to allocate and free pages for each zero copy \texttt{send} and \texttt{recv}. 
 Page allocation in kernel requires a global lock, therefore it is inefficient. Instead, \libipc{} manages a pool of free pages in each process.
 \libipc{} also tracks the origin of received zero-copy pages.
 Whenever a page is remapped, if it is from another process, \libipc{} sends a message to the original process to return the pages.
 
-\subsubsection{Zero Copy RDMA}
-\label{subsec:zero-copy-rdma}
-
-On sender, zero copy RDMA is similar to the intra-server case. We use physical addresses in RDMA verbs to eliminate memory registration and address translation overhead, as recommended by NIC documentation~\cite{mellanox-zerocopy}. The page containing send data is freed after RDMA completion. On receiver, \libipc{} prepares a page pool during initialization. The sender manages the pool on the remote host. Upon \texttt{send}, sender allocates pages from the pool to determine the remote address of RDMA write, and send the physical address via ring buffer. At the \texttt{recv} end, \libipc invokes the kernel to map physical pages in the ring buffer message to application buffer virtual address. When the pages are remapped, \libipc{} returns the page addresses to the pool manager in sender via RDMA.
+\parab{Using RDMA NIC to send pages.}
+On receiver, \libipc{} initializes a pinned page pool for the sender to use.
+On sender, \libipc{} pins the send buffer if it has not been pinned, then allocates pages from the pool to determine the remote address of RDMA write.
+When \texttt{recv} is called, \libipc invokes the NIC driver to remap pages in the pool to application buffer virtual address.
+After the remapped pages are freed (e.g. overwritten by another \texttt{recv}), \libipc{} returns them to the pool manager in sender.
+If the OS runs out of memory, \libipc{} unpins pages to reclaim memory.
 %For security, kernel validates that page numbers are in the huge-page receive buffer.
 
 %\subsubsection{Zero Copy TCP}
