@@ -43,8 +43,7 @@ To this end, we design a \emph{monitor} daemon at each host to coordinate contro
 %To this end, we regard processes as a shared-nothing distributed system that communicates through message passing.
 %We design a secure control-plane protocol between applications and the monitor, and a data-plane protocol between applications.
 
-To achieve low latency and high throughput, \sys{} uses shared memory for intra-host and RDMA for inter-host communication. For intra-host communication, only the local monitor is involved. 
-The communication initiator first sends a request to the local monitor, then the monitor establishes a shared memory queue between the two applications (possibly in different containers). Then the two applications can communicate directly.  
+To achieve low latency and high throughput, \sys{} uses shared memory for intra-host and RDMA for inter-host communication. We now describe the procedure of intra-host communication. The communication initiator first sends a request to the local monitor, then the monitor establishes a shared memory queue between the two applications (possibly in different containers). Then the two applications can communicate directly.  
 
 
 %During initialization, \libipc{} connects to the local monitor via a shared memory queue.
