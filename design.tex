@@ -14,6 +14,7 @@
 \end{figure}
 
 
+\iffalse
 \begin{figure}[t!]
 	\centering
 	\subfloat[Traditional queue structure.]{
@@ -28,6 +29,7 @@
 	\label{fig:fork-rdwr}
 	\vspace{-10pt}
 \end{figure}
+\fi
 
 To achieve high performance while preserving security, we design a \emph{monitor} daemon in each host to coordinate control-plane operations, while establish queues between each pair of applications for data-plane. The \emph{monitor} daemon is started at OS initialization time.
 %As shown in Figure~\ref{fig:architecture}, the core component of \sys{} is a user-space library \libipc{}.
@@ -52,7 +54,7 @@ The detailed connection management protocol is presented in Sec.~\ref{subsec:con
 
 In order to remove synchronization overhead for multi-threaded applications, we treat each thread as a separate process.
 %Although threads in a process share memory, we use thread-specific storage for most states in \libipc{}.
-For two communicating applications, we create peer-to-peer queues between each pair of sender and receiver threads to avoid synchronization cost of contending on the same queue, as shown in Figure~\ref{fig:fork-rdwr}.
+For two communicating applications, we create peer-to-peer queues between each pair of sender and receiver threads to avoid synchronization cost of contending on the same queue.
 In Sec.~\ref{subsec:fork}, we present the peer-to-peer queue design that preserves FIFO ordering semantics and avoids starvation, especially when a process forks or creates a new thread.
 To maintain performance with many concurrent connections, rather than creating separate queues for each connection, we multiplex data from all connections through one queue.
 In Sec.~\ref{subsec:multiplex-conn}, we present the design of multiplexed queue that avoids head-of-line blocking and supports fetching data from any multiplexed connections.
@@ -208,7 +210,7 @@ When application shuts down one direction of a connection, it sends a \textit{sh
 
 Socket sharing among processes and threads are ubiquitous in modern applications.
 Our aim is to maximize the common-case performance while preserving the FIFO semantics.
-We make two observations: First, fork and thread creation are infrequent in high performance applications.% compared to connection creation and data transmission.
+We make two observations: First, fork and thread creation are infrequent in high performance applications. 
 Second, it is uncommon that several processes receive concurrently from a shared socket, because the byte-stream semantics of socket makes it hard to avoid receiving partial messages.
 %For such producer-consumer scenarios, message brokers~\cite{hintjens2013zeromq,rabbitmq2017rabbitmq,kreps2011kafka} are typically used.
 Based on the observations, we propose the following requirements:
@@ -273,14 +275,14 @@ The remaining data needs to migrate from the old active queue to the new active 
 	\centering
 	\includegraphics[width=0.4\textwidth]{images/fork}
 	\vspace{-5pt}
-	\caption{Message flow during \texttt{fork}.}
+	\caption{The handling procedure of receiver fork.}
 	\label{fig:fork-fork}
 	\vspace{-15pt}
 \end{figure}
 
 
 %The first challenge with fork and thread creation is how to identify and isolate parent and child processes. 
-As shown in Figure~\ref{fig:fork-fork}, when an application calls \texttt{fork}, \texttt{clone} or \texttt{pthread\_create}, \libipc{} first generates a secret for pairing, then invokes the corresponding system call. After fork, parent and child independently creates a shared memory queue to the monitor and sends the secret (child inherits parent memory space and knows the secret). The monitor can thus pairs the child process with the parent. 
+To identify and isolate parent and child processes, when an application calls \texttt{fork}, \texttt{clone} or \texttt{pthread\_create}, \libipc{} first generates a secret for pairing, then invokes the corresponding system call. After fork, parent and child independently creates a shared memory queue to the monitor and sends the secret (child inherits parent memory space and knows the secret). The monitor can thus pairs the child process with the parent. 
 To maintain isolation between parent and child, monitor creates new shared memory queues to replace all queues in \emph{both} parent and child. We do not reuse queues due to potential isolation violation. %The monitor then sends credentials of new queues to parent and child via bootstrap sockets. 
 Each peer process is notified of the new queues and the new process. From then on, parent and child processes have isolated queues to the monitor and peers.
 
@@ -340,16 +342,6 @@ Closing a shared connection needs to multicast a notification to the peers and c
 \subsection{Multiplex Sockets via One Queue}
 \label{subsec:multiplex-conn}
 
-
-\begin{figure}[t]
-	\centering
-	\includegraphics[width=0.4\textwidth]{images/fork}
-	\vspace{-5pt}
-	\caption{Performance of one shared queue compared with per-FD queues.}
-	\label{fig:multiplex-queue}
-	\vspace{-15pt}
-\end{figure}
-
 \begin{figure}[t]
 	\centering
 	\includegraphics[width=0.4\textwidth]{images/locklessq_new}
@@ -361,7 +353,7 @@ Closing a shared connection needs to multicast a notification to the peers and c
 
 
 %\parab{Multiplex connections in event-driven applications.}
-To reduce memory footprint and improve locality of memory accesses, we use one queue to multiplex all connections between a pair of threads. Each data item in the queue is marked with its FD. By using a single queue, we reduce per-socket memory footprint, random memory accesses and cache misses, as Figure~\ref{fig:multiplex-queue} shows.
+To reduce memory footprint and improve locality of memory accesses, we use one queue to multiplex all connections between a pair of threads. Each data item in the queue is marked with its FD. By using a single queue, we reduce per-socket memory footprint, random memory accesses and cache misses.
 
 \parab{Message format.}
 As shown in Figure~\ref{fig:locklessq-structure}, the main component of the queue is a \emph{data ring buffer}, where messages are stored back-to-back.

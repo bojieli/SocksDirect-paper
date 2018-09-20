@@ -7,7 +7,7 @@ To solve this problem, after receiving the TCP SYN+ACK, the monitor can create a
 Moreover, if the application and monitor share a network namespace, the monitor can send the kernel FD to the application via Unix domain socket, then \libipc{} can use the FD without delegation to the monitor.
 
 \textbf{Connecting to many RDMA capable hosts.}
-We multiplex connections among a pair of hosts, but this cannot reduce the number of RDMA connections with a lot of hosts.
+We multiplex connections among a pair of threads, but this cannot reduce the number of RDMA connections with a lot of hosts.
 NIC still suffer from performance degradation due to large number of connections.
 In contrast, user-space networking stack alleviates this problem because the NIC is stateless.
 We provide a socket option to enable applications to delegate operations to the monitor and use user-space networking stack even if the peer supports RDMA.
