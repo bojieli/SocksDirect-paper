@@ -43,7 +43,7 @@ We design \sys{}, a user-space socket architecture with compatibility, security 
 	\item \textbf{Security}.
 	\sys{} preserves isolation among applications and containers, and it enforces firewall rules and access control policies.
 	\item \textbf{High Performance}.
-	\sys{} delivers consistent high throughput and low latency that is scalable with number of CPU cores, and the performance does not degrade significantly under vast number of concurrent connections and threads.
+	\sys{} delivers consistent high throughput and low latency that is scalable with number of CPU cores, and the performance does not degrade significantly with vast number of concurrent connections.
 \end{ecompact}
 
 
@@ -90,13 +90,13 @@ communicating threads. In our design, a single socket connection may corresponds
 FIFO semantics during fork and thread creation. Another challenge is to maintain performance with vast number of concurrent connections. 
 To handle many concurrent connections efficiently, we need to reduce memory footprint and improve memory access locality. 
 Rather than maintaining a separate queue for each connection, \sys multiplexes socket connections through a single queue for each pair of communicating threads.
-We design \sys carefully to enable fetching from the middle of a queue and solve the head-of-line blocking problem. 
+We design the queue carefully to enable fetching from the middle of a queue and solve the head-of-line blocking problem. 
 
 We exploit many techniques to effectively utilize hardware and improve system efficiency. 
-For communication within the same host, we use a high performance user space shared memory queue.
-For communication among hosts in an RDMA enabled data center, we use RDMA hardware for transport. 
+For communication within a same host, we use a high performance user space shared memory queue.
+For communication among hosts in an RDMA enabled data center, we use RDMA NIC hardware for transport. 
 To remove memory copy cost for large messages, we use \emph{page remapping} to achieve transparent zero copy.
-To share a CPU core efficiently among multiple active threads without thread wakeup overhead, we uses \emph{cooperative multitasking}. 
+To share a CPU core efficiently among multiple active threads without thread wakeup overhead, we use \emph{cooperative multitasking}. 
 %\fi
 
 \iffalse
@@ -138,8 +138,8 @@ To share a CPU core efficiently among multiple active threads, \sys uses \emph{c
 %As a result, we achieve zero copy for both shared memory, RDMA and TCP transport.
 
 \sys{} achieves latency and throughput close to the raw performance achievable from the underlying shared memory queue and RDMA.
-On the latency side, \sys{} achieves $0.3\mu$s RTT for intra-server socket, 35x lower than Linux and only $0.05\mu$s higher than a bare-metal shared memory queue. For inter-server socket, \sys{} achieves $1.7\mu$s RTT between RDMA hosts, almost the same as raw RDMA verbs and 17x lower than Linux.
-On the throughput side, a single thread can send 23~M intra-server messages per second (20x Linux) or 8~M inter-server (7x Linux). For large messages, with zero copy, a single connection saturates an 100~Gbps NIC. Each thread can establish 1.4~M new connections per second (20x Linux). The performance above is scalable with number of cores, and do not degrade significantly with multiple threads or concurrent connections.
+On the latency side, \sys{} achieves $0.3\mu$s RTT for intra-host socket, 35x lower than Linux and only $0.05\mu$s higher than a bare-metal shared memory queue. For inter-host socket, \sys{} achieves $1.7\mu$s RTT between RDMA hosts, almost the same as raw RDMA verbs and 17x lower than Linux.
+On the throughput side, a single thread can send 23~M intra-host messages per second (20x Linux) or 8~M inter-host (7x Linux). For large messages, with zero copy, a single connection saturates NIC bandwidth. Each thread can establish 1.4~M new connections per second (20x Linux). The performance above is scalable with number of cores, and do not degrade significantly with millions of concurrent connections.
 
 %\textbf{End-to-end performance.}
 

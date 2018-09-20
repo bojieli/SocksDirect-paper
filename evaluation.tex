@@ -12,13 +12,14 @@
 			\label{fig:eval-msgsize-ipc-tput}
 			%\end{minipage}
 		}
-		
+		\vspace{-10pt}
 		\subfloat[intra-host latency]{
 			%\begin{minipage}{0.4\textwidth}
 			\centering \includegraphics[width=\textwidth]{eval/microbenchmark/msgsize-ipc-lat.pdf}
 			\label{fig:eval-msgsize-ipc-lat}
 			%\end{minipage}
 		}
+		\vspace{-5pt}
 		\caption{Single-core intra-host performance with message sizes.}
 		\label{fig:eval-msgsize-intra}
 	\end{minipage}
@@ -31,13 +32,14 @@
 			\label{fig:eval-msgsize-network-tput}
 			%\end{minipage}
 		}
-		
+		\vspace{-10pt}
 		\subfloat[inter-host latency]{
 			%\begin{minipage}{0.4\textwidth}
 			\centering \includegraphics[width=\textwidth]{eval/microbenchmark/msgsize-network-lat.pdf}
 			\label{fig:eval-msgsize-network-lat}
 			%\end{minipage}
 		}
+		\vspace{-5pt}
 		\caption{Single-core inter-host performance with message sizes.}
 		\label{fig:eval-msgsize-inter}
 	\end{minipage}
@@ -51,13 +53,14 @@
 			\label{fig:eval-connnum-ipc-tput}
 			%\end{minipage}
 		}
-		
+		\vspace{-10pt}
 		\subfloat[inter-host]{
 			%\begin{minipage}{0.4\textwidth}
 			\centering \includegraphics[width=\textwidth]{eval/microbenchmark/connnum-network-tput.pdf}
 			\label{fig:eval-connnum-network-tput}
 			%\end{minipage}
 		}
+		\vspace{-5pt}
 		\caption{Single-core throughput with number of connections.}
 		\label{fig:eval-connnum-tput}
 	\end{minipage}
@@ -79,16 +82,16 @@ We evaluate \sys in the following aspects:
 For small messages, \sys achieves 0.3$\mu$s round-trip latency and up to 23~M messages per second throughput, close to raw shared memory performance. For large messages, \sys uses zero copy to achieve 13x lower latency and 26x throughput than Linux.
 
 \parab{Use RDMA efficiently for inter-host socket.}
-For small messages, \sys achieves  1.7$\mu$s round-trip latency and 8M messages per second throughput, close to raw RDMA performance.
+\sys achieves  1.7$\mu$s round-trip latency and 8M messages per second throughput, close to raw RDMA performance.
 
 \parab{Robust with number of connections.}
-The performance above can be maintained with up to 100 million concurrent connections.
+The performance above can be maintained with up to 100 million connections.
 
 \parab{Scale with number of cores.}
 The performance above is linearly scalable with number of cores. In addition, a single CPU core can create 1.4~M connections per second.
 
-\parab{Corner-case operations does not affect long-term performance.}
-After corner-case operations such as \texttt{fork}, the performance recovers quickly.
+%\parab{Corner-case operations does not affect long-term performance.}
+%After corner-case operations such as \texttt{fork}, the performance recovers quickly.
 
 
 
@@ -171,6 +174,12 @@ For 2~KiB and larger messages, \sys saturates the network bandwidth, which is 2x
 		\vspace{-15pt}
 		\caption{End-to-end HTTP request latency of a web service.}
 		\label{fig:eval-nginx-multiround}
+		
+		\centering
+		\includegraphics[width=\textwidth]{eval/microbenchmark/corenum-http-tput.pdf}
+		\vspace{-15pt}
+		\caption{Multi-core scalability of HTTP backend service throughput.}
+		\label{fig:eval-http-tput}
 	\end{minipage}
 \vspace{-10pt}
 \end{figure*}
