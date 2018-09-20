@@ -5,7 +5,7 @@
 	\centering
 	\begin{minipage}{.31\textwidth}
 		\centering
-		\subfloat[Intra-server throughput]{                    
+		\subfloat[intra-host throughput]{                    
 			%\begin{minipage}{0.4\textwidth}
 			\centering
 			\includegraphics[width=\textwidth]{eval/microbenchmark/msgsize-ipc-tput.pdf}
@@ -13,38 +13,38 @@
 			%\end{minipage}
 		}
 		
-		\subfloat[Intra-server latency]{
+		\subfloat[intra-host latency]{
 			%\begin{minipage}{0.4\textwidth}
 			\centering \includegraphics[width=\textwidth]{eval/microbenchmark/msgsize-ipc-lat.pdf}
 			\label{fig:eval-msgsize-ipc-lat}
 			%\end{minipage}
 		}
-		\caption{Single-core intra-server performance with message sizes.}
+		\caption{Single-core intra-host performance with message sizes.}
 		\label{fig:eval-msgsize-intra}
 	\end{minipage}
 	\hspace{0.01\textwidth}
 	\begin{minipage}{.31\textwidth}
 		\centering
-		\subfloat[Inter-server throughput]{
+		\subfloat[inter-host throughput]{
 			%\begin{minipage}{0.4\textwidth}
 			\centering \includegraphics[width=\textwidth]{eval/microbenchmark/msgsize-network-tput.pdf}
 			\label{fig:eval-msgsize-network-tput}
 			%\end{minipage}
 		}
 		
-		\subfloat[Inter-server latency]{
+		\subfloat[inter-host latency]{
 			%\begin{minipage}{0.4\textwidth}
 			\centering \includegraphics[width=\textwidth]{eval/microbenchmark/msgsize-network-lat.pdf}
 			\label{fig:eval-msgsize-network-lat}
 			%\end{minipage}
 		}
-		\caption{Single-core inter-server performance with message sizes.}
+		\caption{Single-core inter-host performance with message sizes.}
 		\label{fig:eval-msgsize-inter}
 	\end{minipage}
 	\hspace{0.01\textwidth}
 	\begin{minipage}{.31\textwidth}
 		\centering
-		\subfloat[Intra-server]{                    
+		\subfloat[intra-host]{                    
 			%\begin{minipage}{0.4\textwidth}
 			\centering
 			\includegraphics[width=\textwidth]{eval/microbenchmark/connnum-ipc-tput.pdf}
@@ -52,7 +52,7 @@
 			%\end{minipage}
 		}
 		
-		\subfloat[Inter-server]{
+		\subfloat[inter-host]{
 			%\begin{minipage}{0.4\textwidth}
 			\centering \includegraphics[width=\textwidth]{eval/microbenchmark/connnum-network-tput.pdf}
 			\label{fig:eval-connnum-network-tput}
@@ -75,10 +75,10 @@
 We implement \sys in three components: a user-space library \libipc{} and a monitor daemon with 10K lines of C++ code, as well a modified NIC driver for zero copy.
 We evaluate \sys in the following aspects:
 
-\parab{Use shared memory efficiently for intra-server socket.}
+\parab{Use shared memory efficiently for intra-host socket.}
 For small messages, \sys achieves 0.3$\mu$s round-trip latency and up to 23~M messages per second throughput, close to raw shared memory performance. For large messages, \sys uses zero copy to achieve 13x lower latency and 26x throughput than Linux.
 
-\parab{Use RDMA efficiently for inter-server socket.}
+\parab{Use RDMA efficiently for inter-host socket.}
 For small messages, \sys achieves  1.7$\mu$s round-trip latency and 8M messages per second throughput, close to raw RDMA performance.
 
 \parab{Scale with number of connections.}
@@ -104,16 +104,16 @@ We compare with LibVMA~\cite{libvma}, a user-space TCP/IP networking stack optim
 
 
 
-Figure~\ref{fig:eval-msgsize-intra} shows intra-server socket performance between a pair of sender and receiver threads.
+Figure~\ref{fig:eval-msgsize-intra} shows intra-host socket performance between a pair of sender and receiver threads.
 For 8-byte messages, \sys achieves 0.3$\mu$s round-trip latency (35x lower than Linux) and 23~M messages per second throughput (20x Linux).
 In comparison, a simple shared memory queue has 0.25$\mu$s round trip latency and 27~M throughput, indicating that \sys adds little overhead.
-This latency is 5x lower than NIC hairpin, \textit{i.e.} one process sends packet to NIC and the NIC delivers it to another process. Using the NIC to forward intra-server packets involve PCIe latency.
+This latency is 5x lower than NIC hairpin, \textit{i.e.} one process sends packet to NIC and the NIC delivers it to another process. Using the NIC to forward intra-host packets involve PCIe latency.
 The one-way delay of \sys is 0.15$\mu$s, even lower than a kernel crossing (0.2$\mu$s). Kernel-based sockets require a kernel crossing on both sender and receiver.
 
 Due to memory copy, for 8~KiB messages, the throughput of \sys is only 60\% higher than Linux, and the latency is 4x lower. For messages larger than 8~KiB, \sys uses page remapping to achieve zero copy. For 1~MiB messages, \sys achieves 13x lower latency and 26x throughput than Linux.
 
 
-Figure~\ref{fig:eval-msgsize-inter} shows inter-server socket performance between a pair of threads.
+Figure~\ref{fig:eval-msgsize-inter} shows inter-host socket performance between a pair of threads.
 For 8-byte messages, \sys achieves 8M messages per second throughput (7x Linux) and 1.7$\mu$s round-trip latency (17x lower than Linux).
 The throughput and latency is close to raw RDMA write operations (shown as dashed line), which does not have socket semantics.
 LibVMA~\cite{libvma} uses batching to achieve 19M throughput, but the latency is 7x of \sys.
@@ -124,7 +124,7 @@ For 2~KiB and larger messages, \sys saturates the network bandwidth, which is 2x
 \begin{figure*}[t!]
 	\centering
 	\begin{minipage}{.31\textwidth}
-		\subfloat[Intra-server]{                    
+		\subfloat[intra-host]{                    
 			%\begin{minipage}{0.4\textwidth}
 			\centering
 			\includegraphics[width=\textwidth]{eval/microbenchmark/corenum-IPC-tput.pdf}
@@ -132,7 +132,7 @@ For 2~KiB and larger messages, \sys saturates the network bandwidth, which is 2x
 			%\end{minipage}
 		}
 		
-		\subfloat[Inter-server]{
+		\subfloat[inter-host]{
 			%\begin{minipage}{0.4\textwidth}
 			\centering \includegraphics[width=\textwidth]{eval/microbenchmark/corenum-network-tput.pdf}
 			\label{fig:eval-cornum-network}
@@ -189,11 +189,11 @@ In comparison, the performance of RDMA, LibVMA and Linux drops quickly as the nu
 
 Figure~\ref{fig:eval-corenum-tput} shows the throughput with different number of cores.
 Sender and receiver process each creates several threads, then each thread pins on a core and communicates with a peer thread.
-\sys achieves linear scalability for both intra-server and inter-server sockets.
+\sys achieves linear scalability for both intra-host and inter-host sockets.
 Within a server, \sys provides 306~M message per second throughput between 16 pairs of sender and receiver cores, which is 40x of Linux.
-Using RDMA for inter-server socket, \sys achieves 62~M messages per second throughput (8x Linux and 24x LibVMA).
+Using RDMA for inter-host socket, \sys achieves 62~M messages per second throughput (8x Linux and 24x LibVMA).
 %The multi-thread scalability of \sys attributes to the partitioning of states and removal of synchronization.
-%We can also see that shared memory communication has 5x throughput than RDMA.% Using RDMA NIC for intra-server socket would meet this bottleneck and thus not scalable.
+%We can also see that shared memory communication has 5x throughput than RDMA.% Using RDMA NIC for intra-host socket would meet this bottleneck and thus not scalable.
 
 Figure~\ref{fig:eval-conn-setup-tput} shows the throughput of connection creation with different number of cores. Each core can create 1.4~M new connections per second, which is 20x of Linux and 2x of mTCP~\cite{jeong2014mtcp}. The upper bound is 5.3~M connections per second, where the monitor process becomes a bottleneck.
 
