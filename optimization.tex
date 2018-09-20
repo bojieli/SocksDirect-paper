@@ -68,7 +68,7 @@ Second, each queue can switch between \textit{polling} and \textit{interrupt} mo
 
 The main challenge for zero copy is to maintain the semantics of socket API (Sec.\ref{subsec:performance-challenges}).
 %A sender may write the send buffer after non-blocking \texttt{send}, and the receiver does not know the receive buffer before \texttt{recv}.
-Fortunately, virtual memory provides a layer of indirection.% so we can remap virtual address of a buffer to another physical page if the data occupies entire 4~KiB pages.
+Fortunately, virtual memory provides a layer of indirection. % so we can remap virtual address of a buffer to another physical page if the data occupies entire 4~KiB pages.
 Rather than copying, we remap the physical pages from sender's virtual addresses to receiver's.
 This approach has been explored by zero-copy sockets~\cite{thadani1995efficient,chu1996zero,linux-zero-copy}, but they still have several challenges.
 
