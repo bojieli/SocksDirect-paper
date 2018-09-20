@@ -6,9 +6,9 @@
 
 \begin{figure}[t!]
 		\centering
-		\includegraphics[width=0.44\textwidth]{images/architecture_new}
+		\includegraphics[width=0.49\textwidth]{images/architecture_new}
 		\vspace{-5pt}
-		\caption{Architecture of \sys{}. Host 1 and 2 are RDMA capable, while host 3 is a regular TCP/IP host.}
+		\caption{Architecture of \sys{}. Host 1 and 2 are RDMA capable, while host 3 is RDMA incapable.}
 		\label{fig:architecture}
 		\vspace{-10pt}
 \end{figure}
@@ -31,22 +31,22 @@
 \end{figure}
 \fi
 
-To achieve high performance while preserving security, we design a \emph{monitor} daemon in each host to coordinate control-plane operations, while establish queues between each pair of applications for data-plane. The \emph{monitor} daemon is started at OS initialization time.
+To achieve high performance while preserving security, we design a \emph{monitor} daemon in each host to coordinate control plane operations, while establish queues between each pair of applications as data plane. The \emph{monitor} daemon is started at OS initialization time.
 %As shown in Figure~\ref{fig:architecture}, the core component of \sys{} is a user-space library \libipc{}.
 To use \sys, an application loads a user-space library \libipc{} by setting the \texttt{LD\_PRELOAD} environment variable.
 \libipc{} intercepts all Linux APIs in \texttt{glibc} that are related to file descriptor operations.
-It implements socket APIs in user space and forwards other APIs to the kernel.
-From a security point of view, because \libipc{} resides in the application address space, we cannot trust its behavior.
+It implements socket APIs in user space and forwards the other APIs to the kernel.
+From a security point of view, because \libipc{} resides in the application address space, we cannot trust its behavior. \RED{So what is your solution?}
 %To this end, we regard processes as a shared-nothing distributed system that communicates through message passing.
 %We design a secure control-plane protocol between applications and the monitor, and a data-plane protocol between applications.
 
 To achieve low latency and high throughput, \sys{} uses shared memory for intra-host and RDMA for inter-host communication.
-During initialization, \libipc{} connects to the local monitor via shared memory queue.
-To enforce access control policy and support overlay networks, % and load balance new connections to multiple listeners, 
+During initialization, \libipc{} connects to the local monitor via the shared memory queue.
+To enforce access control policies and support overlay networks, % and load balance new connections to multiple listeners, 
 connection request is always sent to the local monitor.
-For local peer, the monitor just construct a shared memory queue between the two applications (possibly in different containers), so that they can communicate directly.
+For local peers, the monitor just construct a shared memory queue between the two applications (possibly in different containers), so that they can communicate directly.
 
-When the monitor connects to another host for the first time, it establishes a regular TCP connection and detects whether the remote host supports \sys{}.
+When the monitor connects to another host for the first time\RED{Why we need to connect two monitors?}, it establishes a regular TCP connection and detects whether the remote host supports \sys{}.
 If so, it establishes an RDMA queue between the two monitors, so that future connections between the two hosts can be created faster.
 The monitor on the remote side dispatches the connection to the target and helps the two applications establish an RDMA queue, as between host 1 and 2 in Figure~\ref{fig:architecture}.
 If the remote host does not support \sys{}, it keeps using the TCP connection, as between host 1 and 3 in Figure~\ref{fig:architecture}.
