@@ -119,7 +119,7 @@ Due to memory copy, for 8~KiB messages, the throughput of \sys is only 60\% high
 Figure~\ref{fig:eval-msgsize-inter} shows inter-host socket performance between a pair of threads.
 For 8-byte messages, \sys achieves 8M messages per second throughput (7x Linux) and 1.7$\mu$s round-trip latency (17x lower than Linux).
 The throughput and latency is close to raw RDMA write operations (shown as dashed line), which does not have socket semantics.
-LibVMA~\cite{libvma} uses batching to achieve 19M throughput, but the latency is 7x of \sys.
+LibVMA uses batching to achieve 19M throughput, but the latency is 7x of \sys.
 For 2~KiB and larger messages, \sys saturates the network bandwidth, which is 2x of LibVMA and Linux. This performance gain mainly comes from zero copy.
 
 
