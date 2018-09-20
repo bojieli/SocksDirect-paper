@@ -142,7 +142,7 @@ To share a CPU core efficiently among multiple active threads, \sys uses \emph{c
 On the latency side, \sys{} achieves $0.3\mu$s RTT for intra-server socket, 35x lower than Linux and only $0.05\mu$s higher than a bare-metal shared memory queue. For inter-server socket, \sys{} achieves $1.7\mu$s RTT between RDMA hosts, almost the same as raw RDMA verbs and 17x lower than Linux.
 On the throughput side, a single thread can send 23~M intra-server messages per second (20x Linux) or 8~M inter-server (7x Linux). For large messages, with zero copy, a single connection saturates an 100~Gbps NIC. Each thread can establish 1.4~M new connections per second (20x Linux). The performance above is scalable with number of cores and concurrent connections, and do not degrade with multiple threads.
 
-\textbf{End-to-end performance.}
+%\textbf{End-to-end performance.}
 
 %We evaluate end-to-end performance of \sys{} using two categories of applications: \textit{network functions} and \textit{web services}. For a multi-core pipelined network function (NF) chain, a socket application achieves comparable performance with a state-of-the-art NF framework~\cite{panda2016netbricks}. We also evaluate \sys{} on a standard web application composed of a load balancer, a web service and a key-value store.
 %For an HTTP request that involves multi-round-trip key-value store accesses, \sys{} reduces end-to-end latency by 2/3.
