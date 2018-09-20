@@ -270,12 +270,15 @@ Socket is the standard communication primitive among applications and containers
 %In contrast, modern data centers have networks with microsecond scale latency and throughput comparable to intra-host buses, making socket a well-known bottleneck for communication intensive applications.
 Modern data center networks have microsecond-level base latency and tens of Gbps throughput, making socket a well-known bottleneck for communication intensive applications running on multiple hosts. In addition to inter-host communications, cloud applications and containers at the same host often communicate with each other, making intra-host socket communication increasingly important in the cloud era. Under stress tests, we observe applications such as Nginx~\cite{reese2008nginx}, memcached~\cite{fitzpatrick2004distributed} and Redis~\cite{carlson2013redis} consume 50\% to 90\% CPU time in the kernel, mostly dealing with TCP socket operations.
 
-To understand the cost of socket, we first need to know the functions of socket. TCP and Unix socket in a modern OS typically have three functions:
+%To understand the cost of socket, we first need to know the functions of socket.
+TCP and Unix socket in a modern OS typically have three functions:
 \begin{ecompact}
 	\item Address, locate and connect to another application; % in the system via IP and port;
 	\item Provide a reliable and ordered communication channel, identified by an integer \emph{file descriptor} (FD);
 	\item Multiplex events from multiple channels， e.g., poll and epoll. Most Linux applications use a readiness-driven I/O multiplexing model. The OS tells application which FDs are ready to receive or send, then the application may prepare buffers and issue receive or send operations.
 \end{ecompact}
+
+Traditional Linux socket is implemented in the OS kernel space with shared data structures. It is not optimized for high performance due to expensive kernel context switching and data structure synchronization costs.
 %Most modern applications use socket in an event-driven style. similar to Figure~\ref{fig:socket-pseudo-code}.
 
 %Socket is a well-known bottleneck for communication intensive applications. We stress test Nginx load balancer, memcached and Redis with one request per TCP connection or a stream of requests on pre-established TCP connections, and find that 50\%$\sim$90\% CPU time is consumed in the kernel, mostly dealing with socket system calls. The one request per connection scenario shows much lower throughput, because of overhead in connection creation.
@@ -328,7 +331,7 @@ Most existing approaches to intra-host socket either use kernel TCP stack or NIC
 The kernel TCP stack has evolved to become quite complicated over the years~\cite{yasukata2016stackmap}, which is an overkill 
 for intra-server communication. % may not need many TCP features, e.g., congestion control and loss recovery.
 Arrakis uses the NIC to forward packets from one application to another.
-As shown in Figure~\ref{tab:operation-performance}, the hairpin latency from CPU to NIC is 25x higher than inter-core cache migration delay.
+As shown in Table~\ref{tab:operation-performance}, the hairpin latency from CPU to NIC is 25x higher than inter-core cache migration delay.
 The throughput is also limited by MMIO doorbell latency and PCIe bandwidth~\cite{neugebauer2018understanding,li2017kv}.
 
 We aim to leverage user-space shared memory for intra-host transport.
