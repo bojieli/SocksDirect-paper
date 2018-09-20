@@ -73,16 +73,18 @@ The main challenge for zero copy is to maintain the semantics of socket API (Sec
 %A sender may write the send buffer after non-blocking \texttt{send}, and the receiver does not know the receive buffer before \texttt{recv}.
 Fortunately, virtual memory provides a layer of indirection. % so we can remap virtual address of a buffer to another physical page if the data occupies entire 4~KiB pages.
 Rather than copying, we remap the physical pages from sender's virtual addresses to receiver's.
-This approach has been explored by zero-copy sockets~\cite{thadani1995efficient,chu1996zero,linux-zero-copy}, but still has several challenges.
+To enable zero-copy, we need to modify the NIC driver to expose several kernel functions related to page remapping. 
+Due to the remapping overhead (Table~\ref{tab:operation-performance}), we only use zero-copy for \texttt{send} or \texttt{recv} with at least 8~KiB payload size. Smaller messages are copied instead.
+Similar technique has been explored by zero-copy sockets~\cite{thadani1995efficient,chu1996zero,linux-zero-copy}. 
 
 \parab{Page alignment.}
 Page remapping only works when the send and receive addresses are page aligned and the transfer contains entire pages.
 We intercept \texttt{malloc} and \texttt{realloc} functions and allocate 4~KiB aligned addresses for allocations with multiple-of-4K sizes, so most buffers will align to page boundary, while not wasting memory for small allocations.
 If the size of sent message is not a multiple of 4~KiB, the last chunk of data is copied on \texttt{send} and \texttt{recv}.
 
-\parab{Amortize page remapping cost.}
-As Table~\ref{tab:operation-performance} shows, remapping a single page is more expensive than copying it because of kernel crossing and TLB flush costs. Hence, we use zero copy only for \texttt{send} or \texttt{recv} with at least 8~KiB size.
-We use a single syscall to remap multiple pages in one socket operation.
+%\parab{Amortize page remapping cost.}
+%As Table~\ref{tab:operation-performance} shows, remapping a single page is more expensive than copying it because of kernel crossing and TLB flush costs. Hence, we use zero copy only for \texttt{send} or \texttt{recv} with at least 8~KiB size.
+%We use a single syscall to remap multiple pages in one socket operation.
 
 \parab{Minimize copy-on-write.}
 %After \texttt{send}, because the application may read the buffer or send the buffer to other receivers, it needs to write-protect the buffer.
@@ -108,7 +110,7 @@ To this end, \libipc{} invokes a modified NIC driver to
 get obfuscated physical page addresses of the send buffer and send the address to receiver via shared memory queue.
 On the receiving side, \libipc{} invokes the kernel to remap the obfuscated physical pages to the application-provided receive buffer virtual address.
 
-\parab{Using RDMA to send pages.}
+\parab{Zero Copy under RDMA.}
 \libipc{} initializes a pinned page pool on receiver and send the physical addresses of the pages to the sender to manage and use.
 On sender, \libipc{} %pins the send buffer if it has not been pinned, then 
 allocates pages from the remote receiver page pool to determine the remote address of RDMA write.
