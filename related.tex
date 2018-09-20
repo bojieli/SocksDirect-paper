@@ -6,12 +6,11 @@ We use a user-space networking stack to communicate with regular TCP/IP peers, b
 To solve this problem, after receiving the TCP SYN+ACK, the monitor can create an established kernel TCP connection using TCP connection repair~\cite{tcp-connection-repair}.
 Moreover, if the application and monitor share a network namespace, the monitor can send the kernel FD to the application via Unix domain socket, then \libipc{} can use the FD without delegation to the monitor.
 
-\textbf{Connecting to many RDMA capable hosts.}
-We multiplex connections among a pair of threads, but this cannot reduce the number of RDMA connections with a lot of hosts.
-NIC still suffer from performance degradation due to large number of connections.
-In contrast, user-space networking stack alleviates this problem because the NIC is stateless.
-We provide a socket option to enable applications to delegate operations to the monitor and use user-space networking stack even if the peer supports RDMA.
-An application can choose to use RDMA for latency sensitive and throughput demanding connections, and user-space networking stack for others.
+%\textbf{Connecting to many RDMA capable hosts.}
+%With a lot of hosts, the NIC still suffer from performance degradation due to large number of connections.
+%In contrast, user-space networking stack alleviates this problem because the NIC is stateless.
+%We provide a socket option to enable applications to delegate operations to the monitor and use user-space networking stack even if the peer supports RDMA.
+%An application can choose to use RDMA for latency sensitive and throughput demanding connections, and user-space networking stack for others.
 
 \textbf{QoS.}
 We offload data-plane performance isolation and congestion control to the RDMA NIC, following an emerging line of work~\cite{peter2016arrakis,zhu2015congestion,lu2017memory,mprdma,mittal2018revisiting} in this direction, because NICs in data centers are becoming increasingly programmable~\cite{smartnic,cavium,kaufmann2015flexnic,li2016clicknp}.

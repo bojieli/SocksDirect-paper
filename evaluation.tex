@@ -182,27 +182,32 @@ Figure~\ref{fig:eval-connnum-tput} shows the throughput with different number of
 We establish connections between two processes before testing, then send and receive data from the connections in a round-robin order.
 \sys can support more than 100 million concurrent connections with 16~GiB of memory, and the throughput does not degrade under such high concurrency.
 \sys achieves connection stability by multiplexing connections via a single queue.
-In comparison, the performance of RDMA, LibVMA and Linux drops quickly as the number of connections increase. There is a sharp performance drop with more than 512 RDMA connections, because the working set saturates the NIC cache.
+In comparison, the performance of RDMA, RSocket, LibVMA and Linux drops quickly as the number of connections increase. There is a sharp performance drop with more than 512 RDMA or RSocket connections, because the RDMA transport states saturate the NIC cache. Although LibVMA and Linux do not use RDMA as transport, they maintain per-FD buffers, which lead to CPU cache and TLB miss with thousands of connections. Furthermore, LibVMA installs flow steering rules to NIC for each connection, which also leads to NIC cache miss.
 
 
 
 
 Figure~\ref{fig:eval-corenum-tput} shows the throughput with different number of cores.
 Sender and receiver process each creates several threads, then each thread pins on a core and communicates with a peer thread.
-\sys achieves linear scalability for both intra-host and inter-host sockets.
-Within a server, \sys provides 306~M message per second throughput between 16 pairs of sender and receiver cores, which is 40x of Linux.
+\sys achieves almost linear scalability for both intra-host and inter-host sockets.
+For intra-host socket, \sys provides 306~M message per second throughput between 16 pairs of sender and receiver cores, which is 40x of Linux.
+LibVMA and RSocket fall back to Linux for intra-host socket.
 Using RDMA for inter-host socket, \sys achieves 62~M messages per second throughput (8x Linux and 24x LibVMA).
+Although \sys{} creates $n^2$ queues for $n$ sender and receiver threads, only $n$ of them are active.
+Because the NIC only caches active connections, the idle queues do not cause cache miss.
+Due to lock contention on shared NIC queues, compared to one thread, the throughput of LibVMA reduces to 1/4 with two threads, and 1/10 with three threads.
+The Linux throughput scales linearly from 1 to 7 cores and bottlenecks on the loopback or NIC queues with more cores.
 %The multi-thread scalability of \sys attributes to the partitioning of states and removal of synchronization.
 %We can also see that shared memory communication has 5x throughput than RDMA.% Using RDMA NIC for intra-host socket would meet this bottleneck and thus not scalable.
 
-Figure~\ref{fig:eval-conn-setup-tput} shows the throughput of connection creation with different number of cores. Each core can create 1.4~M new connections per second, which is 20x of Linux and 2x of mTCP~\cite{jeong2014mtcp}. The upper bound is 5.3~M connections per second, where the monitor process becomes a bottleneck.
+Figure~\ref{fig:eval-conn-setup-tput} shows the throughput of connection creation with different number of cores. Each core can create 1.4~M new connections per second, which is 20x of Linux and 2x of mTCP~\cite{jeong2014mtcp}. The upper bound is 5.3~M connections per second, where the monitor becomes a bottleneck.
 
 
 Now we evaluate the performance of cooperative multitasking.
 There may be multiple threads sharing a core, and each thread needs to wait for its turn to process messages.
 Figure~\ref{fig:eval-context-switch} shows the message processing latency in such scenario.
 First, when only a fraction of workers are active, the idle workers do not impact performance. 
-Second, although the latency increases with number of active workers, but it is still much lower than Linux, because cooperative context switch is faster than kernel event signaling.
+Second, although the latency increases almost linearly with number of active workers, but it is still 20x to 30x lower than Linux, because cooperative context switch is faster than kernel event signaling.
 
 
 %Finally, we benchmark the throughput and latency after \texttt{fork} and other corner-case operations. Initially, there is only one pair of sender and receiver. At time $T_0$, receiver forks, and the parent process keeps receiving. At time $T_1$, the child process begins to receives takes over the socket. At time $T_2$, sender forks, and only the parent sends. At time $T_3$, the child sender also starts sending. We find that both throughput and latency resume to initial maximal performance within 1~ms after each event.

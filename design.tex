@@ -90,8 +90,8 @@ Before designing the connection management protocol, we keep the following requi
 1) The applications and \libipc{} are not trusted because they are in the same memory address space. We must enforce access control policies outside \libipc{} to prevent access to restricted resources.
 2) Each address and port may be listened by multiple processes, which needs load balancing while avoid starvation.
 3) The applications may be in an overlay network and thus needs address translation. 
-4) Multiple concurrent connections may be created between two hosts and therefore should be accelerated.
-5) A client should be able to connect to \sys{} and regular TCP/IP hosts transparently, and a server should accept connections from all hosts.
+%4) Multiple concurrent connections may be created between two hosts and therefore should be accelerated.
+4) A client should be able to connect to \sys{} and regular TCP/IP hosts transparently, and a server should accept connections from all hosts.
 
 These design requirements lead to a \emph{monitor} service running as a daemon process in each host.
 Rather than delegating all operations to the monitor, we only delegate connection creation, which forms the control plane.
@@ -101,7 +101,7 @@ If the remote peer does not support \sys{}, all future operations with it will b
 The detailed procedure is as follows.
 
 \parab{Initialization.}
-During initialization, \libipc{} connects to the monitor in local host via \emph{bootstrap socket} (a UNIX socket or kernel TCP socket on localhost or overlay network) and establishes a shared memory queue between them.
+During initialization, \libipc{} connects to the monitor in local host via \emph{bootstrap socket} (a Unix domain socket or kernel TCP socket on localhost or overlay network) and establishes a shared memory queue between them.
 After that, communication between the application and monitor goes through the shared memory queue.
 
 \parab{Socket creation.}
@@ -237,7 +237,7 @@ We present our scalable socket design in four parts: a) data transmission (\text
 In this section, we assume that a socket is connected and the number of senders and receivers are constant.
 
 \parab{Multiple concurrent senders.}
-In order to avoid synchronization, we create queues between \emph{every} pair of senders and receivers, as Figure~\ref{fig:fork-rdwr} shows. %The queues form a bipartite graph between senders and receivers. 
+In order to avoid synchronization, we create queues between \emph{every} pair of senders and receivers. %The queues form a bipartite graph between senders and receivers. 
 Each receiver polls messages from all sender queues in round-robin order. Therefore, the multi-sender throughput can scale.
 %Figure \ref{fig:fork-bipartitegraph} shows a sample of the shared-memory buffers between senders and receivers for one connection.
 
@@ -249,7 +249,7 @@ In the common cases with only a single active receiver, the performance would be
 \parab{Switch to a receiver.}
 When a non-designated receiver attempts to \texttt{recv} from the socket, it sends a \textit{takeover request} to the sender. 
 Up receiving the request, the sender %processes takeover requests in FIFO order to avoid starvation and 
-designate the requester as the new exclusive receiver and remove the status from the old designated receiver. 
+designate the requester as the new exclusive receiver and remove the status from the old designated receiver.
 %Another challenge is that when a receiver should send a takeover request. 
 %Each receiver maintains a flag locally to indicate whether it is designated by the sender. The flag is flipped when the receiver gets takeover request or completion from sender. When a receiver tries to \texttt{recv} and finds itself not designated, it sends a takeover request to sender. Before the receiver becomes designated, the takeover request is sent only once.
 
