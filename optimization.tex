@@ -94,8 +94,8 @@ Because applications almost always reuse the buffer for subsequent send operatio
 Our observation is that most applications do not modify the buffer. Instead, they overwrite entire pages of the send buffer via \texttt{recv} or \texttt{memcpy}. %so it is unnecessary to copy old data when the first byte of the page is written.
 %For \texttt{recv}, the old read-only mapping can be safely discarded.
 For \texttt{recv}, the zero-copy page remapping mechanism already handles the case and the received buffer can be safely used for send. 
-For \texttt{memcpy}, we add preamble code to \texttt{memcpy} in both \libipc{} and compiler inline library, so that
-for page-aligned copy to \libipc{} buffers, the preamble code invokes the kernel to remap new pages and disable write protection.
+For \texttt{memcpy}, we add preamble code to \texttt{memcpy}, so that
+for page-aligned copy to \libipc{} buffers, the preamble code invokes the kernel to remap new pages and disables write protection.
 
 \parab{Page allocation overhead.}
 Page remapping requires the kernel to allocate and free pages for each zero copy \texttt{send} and \texttt{recv}. 
