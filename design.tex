@@ -255,9 +255,9 @@ In the common cases with only a single active receiver, the performance would be
 %It is challenging for the sender to choose a receiver, since the chosen one may not call \texttt{recv}, while other receivers may be under starvation. 
 
 \parab{Switch to a receiver.}
-When a non-designated receiver attempts to \texttt{recv} from the socket, it sends a \textit{takeover request} to the sender. 
-Up receiving the request, the sender %processes takeover requests in FIFO order to avoid starvation and 
-designate the requester as the new exclusive receiver and remove the status from the old designated receiver.
+When a non-designated receiver tries to \texttt{recv} from the socket, it broadcasts a \textit{takeover request} to all senders.
+Upon receiving the request, each sender independently %processes takeover requests in FIFO order to avoid starvation and 
+designates the requester as the new exclusive receiver and remove the status from the old designated receiver.
 %Another challenge is that when a receiver should send a takeover request. 
 %Each receiver maintains a flag locally to indicate whether it is designated by the sender. The flag is flipped when the receiver gets takeover request or completion from sender. When a receiver tries to \texttt{recv} and finds itself not designated, it sends a takeover request to sender. Before the receiver becomes designated, the takeover request is sent only once.
 

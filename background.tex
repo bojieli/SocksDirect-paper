@@ -266,7 +266,7 @@ Most existing approaches for intra-host socket either use kernel network stack o
 The kernel network stack has evolved to become quite complicated over the years~\cite{yasukata2016stackmap}, which is an overkill for intra-host communication. % may not need many TCP features, e.g., congestion control and loss recovery.
 
 Arrakis uses the NIC to forward packets from one application to another.
-As shown in Table~\ref{tab:operation-performance}, the hairpin latency from CPU to NIC is still 25x higher than inter-core cache migration delay ($\sim$30ns). The throughput is also limited by Memory-Mapped I/O doorbell latency and PCIe bandwidth~\cite{neugebauer2018understanding,li2017kv}.
+As shown in Table~\ref{tab:operation-performance}, the hairpin latency from CPU to NIC is still 25x higher than inter-core cache migration delay ($\sim$30 ns). The throughput is also limited by Memory-Mapped I/O (MMIO) doorbell latency and PCIe bandwidth~\cite{neugebauer2018understanding,li2017kv}.
 
 We aim to leverage user-space shared memory for intra-host socket communication.
 
@@ -290,7 +290,7 @@ We aim to use RDMA efficiently for inter-host socket communication, while fallin
 \parab{Many concurrent connections.}
 Internet facing applications often need to serve millions of concurrent connections efficiently~\cite{jeong2014mtcp,lin2016scalable,belay2017ix}.
 %In addition, because a socket connection provides a FIFO abstraction and the OS offers event multiplexing, 
-Moreover, it is also common for two backend applications to create large number of connections between them, where each connection handles a concurrent task~\cite{ihm2011towards,jang2011sslshader,nishtala2013scaling}. In Linux, a socket connection has dedicated send and receive buffers, each is at least one page (4~KB) in size~\cite{davidskbs}. With millions of concurrent connections, the socket buffers can consume gigabytes of memory, most of which is empty. Random accesses to a large number of buffers also cause CPU cache misses and TLB misses. Similar issue exists in RDMA NICs with limited on-chip memory for caching connection states.
+Moreover, it is also common for two backend applications to create large number of connections between them, where each connection handles a concurrent task~\cite{ihm2011towards,jang2011sslshader,nishtala2013scaling}. In Linux, a socket connection has dedicated send and receive buffers, each is at least one page (4~KB) in size~\cite{davidskbs}. With millions of concurrent connections, the socket buffers can consume gigabytes of memory, most of which is empty. Random accesses to a large number of buffers also cause CPU cache misses and TLB misses. Similar issue exists in RDMA NICs with limited on-chip memory for caching connection states~\cite{mprdma,kaminsky2016design}.
 %, which is slower than sequential access to a single buffer~\cite{li2017kv}. 
 %This problem is exaggerated in RDMA. RDMA NIC caches connection states in limited on-board memory. Just over a few hundred active RDMA connections could cause cache misses and degrade performance~\cite{mprdma,kaminsky2016design}. 
 %Moreover, event-driven applications use \texttt{epoll} to detect which connections are ready for send or receive. If the event queue is separated from data queues, each \texttt{recv} operation involves two cache migrations for event and data~\cite{yasukata2016stackmap}. 
