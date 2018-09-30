@@ -22,8 +22,9 @@ Recent work on user-space sockets either does not support intra-host communicati
 In this paper, we describe \sys{}, a high performance socket system. \sys{} is implemented in user space to avoid kernel crossing cost. 
 It achieves security and isolation by employing a trusted monitor daemon to handle control plane operations such as connection establishment and access control. 
 \sys{} is fully compatible with Linux socket and can be used as a drop-in replacement with no modification to existing applications. The design fully
-handles Linux fork semantic, and can handle both intra and inter server communications with hosts equipped with \sys{} as well as those without. 
-Last but not least, \sys{} is performant. \sys{} use shared memory lockless queue and modern RDMA transportation for intra- and inter-host communication respectively. 
+handles Linux fork semantics, and can handle both intra- and inter-host communications with hosts equipped with \sys{} as well as those without. 
+Last but not least, \sys{} is performant. \sys{} uses shared memory queue and modern RDMA transport for intra- and inter-host communication.
+It removes multi-thread synchronization in common cases and improves memory efficiency with many concurrent connections.
 It leverages techniques such as cooperative multitasking and page-remapping based zero-copy to remove many overheads of existing socket systems.
-Experiment shows that \sys achieves 4 to 24x better message throughput, 10 to 60x better latency, and over 40x connection setup throughput compared with Linux socket.
+Experiment shows that \sys achieves 7 to 20x better message throughput, 17 to 35x better latency, and 20x connection setup throughput compared with Linux socket.
 

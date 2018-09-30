@@ -4,16 +4,8 @@
 \subsection{Architecture Overview}
 \label{subsec:architecture}
 
-\begin{figure}[t!]
-		\centering
-		\includegraphics[width=0.44\textwidth]{images/architecture_new}
-		\vspace{-5pt}
-		\caption{Architecture of \sys{}. Host 1 and 2 are RDMA capable, while host 3 is a regular TCP/IP host.}
-		\label{fig:architecture}
-		\vspace{-10pt}
-\end{figure}
 
-
+\iffalse
 \begin{figure}[t!]
 	\centering
 	\subfloat[Traditional queue structure.]{
@@ -28,31 +20,45 @@
 	\label{fig:fork-rdwr}
 	\vspace{-10pt}
 \end{figure}
+\fi
 
-To achieve high performance while preserving security, we design a \emph{monitor} daemon in each host to coordinate control-plane operations, while establish queues between each pair of applications for data-plane. The \emph{monitor} daemon is started at OS initialization time.
+
 %As shown in Figure~\ref{fig:architecture}, the core component of \sys{} is a user-space library \libipc{}.
-To use \sys, an application loads a user-space library \libipc{} by setting the \texttt{LD\_PRELOAD} environment variable.
-\libipc{} intercepts all Linux APIs in \texttt{glibc} that are related to file descriptor operations.
-It implements socket APIs in user space and forwards other APIs to the kernel.
-From a security point of view, because \libipc{} resides in the application address space, we cannot trust its behavior.
+
+Figure~\ref{fig:architecture} gives the architecture of \sys. To use \sys, an application loads a user-space library \libipc{} by setting the \texttt{LD\_PRELOAD} environment variable. \libipc{} intercepts all Linux APIs in \texttt{glibc} that are related to file descriptor operations. It implements socket APIs in user space and forwards the other APIs to the kernel. From a security point of view, because \libipc{} resides in the application address space, we cannot trust its behavior. Therefore, we need a trusted component outside \libipc{} to enforce access control and support overlay networks. 
+
+To this end, we design a \emph{monitor} daemon at each host to coordinate control plane operations, e.g., connection creation. The \emph{monitor} daemon is started at OS initialization time. In each host, all the applications loading \libipc{} must establish a shared memory queue with the host's monitor daemon, forming the control plane. On the data plane, applications build peer-to-peer queues to communicate directly, thus relieving the burden of the monitor daemon.  
+
+
+\begin{figure}[t!]
+	\centering
+	\includegraphics[width=0.49\textwidth]{images/architecture_new}
+	\vspace{-15pt}
+	\caption{Architecture of \sys{}. Host 1 and 2 are RDMA capable, while host 3 is RDMA incapable.}
+	\label{fig:architecture}
+	\vspace{-15pt}
+\end{figure}
+
+
+
 %To this end, we regard processes as a shared-nothing distributed system that communicates through message passing.
 %We design a secure control-plane protocol between applications and the monitor, and a data-plane protocol between applications.
 
-To achieve low latency and high throughput, \sys{} uses shared memory for intra-host and RDMA for inter-host communication.
-During initialization, \libipc{} connects to the local monitor via shared memory queue.
-To enforce access control policy and support overlay networks, % and load balance new connections to multiple listeners, 
-connection request is always sent to the local monitor.
-For local peer, the monitor just construct a shared memory queue between the two applications (possibly in different containers), so that they can communicate directly.
+To achieve low latency and high throughput, \sys{} uses shared memory for intra-host and RDMA for inter-host communication. We now describe the procedure of intra-host communication. The communication initiator first sends a request to the local monitor, then the monitor establishes a shared memory queue between the two applications (possibly in different containers). Afterwards the two applications can communicate directly.  
 
-When the monitor connects to another host for the first time, it establishes a regular TCP connection and detects whether the remote host supports \sys{}.
-If so, it establishes an RDMA queue between the two monitors, so that future connections between the two hosts can be created faster.
-The monitor on the remote side dispatches the connection to the target and helps the two applications establish an RDMA queue, as between host 1 and 2 in Figure~\ref{fig:architecture}.
-If the remote host does not support \sys{}, it keeps using the TCP connection, as between host 1 and 3 in Figure~\ref{fig:architecture}.
-The detailed connection management protocol is presented in Sec.~\ref{subsec:connection-management}.
+
+%During initialization, \libipc{} connects to the local monitor via a shared memory queue.
+%To enforce access control policies and support overlay networks, % and load balance new connections to multiple listeners, 
+%connection request is always sent to the local monitor.
+%For local peers, the monitor just construct a shared memory queue between the two applications , %so they can communicate directly.
+
+For inter-host communication, the monitors of two hosts are both involved. When an application connects to a remote host, its local monitor establishes a regular TCP connection and detects whether the remote host supports \sys{}.
+%When the monitor connects to another host for the first time\RED{Why we need to connect two monitors?}, it establishes a regular TCP connection and detects whether the remote host supports \sys{}.
+If so, it establishes an RDMA queue between the two monitors, so that future connections between the two hosts can be created faster. The monitor at the remote side dispatches the connection to the target and helps the two applications establish an RDMA queue, as between host 1 and 2 in Figure~\ref{fig:architecture}. If the remote host does not support \sys{}, it keeps using the TCP connection, as between host 1 and 3 in Figure~\ref{fig:architecture}. The detailed connection management protocol is presented in Sec.~\ref{subsec:connection-management}.
 
 In order to remove synchronization overhead for multi-threaded applications, we treat each thread as a separate process.
 %Although threads in a process share memory, we use thread-specific storage for most states in \libipc{}.
-For two communicating applications, we create peer-to-peer queues between each pair of sender and receiver threads to avoid synchronization cost of contending on the same queue, as shown in Figure~\ref{fig:fork-rdwr}.
+For two communicating applications, we create peer-to-peer queues between each pair of sender and receiver threads to avoid synchronization cost of contending on the same queue.
 In Sec.~\ref{subsec:fork}, we present the peer-to-peer queue design that preserves FIFO ordering semantics and avoids starvation, especially when a process forks or creates a new thread.
 To maintain performance with many concurrent connections, rather than creating separate queues for each connection, we multiplex data from all connections through one queue.
 In Sec.~\ref{subsec:multiplex-conn}, we present the design of multiplexed queue that avoids head-of-line blocking and supports fetching data from any multiplexed connections.
@@ -63,22 +69,6 @@ In Sec.~\ref{subsec:multiplex-conn}, we present the design of multiplexed queue 
 %Even though multiple threads in the same process share memory space, we still treat each thread as a separated process and use thread-specific storage to store states in \libipc. In the following text, unless explicitly mentioned, we use a ``process'' to refer to a regular process or a thread.
 
 
-\begin{figure}[t!]
-	\centering
-	\includegraphics[width=0.3\textwidth]{images/conn-setup-new}
-	\vspace{-5pt}
-	\caption{State machine of connection creation in \libipc{}.}
-	\vspace{-10pt}
-	\label{fig:conn-setup}
-\end{figure}
-\begin{figure}[t!]
-	\centering
-	\includegraphics[width=0.25\textwidth]{images/conn-close-new}
-	\vspace{-5pt}
-	\caption{State machine of connection close in \libipc{}.}
-	\label{fig:conn-close}
-	\vspace{-15pt}
-\end{figure}
 
 
 \subsection{Connection Management}
@@ -88,8 +78,8 @@ Before designing the connection management protocol, we keep the following requi
 1) The applications and \libipc{} are not trusted because they are in the same memory address space. We must enforce access control policies outside \libipc{} to prevent access to restricted resources.
 2) Each address and port may be listened by multiple processes, which needs load balancing while avoid starvation.
 3) The applications may be in an overlay network and thus needs address translation. 
-4) Multiple concurrent connections may be created between two hosts and therefore should be accelerated.
-5) A client should be able to connect to \sys{} and regular TCP/IP hosts transparently, and a server should accept connections from all hosts.
+%4) Multiple concurrent connections may be created between two hosts and therefore should be accelerated.
+4) A client should be able to connect to \sys{} and regular TCP/IP hosts transparently, and a server should accept connections from all hosts.
 
 These design requirements lead to a \emph{monitor} service running as a daemon process in each host.
 Rather than delegating all operations to the monitor, we only delegate connection creation, which forms the control plane.
@@ -98,8 +88,9 @@ Monitor(s) on the path between client and server applications proxy the handshak
 If the remote peer does not support \sys{}, all future operations with it will be delegated to the local monitor.
 The detailed procedure is as follows.
 
+
 \parab{Initialization.}
-During initialization, \libipc{} connects to the monitor in local host via \emph{bootstrap socket} (a UNIX socket or kernel TCP socket on localhost or overlay network) and establishes a shared memory queue between them.
+During initialization, \libipc{} connects to the monitor in local host via \emph{bootstrap socket} (a Unix domain socket or kernel TCP socket on localhost or overlay network) and establishes a shared memory queue between them.
 After that, communication between the application and monitor goes through the shared memory queue.
 
 \parab{Socket creation.}
@@ -161,6 +152,24 @@ After the server sets up peer-to-peer queue, as the left side of Figure~\ref{fig
 Similar to TCP handshake, the server application can send data to the queue after sending the ACK.
 When the client application receives the ACK, as shown on the right side of Figure~\ref{fig:conn-setup}, it sets up the FD mapping and can start sending data.
 
+\begin{figure}[t!]
+	\centering
+	\includegraphics[width=0.3\textwidth]{images/conn-setup-new}
+	\vspace{-5pt}
+	\caption{State machine of connection creation in \libipc{}.}
+	\vspace{-10pt}
+	\label{fig:conn-setup}
+\end{figure}
+\begin{figure}[t!]
+	\centering
+	\includegraphics[width=0.25\textwidth]{images/conn-close-new}
+	\vspace{-5pt}
+	\caption{State machine of connection close in \libipc{}.}
+	\label{fig:conn-close}
+	\vspace{-15pt}
+\end{figure}
+
+
 \parab{Connection close.}
 Closing a connection is fully peer-to-peer and does not need to involve the monitor.
 Because both shared memory and RDMA are reliable and ordered communication channels, the connection close procedure is simpler than TCP.
@@ -208,7 +217,7 @@ When application shuts down one direction of a connection, it sends a \textit{sh
 
 Socket sharing among processes and threads are ubiquitous in modern applications.
 Our aim is to maximize the common-case performance while preserving the FIFO semantics.
-We make two observations: First, fork and thread creation are infrequent in high performance applications.% compared to connection creation and data transmission.
+We make two observations: First, fork and thread creation are infrequent in high performance applications because of their high cost.
 Second, it is uncommon that several processes receive concurrently from a shared socket, because the byte-stream semantics of socket makes it hard to avoid receiving partial messages.
 %For such producer-consumer scenarios, message brokers~\cite{hintjens2013zeromq,rabbitmq2017rabbitmq,kreps2011kafka} are typically used.
 Based on the observations, we propose the following requirements:
@@ -235,19 +244,20 @@ We present our scalable socket design in four parts: a) data transmission (\text
 In this section, we assume that a socket is connected and the number of senders and receivers are constant.
 
 \parab{Multiple concurrent senders.}
-In order to avoid synchronization, we create queues between \emph{every} pair of senders and receivers, as Figure~\ref{fig:fork-rdwr} shows. %The queues form a bipartite graph between senders and receivers. 
+In order to avoid synchronization, we create queues between \emph{every} pair of senders and receivers. %The queues form a bipartite graph between senders and receivers. 
 Each receiver polls messages from all sender queues in round-robin order. Therefore, the multi-sender throughput can scale.
 %Figure \ref{fig:fork-bipartitegraph} shows a sample of the shared-memory buffers between senders and receivers for one connection.
 
 \parab{One exclusive receiver.}
-Each sender, though has a queue to every receiver, designates only a single receiver with exclusive access to the socket and only send data through the corresponding queue. 
+Each sender, though has a queue to every receiver, designates only a single receiver with exclusive access to the socket and only send data through the corresponding queue.
+For example, R1 is designated by both senders in Figure~\ref{fig:fork-p2p}.
 In the common cases with only a single active receiver, the performance would be the same as one-to-one communication. 
 %It is challenging for the sender to choose a receiver, since the chosen one may not call \texttt{recv}, while other receivers may be under starvation. 
 
 \parab{Switch to a receiver.}
-When a non-designated receiver attempts to \texttt{recv} from the socket, it sends a \textit{takeover request} to the sender. 
-Up receiving the request, the sender %processes takeover requests in FIFO order to avoid starvation and 
-designate the requester as the new exclusive receiver and remove the status from the old designated receiver. 
+When a non-designated receiver tries to \texttt{recv} from the socket, it broadcasts a \textit{takeover request} to all senders.
+Upon receiving the request, each sender independently %processes takeover requests in FIFO order to avoid starvation and 
+designates the requester as the new exclusive receiver and remove the status from the old designated receiver.
 %Another challenge is that when a receiver should send a takeover request. 
 %Each receiver maintains a flag locally to indicate whether it is designated by the sender. The flag is flipped when the receiver gets takeover request or completion from sender. When a receiver tries to \texttt{recv} and finds itself not designated, it sends a takeover request to sender. Before the receiver becomes designated, the takeover request is sent only once.
 
@@ -271,17 +281,29 @@ The remaining data needs to migrate from the old active queue to the new active 
 
 \begin{figure}[t]
 	\centering
-	\includegraphics[width=0.4\textwidth]{images/fork}
-	\vspace{-5pt}
-	\caption{Message flow during \texttt{fork}.}
-	\label{fig:fork-fork}
-	\vspace{-15pt}
+	\subfloat[Traditional locking]{
+		\includegraphics[width=0.15\textwidth]{images/one_conn3}
+		\label{fig:fork-locking}
+	}
+	\hspace{0.02\textwidth}
+	\subfloat[SocksDirect peer-to-peer]{
+		\includegraphics[width=0.11\textwidth]{images/one_conn1}
+		\label{fig:fork-p2p}
+	}
+	\hspace{0.02\textwidth}
+	\subfloat[S2 forks to S2' and S3]{
+		\includegraphics[width=0.1\textwidth]{images/one_conn2}
+		\label{fig:fork-fork}
+	}
+	\vspace{-10pt}
+	\caption{Inter-process queue architectures for a shared socket. Dashed arrows represent non-activated queues.}
+	\vspace{-10pt}
 \end{figure}
 
 
 %The first challenge with fork and thread creation is how to identify and isolate parent and child processes. 
-As shown in Figure~\ref{fig:fork-fork}, when an application calls \texttt{fork}, \texttt{clone} or \texttt{pthread\_create}, \libipc{} first generates a secret for pairing, then invokes the corresponding system call. After fork, parent and child independently creates a shared memory queue to the monitor and sends the secret (child inherits parent memory space and knows the secret). The monitor can thus pairs the child process with the parent. 
-To maintain isolation between parent and child, monitor creates new shared memory queues to replace all queues in \emph{both} parent and child. We do not reuse queues due to potential isolation violation. %The monitor then sends credentials of new queues to parent and child via bootstrap sockets. 
+To identify and isolate parent and child processes, when an application calls \texttt{fork}, \texttt{clone} or \texttt{pthread\_create}, \libipc{} first generates a secret for pairing, then invokes the corresponding system call. After fork, parent and child independently creates a shared memory queue to the monitor and sends the secret (child inherits parent memory space and knows the secret). The monitor can thus pairs the child process with the parent. 
+To maintain isolation between parent and child, monitor creates new shared memory queues to replace all queues in \emph{both} parent and child, as Figure~\ref{fig:fork-fork} shows. We do not reuse queues due to potential isolation violation. %The monitor then sends credentials of new queues to parent and child via bootstrap sockets. 
 Each peer process is notified of the new queues and the new process. From then on, parent and child processes have isolated queues to the monitor and peers.
 
 %A harder challenge comes from socket connection sharing between parent and child processes. 
@@ -306,7 +328,7 @@ When a sender forks, things are more complicated. We need to guarantee that all 
 Our solution is to let receivers drain the original queue first before switching to the new queues. After \texttt{fork}, both parent and child send data to its new queue. When the receiver is notified of the fork, it keeps track of the original queue and consumes all data in it before activating new queues. Note that the parent or child may fork again before the original queue is drained. With this in mind, the receiver maintains a forest data structure to track dependency of queues. The root of each tree in the forest is the oldest queue to receive from. Each non-leaf node has two children indicating the new queue of parent and child processes. If a non-leaf root queue becomes empty, it will be removed, and the two children queues will be promoted to root nodes.
 
 \parab{Takeover During Fork.}
-After a sender forks, the receivers still need the takeover mechanism to arbitrate remaining messages in the original shared memory queue. However, both parent and child senders have dropped the original queue and will not respond to takeover requests. A similar situation occurs when a sender process dies. Our solution is to let the receivers use atomic operations to compete for remaining data in the original queue. Since this case rarely happens, the performance of the overall design is not affected.
+After a sender forks, the receivers still need the takeover mechanism to arbitrate remaining messages in the original queue. However, both parent and child senders have dropped the original queue and will not respond to takeover requests. A similar situation occurs when a sender process dies. Our solution is to let the receivers use atomic operations to compete for remaining data in the original queue. Since this case rarely happens, the performance of the overall design is not affected.
 
 
 %Things become much more complicated when cases 1,4 happens after cases 2,3 happening. After receiver forks, the unique sender is responsible for receiving ``takeover message'' and resend the data to new receivers. However, if sender forks following the receiver forks, according to the methods we mentioned above, there is no sender responsible for processing ``takeover message''. Our solution is that we require the receivers to poll the data from the old shared memory queue and compete for data. Since this case rarely happens, the performance of the overall design is not affected.
@@ -340,37 +362,27 @@ Closing a shared connection needs to multicast a notification to the peers and c
 \subsection{Multiplex Sockets via One Queue}
 \label{subsec:multiplex-conn}
 
-
-\begin{figure}[t]
-	\centering
-	\includegraphics[width=0.4\textwidth]{images/fork}
-	\vspace{-5pt}
-	\caption{Performance of one shared queue compared with per-FD queues.}
-	\label{fig:multiplex-queue}
-	\vspace{-15pt}
-\end{figure}
-
 \begin{figure}[t]
 	\centering
 	\includegraphics[width=0.4\textwidth]{images/locklessq_new}
 	\vspace{-5pt}
-	\caption{The structure of an inter-thread queue.}
+	\caption{The structure of an inter-process queue.}
 	\vspace{-15pt}
 	\label{fig:locklessq-structure}
 \end{figure}
 
 
 %\parab{Multiplex connections in event-driven applications.}
-To reduce memory footprint and improve locality of memory accesses, we use one queue to multiplex all connections between a pair of threads. Each data item in the queue is marked with its FD. By using a single queue, we reduce per-socket memory footprint, random memory accesses and cache misses, as Figure~\ref{fig:multiplex-queue} shows.
+To reduce memory footprint and improve locality of memory accesses, we use one queue to multiplex all connections between a pair of threads. Each data item in the queue is marked with its FD. By using a single queue, we reduce per-socket memory footprint, random memory accesses and cache misses.
 
 \parab{Message format.}
 As shown in Figure~\ref{fig:locklessq-structure}, the main component of the queue is a \emph{data ring buffer}, where messages are stored back-to-back.
-Each message in the ring buffer consists of an 8-byte header and a variably sized payload. The header consists of an \textit{isvalid} flag, an opcode, the receiver's FD number and the payload size. Messages are aligned to 8 bytes to ensure header write atomicity and accelerate payload copy.
+Each message in the ring buffer consists of an 8-byte header and a variably sized payload. The header consists of an \textit{isvalid} flag, an opcode, the receiver's FD number and the payload size. Messages are aligned to 8 bytes to ensure header write atomicity.% and accelerate payload copy.
 
 \parab{Event polling.}
 We maintain a bitmap of each epoll FD set.
 When \texttt{epoll\_wait} is called, we scan all data queues round-robin and check the FD of each data message against the bitmap. If the FD is in the bitmap, an event is returned to the application.
-A global cursor is maintained to resume data queue scanning from the last position in the last scanned queue.
+A global cursor exists to resume data queue scanning from the last position in the last scanned queue.
 
 A per-queue cursor records the last scanned position in each queue to avoid scanning a message multiple times.
 To speedup repeated receive operations of a specific FD, we build a linked list of messages for each FD as a side product of event polling.
@@ -395,5 +407,3 @@ The receiver scans empty space in the middle of queue and moves remaining messag
 \parab{Emergency queue.}
 Control messages may need to be delivered out-of-band when the queue is full. For example, in order to close the receive direction while sending data, the shutdown message should not be blocked by unconsumed data in the queue. To this end, we add an \textit{emergency queue} alongside each data queue.
 A receiver will always retrieve messages in the emergency queue immediately.
-
-

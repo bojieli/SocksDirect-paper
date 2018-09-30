@@ -1,4 +1,10 @@
 \section{Conclusion}
 \label{sec:conclusion}
 
-\sys is a high performance user-space socket architecture that is compatible with existing applications and preserves isolation among processes, while being scalable to multiple cores and many concurrent connections. We remove all major overheads in Linux socket by considering processes as a share-nothing distributed system and using shared memory and RDMA transports efficiently. Evaluations show that \sys makes socket no longer an obstacle for high performance.
+\sys{} is a Linux compatible, secure and high performance user-space socket system that supports both intra- and inter-host communication.
+We design a per-host monitor daemon for trusted control plane;
+a peer-to-peer synchronization-free queue for data plane to fully support fork and multi-thread socket sharing;
+a message queue that multiplexes multiple sockets, while using shared memory and RDMA efficiently.
+\sys{} achieves performance close to hardware limits and improves end-to-end performance of existing applications without modification.
+
+%\sys is a high performance user-space socket architecture that is compatible with existing applications and preserves isolation among processes, while being scalable to multiple cores and many concurrent connections. We carefully remove all major overheads in Linux socket.%\sys can significant reduce communication overhead, especially in a service oriented distributed system environment. 
