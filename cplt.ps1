@@ -4,4 +4,4 @@
  echo $filename
  $file = Get-ChildItem $filename
 Set-Location $file.DirectoryName
-gnuplot $file.FullName
+gnuplot -shell-escape $file.FullName
