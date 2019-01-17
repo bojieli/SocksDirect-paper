@@ -33,6 +33,11 @@ Third, even in the performance front, there are still much room for improvement.
 
 %\textbf{The above part is motivation and related work.}
 
+The goal of this work is to answer the question: Can a Linux compatible and general purpose socket system provide performance comparable to RDMA systems?
+Our solution is based on an insight: the bulk of overheads in existing socket systems is not caused by the socket API, but multiple types of overheads in the operating system designed for traditional NICs and computation intensive applications.
+These overheads include \RED{XXX}, can be solved by \RED{XXX}.
+Modern RDMA NICs can offload \RED{XXX}.
+
 We design \sys{}, a user-space socket architecture with compatibility, security and performance in mind.
 \begin{ecompact}
 	\item \textbf{Compatibility}.
