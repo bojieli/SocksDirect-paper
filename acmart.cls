@@ -553,11 +553,17 @@ Computing Machinery]
      marginparwidth=2pc,heightrounded
      }%
 \or % sigconf
-   \geometry{twoside=true, head=13pt,
+%% SIGCOMM guidelines:
+% Columns are 9.25 tall
+% 3.33" wide with 0.33" separation
+% -> 3.33"*2+0.33 = 7" -> 0.75 per left and right
+% 0.75" top and 1" bottom should work out for 9.25" tall
+% footskip is where the page #s go.
+   \geometry{twoside=true, nohead,
      paperwidth=8.5in, paperheight=11in,
-     includeheadfoot, columnsep=2pc,
-     top=57pt, bottom=73pt, inner=54pt, outer=54pt,
-     marginparwidth=2pc,heightrounded
+     columnsep=0.33in,
+   	 left=0.75in,right=0.75in,top=0.75in,
+	 footskip=0.5in,bottom=1in
      }%
 \or % siggraph
    \geometry{twoside=true, head=13pt,
