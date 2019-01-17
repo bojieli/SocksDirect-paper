@@ -358,7 +358,7 @@ Closing a shared connection needs to multicast a notification to the peers and c
 
 %In \libipc, we make the choice that the order of fork and close is determined at the start point of the fork operation and the end point (after receiving all the ACKs). By making this choice, when a process waiting fork close ACK encounters fork message, it could send a separate close request to newly created process, which guarantees all the processes closed.
 
-
+\iffalse
 \subsection{Multiplex Sockets via One Queue}
 \label{subsec:multiplex-conn}
 
@@ -407,3 +407,4 @@ The receiver scans empty space in the middle of queue and moves remaining messag
 \parab{Emergency queue.}
 Control messages may need to be delivered out-of-band when the queue is full. For example, in order to close the receive direction while sending data, the shutdown message should not be blocked by unconsumed data in the queue. To this end, we add an \textit{emergency queue} alongside each data queue.
 A receiver will always retrieve messages in the emergency queue immediately.
+\fi

@@ -8,7 +8,7 @@
 %The overhead of Linux socket becomes salient given the rapid growth of network speed and number of CPU cores per server. %We benchmark communication intensive applications (\textit{e.g.} Nginx and memcached) and find that 50\%$\sim$90\% of CPU time is spent in the OS kernel. When more CPU cores are utilized, they even spend a larger portion of time in the kernel~\cite{boyd2010analysis}. In addition to CPU overhead, latency is also a problem. The round-trip time (RTT) between two processes communicating with shared memory can be as low as 0.2$\mu$s, while TCP socket RTT between two cores is $\approx$16$\mu$s. In a data center, the RTT between RDMA servers is also one order of magnitude lower than kernel TCP/IP stack.
 
 Socket API is the most widely used communication primitive in modern OS. It is used universally for communications between processes, containers and hosts.
-Traditional Linux socket implementation is not optimal. It can only achieve latency and throughput numbers an order of magnitude worse than what the raw hardware is capable of.
+Traditional Linux socket implementation can only achieve latency and throughput numbers an order of magnitude worse than what the raw hardware is capable of.
 %Socket operations have latency and throughput one order of magnitude worse than the raw hardware.
 %Socket operations are expensive and scale poorly with modern multi-core CPUs.
 Communication intensive applications such as distributed key-value stores and web servers could spend 50\%$\sim$90\% of CPU time in the OS kernel, mostly processing socket operations.

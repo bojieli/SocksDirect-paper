@@ -102,6 +102,7 @@ The performance above is linearly scalable with number of cores. In addition, a 
 We evaluate \sys on servers with two Xeon E5-2698 v3 CPUs, 256~GiB memory and a Mellanox ConnectX-4 NIC. Two servers are interconnected directly with 56~Gbps Ethernet cable. We use Ubuntu 16.04 with Linux 4.15, RoCEv2 for RDMA and poll completion queue every 64 messages.
 Each thread is pinned on a CPU core. We run tests for enough warm-up rounds before collecting data. For latency, we report the mean, with error bars representing 1\% and 99\% percentile.
 We compare with Linux and LibVMA~\cite{libvma}, a user-space TCP/IP stack optimized for Mellanox NICs.
+\RED{This work does not raise any ethical issues.}
 
 \subsection{Performance}
 

@@ -1,7 +1,7 @@
 \section{Background}
 \label{sec:background}
 
-\subsection{Socket}
+\subsection{Overheads of Linux Socket}
 \label{subsec:motivation}
 
 %\begin{figure}[t]
@@ -137,6 +137,52 @@ while (true) { // main event loop
 \fi
 
 
+\begin{table}[t]
+	\centering
+	\scalebox{0.8}{
+	\begin{tabularx}{0.58\textwidth}{l|X|X}
+		\hline
+		Type & Overhead & Our Approach \\
+		\hline
+		\hline
+		Per op & Kernel crossing & User space library (\S\ref{subsec:architecture}) \\
+		\hline
+		Per op & NAT \& ACL for container network & Control \& data plane separation (\S\ref{subsec:architecture}) \\
+		\hline
+		Per op & Per socket lock & Threads as a share-nothing distributed system (\S\ref{subsec:fork}) \\
+		\hline
+		\hline
+		Per conn. & Lock in TCB management & Monitor daemon (\S\ref{subsec:connection-management}) \\
+		\hline
+		Per conn. & Lock in FD allocation & User space library  (\S\ref{subsec:connection-management}) \\
+		\hline
+		Per conn. & VFS abstraction & User space library (\S\ref{subsec:connection-management}) \\
+		\hline
+		Per conn. & New connection dispatch & Monitor daemon (\S\ref{subsec:connection-management}) \\
+		\hline
+		\hline
+		Per packet & Transport protocol (TCP/IP) & Offload to RDMA NIC \\
+		\hline
+		Per packet & Buffer management & New queue design (\S\ref{subsec:lockless-queue}) \\
+		\hline
+		Per packet & I/O multiplexing & Offload to RDMA NIC \\
+		\hline
+		Per packet & Interrupt handling & Polling (\S\ref{subsec:process-mux}) \\
+		\hline
+		Per packet & Process wakeup & Cooperative multitasking (\S\ref{subsec:process-mux}) \\
+		\hline
+		\hline
+		Per byte & Payload copy & Page remapping (\S\ref{subsec:zerocopy}) \\
+		\hline
+		Per byte & Checksum calculation & Offload to RDMA NIC \\
+		\hline
+	\end{tabularx}
+	}
+	\caption{Overheads in Linux socket.}
+	\label{tab:overhead}
+	\vspace{-15pt}
+\end{table}
+
 \begin{table*}[t]
 	\centering
 	\scalebox{0.68}{
@@ -204,7 +250,7 @@ while (true) { // main event loop
 
 
 
-Socket is the standard communication primitive among applications and containers.
+Socket is the standard communication primitive among applications, containers and hosts.
 %For example, a web service typically contains an HTTP load balancer, Web application, key-value store and database, which communicate via TCP or UNIX socket.
 %Socket is also used to exchange data between parameter server and workers in Tensorflow and from mapper to reducer in Spark.
 %The socket API was designed in 1980s when network communication has millisecond scale latency, so the computation overhead in OS networking stack is negligible.
@@ -218,6 +264,19 @@ TCP socket in a modern OS typically has three functions:
 	\item Provide a reliable and ordered communication channel, identified by an integer \emph{file descriptor} (FD);
 	\item Multiplex events from multiple channels， e.g., poll and epoll. Most Linux applications use a readiness-driven I/O multiplexing model. The OS tells application which FDs are ready to receive or send, then the application may prepare buffers and issue receive or send operations.
 \end{ecompact}
+
+\RED{Analyze socket system here...}
+
+\parab{Per operation overheads:}
+
+\parab{Per connection overheads:}
+
+\parab{Per packet overheads:}
+
+Transport protocol: packet parsing, congestion control, loss recovery, timer management...
+
+\parab{Per byte overheads:}
+
 
 %Most modern applications use socket in an event-driven style. similar to Figure~\ref{fig:socket-pseudo-code}.
 
@@ -255,6 +314,8 @@ These designs often sacrifice security, because multiple applications of a packe
 
 \parab{RDMA offloading:} The third line of research utilizes RDMA NICs~\cite{mellanox} that are widely available in production data centers~\cite{guo2016rdma} and translate socket operations to RDMA verbs. RDMA uses hardware offloading to provide ultra low latency and near zero CPU utilization compared to software-based TCP/IP network stacks. RSocket~\cite{rsockets} and SDP~\cite{socketsdirect} convert each socket connection to an RDMA connection (RC QP). However, such simple translations suffer from throughput degradation with a large number of concurrent connections. This is because RDMA NIC keeps per-connection states using a $\approx$2~MB~\cite{kalia2018datacenter} on-NIC memory as cache. With hundreds of concurrent connections, we will suffer from frequent cache misses, resulting in serious throughput degradation~\cite{mprdma,kaminsky2016design}. FreeFlow~\cite{freeflow, nsdi19freeflow} is a software switch to virtualize an RDMA NIC for container overlay network and enables intra-host RDMA communication. It uses RSocket to translate socket to RDMA, thus also suffering from cache miss problem. 
 
+
+\iffalse
 \subsection{Performance Challenges}
 \label{subsec:performance-challenges}
 
@@ -399,7 +460,7 @@ We aim to allow transparent zero copy for large transfers.
 	\label{tab:operation-performance}
 	\vspace{-15pt}
 \end{table}
-
+\fi
 
 
 %Spinlock in kernel is implemented with Compare-And-Swap (CAS) instruction, which costs $100\sim200$~ns per acquire and release. In comparison, shared memory message passing only needs one cache migration~\cite{roghanchi2017ffwd} (30~ns).
