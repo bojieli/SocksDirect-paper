@@ -498,10 +498,11 @@ LibVMA~\cite{libvma}, OpenOnload~\cite{openonload}, DBL~\cite{dbl} and LOS~\cite
 
 User-space TCP/IP stacks provide much better performance than Linux, but still not close to RDMA and shared memory.
 They also do not support socket sharing, causing compatibility problems in fork and container live migration, and multi-thread locking overhead as well.
-First, when a process forks, only one of the parent and child processes can use the sockets created before fork, and the choice needs to be pre-configured statically.
-However, many web services have a master process to accept a connection and read the request header, then fork off a child process to handle the request, where the child needs to access the socket.
-At the same time, the parent process still needs to access logging and metadata servers via sockets.
+First, when a process forks, only one of the parent and child processes can use existing sockets, and the choice needs to be pre-configured statically.
+However, many web services~\cite{apache,php-fpm,python-gunicorn,vsftpd} have a master process to accept a connection and read the request header, then it may fork off a child process to handle the request, where the child needs to access the socket.
+At the same time, the parent process still needs to accept new connections via existing sockets.
 This makes such web services fail to work.
+A more tricky case is that parent and child processes may concurrently write to logging servers via existing sockets.
 Second, container live migration is related to fork.
 It resembles forking a container (to a new host) and the child container should still be able to access the socket.
 Third, multi-threading is common in applications.
