@@ -5,6 +5,15 @@
 \label{subsec:architecture}
 
 
+\begin{figure}[t!]
+	\centering
+	\includegraphics[width=0.49\textwidth]{images/architecture_new}
+	\vspace{-15pt}
+	\caption{Architecture of \sys{}. Host 1 and 2 are RDMA capable, while host 3 is RDMA incapable.}
+	\label{fig:architecture}
+\end{figure}
+
+
 \iffalse
 \begin{figure}[t!]
 	\centering
@@ -18,7 +27,6 @@
 	\vspace{-5pt}
 	\caption{Comparison of queue structures. Assume sender and receiver each has two threads. First, \sys{} creates peer-to-peer queues between each pair of sender and receiver threads. Rather than protecting the queue with locks, we designate each FD to a receiver thread to ensure ordering. Second, data from all connections (FDs) are multiplexed through a shared queue, instead of one queue per FD.}
 	\label{fig:fork-rdwr}
-	\vspace{-10pt}
 \end{figure}
 \fi
 
@@ -28,16 +36,6 @@
 Figure~\ref{fig:architecture} gives the architecture of \sys. To use \sys, an application loads a user-space library \libipc{} by setting the \texttt{LD\_PRELOAD} environment variable. \libipc{} intercepts all Linux APIs in \texttt{glibc} that are related to file descriptor operations. It implements socket APIs in user space and forwards the other APIs to the kernel. From a security point of view, because \libipc{} resides in the application address space, we cannot trust its behavior. Therefore, we need a trusted component outside \libipc{} to enforce access control and support overlay networks. 
 
 To this end, we design a \emph{monitor} daemon at each host to coordinate control plane operations, e.g., connection creation. The \emph{monitor} daemon is started at OS initialization time. In each host, all the applications loading \libipc{} must establish a shared memory queue with the host's monitor daemon, forming the control plane. On the data plane, applications build peer-to-peer queues to communicate directly, thus relieving the burden of the monitor daemon.  
-
-
-\begin{figure}[t!]
-	\centering
-	\includegraphics[width=0.49\textwidth]{images/architecture_new}
-	\vspace{-15pt}
-	\caption{Architecture of \sys{}. Host 1 and 2 are RDMA capable, while host 3 is RDMA incapable.}
-	\label{fig:architecture}
-	\vspace{-15pt}
-\end{figure}
 
 
 
@@ -157,7 +155,6 @@ When the client application receives the ACK, as shown on the right side of Figu
 	\includegraphics[width=0.3\textwidth]{images/conn-setup-new}
 	\vspace{-5pt}
 	\caption{State machine of connection creation in \libipc{}.}
-	\vspace{-10pt}
 	\label{fig:conn-setup}
 \end{figure}
 \begin{figure}[t!]
@@ -166,7 +163,6 @@ When the client application receives the ACK, as shown on the right side of Figu
 	\vspace{-5pt}
 	\caption{State machine of connection close in \libipc{}.}
 	\label{fig:conn-close}
-	\vspace{-15pt}
 \end{figure}
 
 
@@ -299,7 +295,6 @@ The remaining data needs to migrate from the old active queue to the new active 
 	}
 	\vspace{-10pt}
 	\caption{Inter-process queue architectures for a shared socket. Dashed arrows represent non-activated queues.}
-	\vspace{-10pt}
 \end{figure}
 
 

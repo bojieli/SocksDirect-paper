@@ -2,8 +2,7 @@
 
 %Linux socket is implemented in the kernel space with shared data structures that needs concurrency protection, which incurs significant overhead.
 Communication intensive applications in hosts with multi-core CPU and high speed networking hardware often put considerable stress on the socket system.
-Full-fledged socket systems often leave significant performance on the table.
-Further, they either lack support for container networking, or have limitations on compatibility, isolation and multi-thread scalability.
+Full-fledged socket systems often leave significant performance on the table, as well have limitations on compatibility, isolation and multi-thread scalability.
 %Communication intensive applications on modern computers with multi-core CPU and high-speed networking hardware 
 %often put considerable stress on traditional socket implementation. 
 %This design incurs significant kernel crossing and locking overhead.

@@ -15,9 +15,9 @@ Communication intensive applications such as distributed key-value stores and we
 
 There has been extensive work aiming at reducing the socket overhead, but existing approaches are not satisfactory.
 First, many user-space sockets are not fully compatible with native socket in areas such as when a process forks, when multiple processes listen on the same port, and when communication is intra-host.
-Second, some user-space sockets do not allow multiple applications to share a NIC port, and thus lack support for container networking.
-Those solutions that do support containers often incur the overhead of kernel crossing or virtual switch.
-Third, even in the performance front, there are still much room for improvement. For example, none of existing works can achieve performance close to raw RDMA, because they fail to remove some important overheads such as multi-thread synchronization, memory copy and TCP/IP protocol processing.
+%Second, some user-space sockets do not allow multiple applications to share the NIC hardware.
+%Those solutions that do support multiple applications often incur the overhead of kernel crossing or virtual switch.
+Second, even in the performance front, there are still much room for improvement. For example, none of existing works can achieve performance close to raw RDMA, because they fail to remove some important overheads such as multi-thread synchronization, memory copy and TCP/IP protocol processing.
 It is often believed that the legacy socket API contributes most to the overheads, so many high performance socket systems propose alternative APIs that require developers to change application code.
 %In addition, when the number of active threads is larger than that of CPU cores, polling and kernel event notification are a dilemma.
 %Finally, they cannot take advantage of low latency networking provided by RDMA.
@@ -39,13 +39,13 @@ Our solution is based on an insight: the bulk of overheads in existing socket sy
 Some of the overheads can be removed by leveraging modern RDMA NICs.
 The rest can be removed by optimizing for common-case operations in communication-intensive applications.
 
-We design \sys{}, a user-space socket system with compatibility, security and performance in mind.
+We design \sys{}, a user-space socket system with compatibility, isolation and performance in mind.
 \begin{ecompact}
 	\item \textbf{Compatibility}.
 	Existing applications can use \sys{} as a drop-in replacement with no modification.
 	It supports both intra-host and inter-host communication, and behaves correctly during process fork and thread creation.
 	If a remote peer does not support \sys{}, the system falls back to TCP transparently.
-	\item \textbf{Security}.
+	\item \textbf{Isolation}.
 	\sys{} preserves isolation among applications and containers, and it enforces access control policies.
 	\item \textbf{High Performance}.
 	\sys{} delivers consistent high throughput and low latency that is scalable with number of CPU cores.
@@ -139,7 +139,11 @@ To share a CPU core efficiently among multiple active threads, \sys uses \emph{c
 
 \sys{} achieves latency and throughput close to the raw performance achievable from the underlying shared memory queue and RDMA.
 On the latency side, \sys{} achieves $0.3\mu$s RTT for intra-host socket, 35x lower than Linux and only $0.05\mu$s higher than a bare-metal shared memory queue. For inter-host socket, \sys{} achieves $1.7\mu$s RTT between RDMA hosts, almost the same as raw RDMA verbs and 17x lower than Linux.
-On the throughput side, a single thread can send 23~M intra-host messages per second (20x Linux) or 8~M inter-host (7x Linux). For large messages, with zero copy, a single connection saturates NIC bandwidth. Each thread can establish 1.4~M new connections per second (20x Linux). The performance above is scalable with number of cores, and do not degrade significantly with millions of concurrent connections.
+On the throughput side, a single thread can send 23~M intra-host messages per second (20x Linux) or 8~M inter-host (7x Linux). For large messages, with zero copy, a single connection saturates NIC bandwidth. Each thread can establish 1.4~M new connections per second (20x Linux). The performance above is scalable with number of cores.
+
+\RED{Application performance?}
+
+
 
 %\textbf{End-to-end performance.}
 
