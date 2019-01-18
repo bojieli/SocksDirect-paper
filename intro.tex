@@ -34,7 +34,7 @@ It is often believed that the legacy socket API contributes most to the overhead
 
 %\textbf{The above part is motivation and related work.}
 
-The goal of this work is to answer the question: Can a Linux compatible and general purpose socket system provide performance comparable to RDMA systems?
+The goal of this work is to answer the question: Can a Linux compatible and general purpose socket system provide performance comparable to shared memory and RDMA systems?
 Our solution is based on an insight: the bulk of overheads in existing socket systems is not caused by the socket API, but due to multiple inefficiencies in the networking stack designed for legacy NIC hardware and compute-intensive applications.
 Some of the overheads can be removed by leveraging modern RDMA NICs.
 The rest can be removed by optimizing for common-case operations in communication-intensive applications.

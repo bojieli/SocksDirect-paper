@@ -1,3 +1,14 @@
+@article{clark1989analysis,
+	title={An analysis of TCP processing overhead},
+	author={Clark, David D and Jacobson, Van and Romkey, John and Salwen, Howard},
+	journal={IEEE Communications magazine},
+	volume={27},
+	number={6},
+	pages={23--29},
+	year={1989},
+	publisher={IEEE}
+}
+
 @inproceedings{han2010packetshader,
 	title={PacketShader: a GPU-accelerated software router},
 	author={Han, Sangjin and Jang, Keon and Park, KyoungSoo and Moon, Sue},
@@ -253,18 +264,23 @@ c
 }
 
 @inproceedings{freeflow,
-author = {Yu, Tianlong and Noghabi, Shadi A. and Sekar,  Vyas and Liu, Hongqiang and Padhye, Jitu and Raindel, Shachar},
-title = {FreeFlow: High Performance Container Networking},
-booktitle = {HotNets-XV},
-year = {2016},
-month = {November},
-publisher = {ACM},
-address = {},
-pages = {7},
-journal = {},
-volume = {},
-chapter = {},
-isbn = {978-1-4503-4661-0/16/11}
+	author = {Daehyeok Kim and Tianlong Yu and Hongqiang Harry Liu and Yibo Zhu and Jitu Padhye and Shachar Raindel and Chuanxiong Guo and Vyas Sekar and Srinivasan Seshan},
+	title = {FreeFlow: Software-based Virtual RDMA Networking for Containerized Clouds},
+	booktitle = {16th USENIX Symposium on Networked Systems Design and Implementation (NSDI 19)},
+	year = {2019},
+	address = {Boston, MA},
+	url = {https://www.usenix.org/conference/nsdi19/presentation/kim},
+	publisher = {USENIX Association},
+}
+
+@inproceedings{slim,
+	author = {Danyang Zhuo and Kaiyuan Zhang and Yibo Zhu and Hongqiang Harry Liu and Matthew Rockett and Arvind Krishnamurthy and Thomas Anderson},
+	title = {Slim: OS Kernel Support for a Low-Overhead Container Overlay Network},
+	booktitle = {16th USENIX Symposium on Networked Systems Design and Implementation (NSDI 19)},
+	year = {2019},
+	address = {Boston, MA},
+	url = {https://www.usenix.org/presentation/zhuo},
+	publisher = {USENIX Association},
 }
 
 @misc{networking2004network,
@@ -909,4 +925,52 @@ isbn = {978-1-4503-4661-0/16/11}
 	pages={17--30},
 	year={2015},
 	organization={ACM}
+}
+
+@inproceedings{zhu2015congestion,
+	title={Congestion control for large-scale RDMA deployments},
+	author={Zhu, Yibo and Eran, Haggai and Firestone, Daniel and Guo, Chuanxiong and Lipshteyn, Marina and Liron, Yehonatan and Padhye, Jitendra and Raindel, Shachar and Yahia, Mohamad Haj and Zhang, Ming},
+	booktitle={ACM SIGCOMM Computer Communication Review},
+	volume={45},
+	number={4},
+	pages={523--536},
+	year={2015},
+	organization={ACM}
+}
+
+@inproceedings{guo2016rdma,
+	title={RDMA over commodity ethernet at scale},
+	author={Guo, Chuanxiong and Wu, Haitao and Deng, Zhong and Soni, Gaurav and Ye, Jianxi and Padhye, Jitu and Lipshteyn, Marina},
+	booktitle={Proceedings of the 2016 ACM SIGCOMM Conference},
+	pages={202--215},
+	year={2016},
+	organization={ACM}
+}
+
+@inproceedings{mittal2015timely,
+	title={TIMELY: RTT-based Congestion Control for the Datacenter},
+	author={Mittal, Radhika and Dukkipati, Nandita and Blem, Emily and Wassel, Hassan and Ghobadi, Monia and Vahdat, Amin and Wang, Yaogong and Wetherall, David and Zats, David and others},
+	booktitle={ACM SIGCOMM Computer Communication Review},
+	volume={45},
+	number={4},
+	pages={537--550},
+	year={2015},
+	organization={ACM}
+}
+
+@misc{lsolro,
+	author={Jonathan Corbet}
+	title={Large receive offload},
+	note={Available at \url{https://lwn.net/Articles/243949/}}
+}
+
+@article{thompson1997wide,
+	title={Wide-area Internet traffic patterns and characteristics},
+	author={Thompson, Kevin and Miller, Gregory J and Wilder, Rick},
+	journal={IEEE network},
+	volume={11},
+	number={6},
+	pages={10--23},
+	year={1997},
+	publisher={IEEE}
 }
