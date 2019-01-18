@@ -497,7 +497,7 @@ Most of the API changes aim to support zero copy.
 LibVMA~\cite{libvma}, OpenOnload~\cite{openonload}, DBL~\cite{dbl} and LOS~\cite{huang2017high} are designed to be compatible with existing applications.
 
 User-space TCP/IP stacks provide much better performance than Linux, but still not close to RDMA and shared memory.
-They also do not support socket sharing, causing compatibility problems in fork and container live migration, and multi-thread locking overhead as well.
+None of existing works support socket sharing, causing compatibility problems in fork and container live migration, and multi-thread locking overhead as well.
 First, when a process forks, only one of the parent and child processes can use existing sockets, and the choice needs to be pre-configured statically.
 However, many web services~\cite{apache,php-fpm,python-gunicorn,vsftpd} have a master process to accept a connection and read the request header, then it may fork off a child process to handle the request, where the child needs to access the socket.
 At the same time, the parent process still needs to accept new connections via existing sockets.
@@ -507,7 +507,7 @@ Second, container live migration is related to fork.
 It resembles forking a container (to a new host) and the child container should still be able to access the socket.
 Third, multi-threading is common in applications.
 Either the application takes the risk of race conditions in socket operations, or a socket FD lock must be taken per operation.
-The latter case guarantees correctness, but locking hurts performance even if there is no contention.
+The latter approach guarantees correctness, but locking hurts performance even if there is no contention.
 
 %\RED{Wei: The above paragraph looks very confusing.}
 
