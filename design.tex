@@ -33,7 +33,9 @@
 
 %As shown in Figure~\ref{fig:architecture}, the core component of \sys{} is a user-space library \libipc{}.
 
-Figure~\ref{fig:architecture} gives the architecture of \sys. To use \sys, an application loads a user-space library \libipc{} by setting the \texttt{LD\_PRELOAD} environment variable. \libipc{} intercepts all Linux APIs in \texttt{glibc} that are related to file descriptor operations. It implements socket APIs in user space and forwards the other APIs to the kernel. From a security point of view, because \libipc{} resides in the application address space, we cannot trust its behavior. Therefore, we need a trusted component outside \libipc{} to enforce access control and support overlay networks. 
+Figure~\ref{fig:architecture} gives the architecture of \sys. To use \sys, an application loads a user-space library \libipc{} by setting the \texttt{LD\_PRELOAD} environment variable. \libipc{} intercepts all Linux APIs in \texttt{glibc} that are related to file descriptor operations. It implements socket APIs in user space and forwards the other APIs to the kernel.
+Implementing \sys in user space rather than kernel has two advantages: the kernel crossing overhead is removed, and user space code is easier to debug and deploy~\cite{andromeda}.
+From a security point of view, because \libipc{} resides in the application address space, we cannot trust its behavior. Therefore, we need a trusted component outside \libipc{} to enforce access control and support address translation for container networks.
 
 To this end, we design a \emph{monitor} daemon at each host to coordinate control plane operations, e.g., connection creation. The \emph{monitor} daemon is started at OS initialization time. In each host, all the applications loading \libipc{} must establish a shared memory queue with the host's monitor daemon, forming the control plane. On the data plane, applications build peer-to-peer queues to communicate directly, thus relieving the burden of the monitor daemon.  
 
@@ -211,13 +213,15 @@ When application shuts down one direction of a connection, it sends a \textit{sh
 \subsection{Lock-free Socket Sharing}
 \label{subsec:fork}
 
-\RED{This section should be greatly simplified.}
-
-Socket sharing among processes and threads are ubiquitous in modern applications.
+Most socket systems acquire a per-FD lock to enable threads and processes share a socket (Sec.~\ref{subsec:per-operation-overhead}).
+Logically, a socket is composed of two FIFO queues in opposite directions, each with multiple concurrent senders and receivers.
 Our aim is to maximize the common-case performance while preserving the FIFO semantics.
 We make two observations: First, fork and thread creation are infrequent in high performance applications because of their high cost.
-Second, it is uncommon that several processes receive concurrently from a shared socket, because the byte-stream semantics of socket makes it hard to avoid receiving partial messages.
-%For such producer-consumer scenarios, message brokers~\cite{hintjens2013zeromq,rabbitmq2017rabbitmq,kreps2011kafka} are typically used.
+Second, it is uncommon that several processes send or receive concurrently from a shared socket, because the byte-stream semantics of socket makes it hard to avoid receiving partial messages.
+%If the application needs to send or receive concurrently, message brokers~\cite{hintjens2013zeromq,rabbitmq2017rabbitmq,kreps2011kafka} are typically used.
+The common case is that the application implicitly migrates a socket from one process to another, e.g. offload a transaction from master to a worker process.
+
+\iffalse
 Based on the observations, we propose the following requirements:
 
 \begin{enumerate}[noitemsep,nolistsep]
@@ -233,36 +237,34 @@ For compatibility with Linux semantics, we also need to ensure message ordering 
 \item \textbf{Deadlock-free.} If a socket buffer is not empty when \texttt{recv} is called by one or more receivers, at least one receiver should get data.
 \item \textbf{Starvation-free.} If a sender keeps sending, any receiver trying to \texttt{recv} will eventually get some data.
 \end{enumerate}
+\fi
 
-We present our scalable socket design in four parts: a) data transmission (\texttt{send} and \texttt{recv}), b) adding new senders and receivers (\texttt{fork} and thread creation), c) connection creation and d) connection close.
+Our solution is to have a \emph{send token} and a \emph{receive token} per FIFO (one direction of a socket).
+Each token is held by an \emph{active thread}, which has the permission to send or receive.
+So there is only one active sender thread and one active receiver thread at any point of time.
+The socket buffer is shared among the threads and processes, which allows lock-free access from one sender and one receiver (details will be discussed in Sec.~\ref{subsec:lockless-queue}).
+When another thread wants to send or receive, it should request to \emph{take over} the token.
+
+The following shows the details for five types of operations: a) data transmission (\texttt{send} and \texttt{recv}), b) adding new senders and receivers (\texttt{fork} and thread creation), c) container live migration, d) connection creation and e) connection close.
 
 \subsubsection{Send/Recv Operation}
 \label{subsubsec:fork_rdwr}
+\quad
 
-In this section, we assume that a socket is connected and the number of senders and receivers are constant.
+When a thread does not have the send token but wants to send through the socket, the inactive thread needs to \emph{take over} the token.
+If we create a direct communication channel between the inactive and active threads, there will either be peer-to-peer queues with number quadratic to the number of threads, or a shared queue with locking.
+To avoid both overheads, we use the monitor daemon as a proxy during the \emph{take over} process.
+This message passing design also has the benefit that sender processes can be on different hosts, which will be useful in container live migration.
 
-\parab{Multiple concurrent senders.}
-In order to avoid synchronization, we create queues between \emph{every} pair of senders and receivers. %The queues form a bipartite graph between senders and receivers. 
-Each receiver polls messages from all sender queues in round-robin order. Therefore, the multi-sender throughput can scale.
-%Figure \ref{fig:fork-bipartitegraph} shows a sample of the shared-memory buffers between senders and receivers for one connection.
+The take over process is as follows:
+The inactive sender sends a \emph{take over} command to the monitor, the monitor adds it to a waiting list and proxies the command to the active sender.
+When the active sender receives the request, it gives out the send token to the monitor.
+The monitor grants the token to the first inactive sender in the waiting list, and updates the active sender.
+The inactive sender can send after receiving the token.
+This mechanism is deadlock-free, because at least one sender or the monitor holds the send token.
+It is also starvation-free, because each sender can appear in the waiting list at most once and senders will do send operations round-robin.
 
-\parab{One exclusive receiver.}
-Each sender, though has a queue to every receiver, designates only a single receiver with exclusive access to the socket and only send data through the corresponding queue.
-For example, R1 is designated by both senders in Figure~\ref{fig:fork-p2p}.
-In the common cases with only a single active receiver, the performance would be the same as one-to-one communication. 
-%It is challenging for the sender to choose a receiver, since the chosen one may not call \texttt{recv}, while other receivers may be under starvation. 
-
-\parab{Switch to a receiver.}
-When a non-designated receiver tries to \texttt{recv} from the socket, it broadcasts a \textit{takeover request} to all senders.
-Upon receiving the request, each sender independently %processes takeover requests in FIFO order to avoid starvation and 
-designates the requester as the new exclusive receiver and remove the status from the old designated receiver.
-%Another challenge is that when a receiver should send a takeover request. 
-%Each receiver maintains a flag locally to indicate whether it is designated by the sender. The flag is flipped when the receiver gets takeover request or completion from sender. When a receiver tries to \texttt{recv} and finds itself not designated, it sends a takeover request to sender. Before the receiver becomes designated, the takeover request is sent only once.
-
-\parab{Remaining data in queue.}
-A challenge arise when there is remaining data in the queue when a receiver requests to take over the socket. %We need to ensure that all the remaining data can be received by the new receiver. 
-%Because multiple sockets share a queue from sender to each receiver, and different sockets have different designated receivers, the new receiver cannot access the queue from the old receiver directly. Instead, 
-The remaining data needs to migrate from the old active queue to the new active queue. When the sender processes a takeover request, it first forwards it to the current receiver. Upon receiving takeover request, the current receiver returns all remaining data to sender via \textit{takeover completion} messages, which the sender forwards to the new receiver. During migration, the sender blocks \texttt{send} operations and takeover requests to ensure message ordering.
+The take over process on the receiver side is similar.
 
 
 
@@ -275,7 +277,7 @@ The remaining data needs to migrate from the old active queue to the new active 
 
 \subsubsection{Fork and Thread Creation}
 \label{subsubsec:fork_fork}
-
+\quad
 
 \begin{figure}[t]
 	\centering
@@ -296,7 +298,6 @@ The remaining data needs to migrate from the old active queue to the new active 
 	\vspace{-10pt}
 	\caption{Inter-process queue architectures for a shared socket. Dashed arrows represent non-activated queues.}
 \end{figure}
-
 
 %The first challenge with fork and thread creation is how to identify and isolate parent and child processes. 
 To identify and isolate parent and child processes, when an application calls \texttt{fork}, \texttt{clone} or \texttt{pthread\_create}, \libipc{} first generates a secret for pairing, then invokes the corresponding system call. After fork, parent and child independently creates a shared memory queue to the monitor and sends the secret (child inherits parent memory space and knows the secret). The monitor can thus pairs the child process with the parent. 
@@ -330,8 +331,13 @@ After a sender forks, the receivers still need the takeover mechanism to arbitra
 
 %Things become much more complicated when cases 1,4 happens after cases 2,3 happening. After receiver forks, the unique sender is responsible for receiving ``takeover message'' and resend the data to new receivers. However, if sender forks following the receiver forks, according to the methods we mentioned above, there is no sender responsible for processing ``takeover message''. Our solution is that we require the receivers to poll the data from the old shared memory queue and compete for data. Since this case rarely happens, the performance of the overall design is not affected.
 
+\subsubsection{Container Live Migration}
+\label{subsubsec:container_live_migration}
+\quad
+
 \subsubsection{Connection Creation}
 \label{subsubsec:fork_new}
+\quad
 
 A connection created by a thread can be accessed by all threads in the same process.
 To avoid creating redundant queues and connection states, \libipc does not share the FD eagerly with other threads, because most threads in existing applications do not use connections created by other threads.
@@ -339,6 +345,7 @@ When a thread do want to accesses a FD that belongs to another thread, \libipc s
 
 \subsubsection{Connection Close}
 \label{subsubsec:fork_close}
+\quad
 
 %Close is the operation that all of the processes leave the connection. The synchronization is  especially challenging since all the processes are run in parallel. One challenge lies in file descriptors are managed by decentralized processes and are possibly reused. One process close a connection while the others are doing compute intensive tasks is a case. It is possible that the file descriptor of the old process is reused and a new connection is setup with the same file descriptor. The other process may notice the close of the old connection and also call close on its own side, which lead to the new connection setup by the previous process closed due to the match of same file descriptor. 
 

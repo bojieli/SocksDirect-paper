@@ -205,6 +205,7 @@ Because connection establishment incurs significant cost~\cite{jeong2014mtcp,lin
 \end{table}
 
 \subsubsection{Per Operation Overheads}
+\label{subsec:per-operation-overhead}
 \quad
 
 \parab{Kernel crossing.}
@@ -437,7 +438,7 @@ We aim to share a core among processes efficiently.
 \quad
 
 \parab{Payload copy.}
-The semantics of \texttt{send} and \texttt{recv} cause memory copies between application and network stack. For non-blocking \texttt{send}, the system needs to copy data out of the buffer because the application may overwrite the buffer right after \texttt{send} returns. %Simply removing these copies may violate application correctness. 
+In most socket systems, the semantics of \texttt{send} and \texttt{recv} cause memory copies between application and network stack. For non-blocking \texttt{send}, the system needs to copy data out of the buffer because the application may overwrite the buffer right after \texttt{send} returns. %Simply removing these copies may violate application correctness. 
 For \texttt{recv}, application provides a buffer as the data destination. %If we buffer data on the sender and only transmit it on \texttt{recv}, the receiver needs to wait for a round-trip time. For this reason, socket implementations buffer data on the receiver and copy it to application on \texttt{recv}.
 System needs to copy data received into the buffer. 
 Many user-space TCP/IP stacks and socket-to-RDMA libraries provide both standard socket API and an alternative zero-copy API, but none of them achieves zero copy for the standard API on both send and receive paths.%\RED{I think this problem also exists for RSocket.}
@@ -497,7 +498,7 @@ Most of the API changes aim to support zero copy.
 LibVMA~\cite{libvma}, OpenOnload~\cite{openonload}, DBL~\cite{dbl} and LOS~\cite{huang2017high} are designed to be compatible with existing applications.
 
 User-space TCP/IP stacks provide much better performance than Linux, but still not close to RDMA and shared memory.
-None of existing works support socket sharing, causing compatibility problems in fork and container live migration, and multi-thread locking overhead as well.
+None of existing works support sharing a socket among threads and processes, causing compatibility problems in fork and container live migration, and multi-thread locking overhead as well.
 First, when a process forks, only one of the parent and child processes can use existing sockets, and the choice needs to be pre-configured statically.
 However, many web services~\cite{apache,php-fpm,python-gunicorn,vsftpd} have a master process to accept a connection and read the request header, then it may fork off a child process to handle the request, where the child needs to access the socket.
 At the same time, the parent process still needs to accept new connections via existing sockets.
