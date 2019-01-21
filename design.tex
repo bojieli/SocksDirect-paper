@@ -73,6 +73,13 @@ If so, it establishes an RDMA queue between the two monitors, so that future con
 %Even though multiple threads in the same process share memory space, we still treat each thread as a separated process and use thread-specific storage to store states in \libipc. In the following text, unless explicitly mentioned, we use a ``process'' to refer to a regular process or a thread.
 
 
+\begin{figure}[t!]
+	\centering
+	\includegraphics[width=0.3\textwidth]{images/libsd_architecture}
+	\vspace{-5pt}
+	\caption{Architecture of \libipc{}.}
+	\label{fig:libsd-architecture}
+\end{figure}
 
 
 \subsection{Connection Management}
