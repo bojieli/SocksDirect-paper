@@ -56,6 +56,10 @@ For inter-host communication, the monitors of two hosts are both involved. When 
 %When the monitor connects to another host for the first time\RED{Why we need to connect two monitors?}, it establishes a regular TCP connection and detects whether the remote host supports \sys{}.
 If so, it establishes an RDMA queue between the two monitors, so that future connections between the two hosts can be created faster. The monitor at the remote side dispatches the connection to the target and helps the two applications establish an RDMA queue, as between host 1 and 2 in Figure~\ref{fig:architecture}. If the remote host does not support \sys{}, it keeps using the TCP connection, as between host 1 and 3 in Figure~\ref{fig:architecture}. The detailed connection management protocol is presented in Sec.~\ref{subsec:connection-management}.
 
+\RED{No send / receive queue. A socket queue.}
+
+\RED{Layered architecture of \libipc{}. How to respond to events.}
+
 %In order to remove synchronization overhead for multi-threaded applications, we treat each thread as a separate process.
 %%Although threads in a process share memory, we use thread-specific storage for most states in \libipc{}.
 %For two communicating applications, we create peer-to-peer queues between each pair of sender and receiver threads to avoid synchronization cost of contending on the same queue.
@@ -214,7 +218,7 @@ When application shuts down one direction of a connection, it sends a \textit{sh
 \label{subsec:fork}
 
 Most socket systems acquire a per-FD lock to enable threads and processes share a socket (Sec.~\ref{subsec:per-operation-overhead}).
-Logically, a socket is composed of two FIFO queues in opposite directions, each with multiple concurrent senders and receivers.
+Logically, a socket is composed of two FIFO \emph{queues} in opposite directions, each with multiple concurrent senders and receivers.
 Our aim is to maximize the common-case performance while preserving the FIFO semantics.
 We make two observations: First, fork and thread creation are infrequent in high performance applications because of their high cost.
 Second, it is uncommon that several processes send or receive concurrently from a shared socket, because the byte-stream semantics of socket makes it hard to avoid receiving partial messages.
@@ -239,13 +243,13 @@ For compatibility with Linux semantics, we also need to ensure message ordering 
 \end{enumerate}
 \fi
 
-Our solution is to have a \emph{send token} and a \emph{receive token} per FIFO (one direction of a socket).
+Our solution is to have a \emph{send token} and a \emph{receive token} per \emph{socket queue} (one direction of a socket).
 Each token is held by an \emph{active thread}, which has the permission to send or receive.
 So there is only one active sender thread and one active receiver thread at any point of time.
-The socket buffer is shared among the threads and processes, which allows lock-free access from one sender and one receiver (details will be discussed in Sec.~\ref{subsec:lockless-queue}).
+The socket queue is shared among the threads and processes, which allows lock-free access from one sender and one receiver (details will be discussed in Sec.~\ref{subsec:lockless-queue}).
 When another thread wants to send or receive, it should request to \emph{take over} the token.
 
-The following shows the details for five types of operations: a) data transmission (\texttt{send} and \texttt{recv}), b) adding new senders and receivers (\texttt{fork} and thread creation), c) container live migration, d) connection creation and e) connection close.
+The following shows the details for four types of operations: a) data transmission (\texttt{send} and \texttt{recv}), b) adding new senders and receivers (\texttt{fork} and thread creation), c) container live migration, and d) connection close.
 
 \subsubsection{Send/Recv Operation}
 \label{subsubsec:fork_rdwr}
@@ -279,6 +283,7 @@ The take over process on the receiver side is similar.
 \label{subsubsec:fork_fork}
 \quad
 
+\iffalse
 \begin{figure}[t]
 	\centering
 	\subfloat[Traditional locking]{
@@ -298,14 +303,18 @@ The take over process on the receiver side is similar.
 	\vspace{-10pt}
 	\caption{Inter-process queue architectures for a shared socket. Dashed arrows represent non-activated queues.}
 \end{figure}
+\fi
 
 %The first challenge with fork and thread creation is how to identify and isolate parent and child processes. 
-To identify and isolate parent and child processes, when an application calls \texttt{fork}, \texttt{clone} or \texttt{pthread\_create}, \libipc{} first generates a secret for pairing, then invokes the corresponding system call. After fork, parent and child independently creates a shared memory queue to the monitor and sends the secret (child inherits parent memory space and knows the secret). The monitor can thus pairs the child process with the parent. 
-To maintain isolation between parent and child, monitor creates new shared memory queues to replace all queues in \emph{both} parent and child, as Figure~\ref{fig:fork-fork} shows. We do not reuse queues due to potential isolation violation. %The monitor then sends credentials of new queues to parent and child via bootstrap sockets. 
-Each peer process is notified of the new queues and the new process. From then on, parent and child processes have isolated queues to the monitor and peers.
+To identify and isolate parent and child processes, when an application calls \texttt{fork}, \texttt{clone} or \texttt{pthread\_create}, \libipc{} first generates a secret for pairing, then invokes the corresponding system call. After fork, parent and child independently creates a queue to the monitor and sends the secret (child inherits parent memory space and knows the secret). The monitor can thus pairs the child process with the parent. 
+The socket queues are in shared memory between parent and child processes.
+%To maintain isolation between parent and child, monitor creates new shared memory queues to replace all queues in \emph{both} parent and child, as Figure~\ref{fig:fork-fork} shows. We do not reuse queues due to potential isolation violation. %The monitor then sends credentials of new queues to parent and child via bootstrap sockets. 
+%Each peer process is notified of the new queues and the new process. From then on, parent and child processes have isolated queues to the monitor and peers.
 
-%A harder challenge comes from socket connection sharing between parent and child processes. 
-Upon fork, each connection needs to add a sender to the sending direction and a receiver to the receiving direction. A major challenge is how to handle the remaining data in the original send and receive queues.
+%A harder challenge comes from socket connection sharing between parent and child processes.
+Upon fork, each existing socket needs to add a sender to the sending direction and a receiver to the receiving direction.
+The parent thread inherits the token, so the new thread is always inactive.
+%A major challenge is how to handle the remaining data in the original send and receive queues.
 
 %For each unidirectional queue, we discuss the behavior of related processes in four cases:
 %\begin{enumerate}
@@ -317,17 +326,16 @@ Upon fork, each connection needs to add a sender to the sending direction and a 
 
 %The general process of fork is that after monitor is notified of the fork, it creates shared memory between the newly created process and all the processes which previously have connections with the parent process. The key challenge lies in the fork is that how to deal with the existing data in the connection to guarantee the order requirements.
 
-\parab{Receiver fork.}
-First we look at a simple case when a receiver forks. Recall that only one receiver has exclusive access to a socket, as stated in Sec.~\ref{subsubsec:fork_rdwr}. The parent process inherits receive permission. When a sender receives fork notification of its peer, it copies all data from original queues to new queues of the parent process.
+%\parab{Receiver fork.}
+%First we look at a simple case when a receiver forks. Recall that only one receiver has exclusive access to a socket, as stated in Sec.~\ref{subsubsec:fork_rdwr}. The parent process inherits receive permission. When a sender receives fork notification of its peer, it copies all data from original queues to new queues of the parent process.
 
-\parab{Sender fork.}
-When a sender forks, things are more complicated. We need to guarantee that all data sent prior to \texttt{fork} is consumed before the data sent after \texttt{fork}.
+%\parab{Sender fork.}
+%When a sender forks, things are more complicated. We need to guarantee that all data sent prior to \texttt{fork} is consumed before the data sent after \texttt{fork}.
 
-Our solution is to let receivers drain the original queue first before switching to the new queues. After \texttt{fork}, both parent and child send data to its new queue. When the receiver is notified of the fork, it keeps track of the original queue and consumes all data in it before activating new queues. Note that the parent or child may fork again before the original queue is drained. With this in mind, the receiver maintains a forest data structure to track dependency of queues. The root of each tree in the forest is the oldest queue to receive from. Each non-leaf node has two children indicating the new queue of parent and child processes. If a non-leaf root queue becomes empty, it will be removed, and the two children queues will be promoted to root nodes.
+%Our solution is to let receivers drain the original queue first before switching to the new queues. After \texttt{fork}, both parent and child send data to its new queue. When the receiver is notified of the fork, it keeps track of the original queue and consumes all data in it before activating new queues. Note that the parent or child may fork again before the original queue is drained. With this in mind, the receiver maintains a forest data structure to track dependency of queues. The root of each tree in the forest is the oldest queue to receive from. Each non-leaf node has two children indicating the new queue of parent and child processes. If a non-leaf root queue becomes empty, it will be removed, and the two children queues will be promoted to root nodes.
 
-\parab{Takeover During Fork.}
-After a sender forks, the receivers still need the takeover mechanism to arbitrate remaining messages in the original queue. However, both parent and child senders have dropped the original queue and will not respond to takeover requests. A similar situation occurs when a sender process dies. Our solution is to let the receivers use atomic operations to compete for remaining data in the original queue. Since this case rarely happens, the performance of the overall design is not affected.
-
+%\parab{Takeover During Fork.}
+%After a sender forks, the receivers still need the takeover mechanism to arbitrate remaining messages in the original queue. However, both parent and child senders have dropped the original queue and will not respond to takeover requests. A similar situation occurs when a sender process dies. Our solution is to let the receivers use atomic operations to compete for remaining data in the original queue. Since this case rarely happens, the performance of the overall design is not affected.
 
 %Things become much more complicated when cases 1,4 happens after cases 2,3 happening. After receiver forks, the unique sender is responsible for receiving ``takeover message'' and resend the data to new receivers. However, if sender forks following the receiver forks, according to the methods we mentioned above, there is no sender responsible for processing ``takeover message''. Our solution is that we require the receivers to poll the data from the old shared memory queue and compete for data. Since this case rarely happens, the performance of the overall design is not affected.
 
@@ -335,13 +343,32 @@ After a sender forks, the receivers still need the takeover mechanism to arbitra
 \label{subsubsec:container_live_migration}
 \quad
 
-\subsubsection{Connection Creation}
-\label{subsubsec:fork_new}
-\quad
+\parab{Migration of remaining data in socket queues.}
+Because \libipc{} runs in the same process with the application, its memory states are migrated to the new host together with the application.
+The memory states include the socket queues, so the in-flight (sent but not received) data will not be lost.
+A socket can be only shared within a container, and all processes in a container are migrated together, so memory on the original host can be de-allocated after migration.
 
-A connection created by a thread can be accessed by all threads in the same process.
-To avoid creating redundant queues and connection states, \libipc does not share the FD eagerly with other threads, because most threads in existing applications do not use connections created by other threads.
-When a thread do want to accesses a FD that belongs to another thread, \libipc sends a message to the owner thread and requests sharing the FD. %This procedure is exactly the same as sharing existing connections during thread creation (Sec.~\ref{subsubsec:fork_fork}). %The sharing procedure only happens once for every connection and thread. Sharing existing connections eagerly during thread creation is an optimization. First, children threads are more likely to use existing connections than siblings. Second, batch processing improves performance.
+\parab{Migration of monitor states.}
+The monitor keeps track of listening socket information, active thread and waiting list of each connection, and shared memory secrets.
+During migration, the old monitor dumps states of the migrated containers and sends them to the new monitor.
+
+\parab{Establish new communication channels.}
+After migration, all communication channels become obsolete because shared memory is local on a host and RDMA does not support live migration~\cite{nsdi19freeflow,slim}.
+First, the migrated container on the new host needs to establish a connection to the local monitor.
+The local monitor directs the following process.
+An intra-host connection between two containers may become inter-host, so \libipc{} creates an RDMA connection in this case.
+An inter-host connection between two containers may become intra-host, and \libipc{} creates a shared memory connection.
+Finally, \libipc{} re-establishes remaining inter-host RDMA and intra-host shared memory connections.
+
+
+
+%\subsubsection{Connection Creation}
+%\label{subsubsec:fork_new}
+%\quad
+
+%A connection created by a thread can be accessed by all threads in the same process.
+%To avoid creating redundant queues and connection states, \libipc does not share the FD eagerly with other threads, because most threads in existing applications do not use connections created by other threads.
+%When a thread do want to accesses a FD that belongs to another thread, \libipc sends a message to the owner thread and requests sharing the FD. %This procedure is exactly the same as sharing existing connections during thread creation (Sec.~\ref{subsubsec:fork_fork}). %The sharing procedure only happens once for every connection and thread. Sharing existing connections eagerly during thread creation is an optimization. First, children threads are more likely to use existing connections than siblings. Second, batch processing improves performance.
 
 \subsubsection{Connection Close}
 \label{subsubsec:fork_close}
@@ -353,7 +380,7 @@ When a thread do want to accesses a FD that belongs to another thread, \libipc s
 
 %\parab{Broadcast.}
 %When a process calls \texttt{close}, all its peers cannot send to or receive from the FD. In this sense, 
-Closing a shared connection needs to multicast a notification to the peers and collect responses from them. A challenge arise when \texttt{close} is interleaved with \texttt{fork}. Since \texttt{fork} and \texttt{close} do not commute~\cite{clements2015scalable}, we need a rule to determine their partial order. We make the choice that the ordering is determined by the initiator of \texttt{close}. If a process calls \texttt{close} before receiving fork notification, it will piggyback close notification with fork completion to both parent and child processes.
+As noted in Sec.~\ref{subsec:connection-management}, closing a shared connection needs to multicast a notification to the peers and collect responses from them. A challenge arises when \texttt{close} is interleaved with \texttt{fork}. Since \texttt{fork} and \texttt{close} do not commute~\cite{clements2015scalable}, we need a rule to determine their partial order. We make the choice that the ordering is determined by the initiator of \texttt{close}. If a process calls \texttt{close} before receiving fork notification, it will piggyback close notification with fork completion to both parent and child processes.
 
 %\parab{Handshake before releasing resource.}
 %Another challenge is caused by FD reuse after close. As stated in Sec.~\ref{subsec:socket-api}, a FD is deleted after receiving shutdown message of both directions. With multiple processes sharing a connection, after one process calls \texttt{close}, others can still use the connection. Consequently, a process deletes a FD only after receiving shutdown messages of both directions from all peers of the FD.
