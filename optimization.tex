@@ -16,7 +16,7 @@ This section addresses two performance challenges: How to achieve socket-compati
 %	\label{fig:zerocopy}
 %\end{figure}
 
-\RED{Move the challenges here.}
+\RED{Need a performance comparison figure for copy, batch page remapping, single page remapping, etc.}
 
 The main challenge for zero copy is to maintain the semantics of socket API.
 %A sender may write the send buffer after non-blocking \texttt{send}, and the receiver does not know the receive buffer before \texttt{recv}.
