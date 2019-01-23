@@ -1,7 +1,7 @@
 \section{Introduction}
 \label{sec:intro}
 
-%Most cloud applications use the socket API for inter-process communication among components or containers inside a same server and across data center network, in addition to serving Internet users. For example, communication intensive applications (\textit{e.g.} nginx and memcached) spend 50\%$\sim$90\% of CPU time in the OS kernel, mostly processing socket operations.
+%Most cloud applications use the socket API for inter-process communication among components or containers inside a same server and across data center network, in addition to serving Internet users. For example, communication intensive applications (\textit{e.g.} Nginx and memcached) spend 50\%$\sim$90\% of CPU time in the OS kernel, mostly processing socket operations.
 %The overhead of Linux socket attributes to kernel crossing in system calls, context switch, process scheduling, synchronization, memory copy, cache miss and TCP transport.
 %Applications in high performance computing have a long tradition of using shared memory for intra-server communication and RDMA for inter-server, thus avoiding the overheads above.
 %However, these abstractions are radically different from socket, so it is complicated and potentially insecure to port socket applications to shared memory and RDMA.
