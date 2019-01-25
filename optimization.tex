@@ -8,13 +8,21 @@ This section addresses two performance challenges: How to achieve socket-compati
 \subsection{Zero Copy}
 \label{subsec:zerocopy}
 
-%\begin{figure}[t]
-%	\centering
-%	\includegraphics[width=0.3\textwidth]{images/zerocopy}
-%	\caption{Zero copy via page remapping. Step 1: \texttt{send}, sender get physical address and send via shared memory. Step 2: \texttt{recv}, receiver maps the page to buffer. Step 3: sender remaps buffer on memory write.}
-%	\vspace{-15pt}
-%	\label{fig:zerocopy}
-%\end{figure}
+\begin{figure}[t]
+	\centering
+	\subfloat[Intra-server SHM.]{
+		\includegraphics[width=0.2\textwidth]{images/zerocopy_intra}
+		\label{fig:zerocopy-intra}
+	}
+	\hspace{0.05\textwidth}
+	\subfloat[Inter-server RDMA.]{
+		\includegraphics[width=0.17\textwidth]{images/zerocopy_inter}
+		\label{fig:zerocopy-inter}
+	}
+	\vspace{-10pt}
+	\caption{Procedure to send a page with zero copy.}
+\end{figure}
+
 
 \RED{Need a performance comparison figure for copy, batch page remapping, single page remapping, etc.}
 

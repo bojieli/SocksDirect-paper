@@ -227,6 +227,15 @@ When application shuts down one direction of a connection, it sends a \textit{sh
 \subsection{Lock-free Socket Sharing}
 \label{subsec:fork}
 
+
+\begin{figure}[t!]
+	\centering
+	\includegraphics[width=0.3\textwidth]{images/queue_arch}
+	\vspace{-5pt}
+	\caption{Lock-free socket sharing. Dashed arrows indicate the active sender and receiver of a socket. Each thread tracks its active sockets and communicates with the monitor via an exclusive queue.}
+	\label{fig:queue-arch}
+\end{figure}
+
 Most socket systems acquire a per-FD lock to enable threads and processes share a socket (Sec.~\ref{subsec:per-operation-overhead}).
 Logically, a socket is composed of two FIFO \emph{queues} in opposite directions, each with multiple concurrent senders and receivers.
 Our aim is to maximize the common-case performance while preserving the FIFO semantics.
@@ -317,8 +326,12 @@ The take over process on the receiver side is similar.
 \end{figure}
 \fi
 
+\RED{Challenge: RDMA does not support fork.}
+
 %The first challenge with fork and thread creation is how to identify and isolate parent and child processes. 
-To identify and isolate parent and child processes, when an application calls \texttt{fork}, \texttt{clone} or \texttt{pthread\_create}, \libipc{} first generates a secret for pairing, then invokes the corresponding system call. After fork, parent and child independently creates a queue to the monitor and sends the secret (child inherits parent memory space and knows the secret). The monitor can thus pairs the child process with the parent. 
+To identify parent and child processes, when an application calls \texttt{fork}, \texttt{clone} or \texttt{pthread\_create}, \libipc{} first generates a secret for pairing, then invokes the original function in \emph{libc}.
+After fork, the child process creates a new queue to the monitor and sends the secret (child inherits parent memory space and knows the secret).
+The monitor can thus pairs the child process with the parent. 
 The socket queues are in shared memory between parent and child processes.
 However, to avoid synchronization in accessing shared metadata, the metadata is in thread local storage and copied from parent to child.
 %To maintain isolation between parent and child, monitor creates new shared memory queues to replace all queues in \emph{both} parent and child, as Figure~\ref{fig:fork-fork} shows. We do not reuse queues due to potential isolation violation. %The monitor then sends credentials of new queues to parent and child via bootstrap sockets. 
