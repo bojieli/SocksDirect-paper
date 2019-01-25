@@ -37,7 +37,7 @@ Figure~\ref{fig:architecture} gives the architecture of \sys. To use \sys, an ap
 Implementing \sys in user space rather than kernel has two advantages: the kernel crossing overhead is removed, and user space code is easier to debug and deploy~\cite{andromeda}.
 From a security point of view, because \libipc{} resides in the application address space, we cannot trust its behavior. Therefore, we need a trusted component outside \libipc{} to enforce access control and support address translation for container networks.
 
-To this end, we design a \emph{monitor} daemon at each host to coordinate control plane operations, e.g., connection creation. The \emph{monitor} daemon is started at OS initialization time. In each host, all the applications loading \libipc{} must establish a shared memory queue with the host's monitor daemon, forming the control plane. On the data plane, applications build peer-to-peer queues to communicate directly, thus relieving the burden of the monitor daemon.  
+To this end, we design a \emph{monitor} daemon at each host to coordinate control plane operations, e.g., connection creation. The \emph{monitor} daemon is started before applications. In each host, all the applications loading \libipc{} must establish a shared memory queue with the host's monitor daemon, forming the control plane. On the data plane, applications build peer-to-peer queues to communicate directly, thus relieving the burden of the monitor daemon.
 
 
 
@@ -75,7 +75,7 @@ If so, it establishes an RDMA queue between the two monitors, so that future con
 
 \begin{figure}[t!]
 	\centering
-	\includegraphics[width=0.3\textwidth]{images/libsd_architecture}
+	\includegraphics[width=0.25\textwidth]{images/libsd_architecture}
 	\vspace{-5pt}
 	\caption{Architecture of \libipc{}.}
 	\label{fig:libsd-architecture}
