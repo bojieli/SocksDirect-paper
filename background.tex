@@ -158,7 +158,7 @@ Conceptually, the Linux networking stack is composed of three layers. First, the
 Second, the transport layer, traditionally TCP/IP, provides I/O multiplexing, congestion control, loss recovery, routing and QoS functions.
 Third, the NIC layer communicates with the NIC hardware (or the virtual loopback interface for intra-host socket) to send and receive packets.
 It is well known that the VFS layer contributes a large portion of cost~\cite{clark1989analysis,boyd2010analysis}.
-This can be verified by a simple experiment: the latency and throughput of Linux TCP socket between two processes in a host is only a little worse than pipe, FIFO and Unix domain socket (Table~\ref{tab:overhead}).
+This can be verified by a simple experiment: the latency and throughput of Linux TCP socket between two processes in a host is only a little worse than pipe, FIFO and Unix domain socket (Table~\ref{tab:operation-performance}).
 Pipe, FIFO and UNIX domain socket bypass the transport and NIC layers, but their performance is still not satisfactory.
 
 %In the following we analyze the overhead in Linux socket.
