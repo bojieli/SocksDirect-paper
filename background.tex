@@ -192,9 +192,9 @@ In the following, we categorize socket overhead into four types of overheads: pe
 			Per byte & Payload copy & Page remapping (\S\ref{subsec:zerocopy}) \\
 			\hline
 			\hline
-			Per conn. & Locks in TCB management & Distribute to \libipc{} (\S\ref{subsec:connection-management}) \\
+			Per conn. & Kernel FD allocation & Distribute to \libipc{} (\S\ref{subsec:connection-management}) \\
 			\hline
-			Per conn. & Locks in FD allocation & Distribute to \libipc{} (\S\ref{subsec:connection-management}) \\
+			Per conn. & Locks in TCB management & Distribute to \libipc{} (\S\ref{subsec:connection-management}) \\
 			\hline
 			Per conn. & New connection dispatch & Monitor daemon (\S\ref{subsec:connection-management}) \\
 			\hline
@@ -290,6 +290,8 @@ We leverage the fact that shared memory message passing is much cheaper than loc
 			Atomic shared memory queue & 1.0 & 6.1 \\
 			\hline
 			Map 32 pages (128~KiB) & 1.2 & 0.8 \\
+			\hline
+			Open a socket FD & 1.6 & 0.6 \\
 			\hline
 			One-sided RDMA write & 1.6 & 13 \\
 			\hline
@@ -409,7 +411,9 @@ So, \libipc{} runs every socket operation to completion and use polling to wait 
 			\hline
 			Payload copy & & \yes & & & \yes & & & & & \yes \\
 			\hline
-			Per connection overheads & \yes & \yes &  &  & \yes & & & & & \yes \\
+			Kernel FD allocation & & \yes &  &  & \yes & & & & & \yes \\
+			\hline
+			TCB mgmt \& Connection dispatch & \yes & \yes & \yes & \yes & \yes & & & & & \yes \\
 			\hline
 		\end{tabularx}
 	}
@@ -461,8 +465,16 @@ We aim to allow zero copy for large transfers in standard socket applications.
 \label{subsec:per-connection-overhead}
 \quad
 
-\parab{Locks in TCB and FD management.}
-During connection establishment, Linux acquires several global locks to allocate the TCB (TCP control block) and socket FD in VFS.
+\parab{Kernel FD allocation.}
+In Linux, each socket connection is a file in VFS, so an integer FD and an \emph{inode} need to be allocated.
+The challenge for a user-space socket is that there are many APIs (e.g. open, close and epoll) that support both socket and non-socket FDs (e.g. files and devices), so we must distinguish socket FDs from others.
+Linux compatible sockets in user space~\cite{libvma,rsockets} typically open a file in kernel to obtain a FD for each socket, so they still need kernel FD allocation.
+LOS~\cite{huang2017high} partitions the FD space to user and kernel portions, but violates the property that Linux allocates the smallest available FD.
+However, Redis~\cite{redis} and Memcached~\cite{memcached} rely on this property.
+We aim to bypass kernel in socket FD allocation while keeping compatibility.
+
+\parab{Locks in TCB management.}
+During connection establishment, Linux acquires several global locks to allocate the TCB (TCP control block).
 Recent works such as MegaPipe~\cite{han2012megapipe} and FastSocket~\cite{lin2016scalable} reduce lock contention by partitioning the global tables, but as Table~\ref{tab:operation-performance} shows, non-contended spinlocks are still expensive.
 We distribute the work to the user-space library \libipc{} in each process.
 
@@ -513,13 +525,16 @@ LibVMA~\cite{libvma}, OpenOnload~\cite{openonload}, DBL~\cite{dbl} and LOS~\cite
 
 User-space TCP/IP stacks provide much better performance than Linux, but still not close to RDMA and shared memory.
 Part of the reason is that none of existing works support sharing a socket among threads and processes, causing compatibility problems in fork and container live migration, and multi-thread locking overhead as well.
-First, when a process forks, only one of the parent and child processes can use existing sockets, and the choice needs to be pre-configured statically.
-However, many web services~\cite{apache,php-fpm,python-gunicorn,vsftpd} have a master process to accept a connection and read the request header, then it may fork off a child process to handle the request, where the child needs to access the socket.
+
+First, when a process forks, only one of the parent and child processes can use existing sockets.
+However, many web services~\cite{apache,nginx,php-fpm,python-gunicorn,vsftpd} and key-value stores~\cite{memcached} have a master process to accept a connection and (optionally) read the request header, then it may fork off a child process to handle the request, where the child needs to access the socket.
 At the same time, the parent process still needs to accept new connections via existing sockets.
 This makes such web services fail to work.
 A more tricky case is that parent and child processes may concurrently write to logging servers via existing sockets.
+
 Second, container live migration is related to fork.
 It resembles forking a container (to a new host) and the child container should still be able to access the socket.
+
 Third, multi-threading is common in applications.
 Either the application takes the risk of race conditions in socket operations, or a socket FD lock must be taken per operation.
 The latter approach guarantees correctness, but locking hurts performance even if there is no contention.
@@ -531,12 +546,14 @@ RDMA uses hardware offloading to provide ultra low latency and near zero CPU ove
 RSocket~\cite{rsockets} and SDP~\cite{socketsdirect} implement a socket connection as an RDMA RC QP and translate socket operations to RDMA verbs.
 FreeFlow~\cite{nsdi19freeflow} designs a software switch to virtualize an RDMA NIC for container overlay network, which leverages shared memory for intra-host and RDMA for inter-host communication.
 FreeFlow uses RSocket to translate socket to RDMA.
+
 However, these works have limitations.
 On the compatibility side, first, they lack support for several important APIs, e.g. \texttt{epoll}, so it is not compatible with many applications including Nginx, Memcached, Redis, etc.
 This is because RDMA does not support \texttt{epoll} as well.
 Second, RDMA connection does not support \texttt{fork} and container live migration~\cite{nsdi19freeflow}, so RSocket has the same problems.
-Third, RSocket requires the remote peer also uses RSocket, and fails to connect regular TCP/IP peers.
-This makes incremental deployment difficult for unmodified applications.
+Third, because RSocket uses RDMA as wire protocol, it cannot connect to regular TCP/IP peers.
+This is a deployment challenge because all hosts and applications in a distributed system must switch to RSocket simutanenously.
+We aim to transparently detect whether the remote side supports Rsocket, and fall back to TCP/IP if not.
 On the performance side, they fail to remove payload copy, socket FD locks, buffer management, process wakeup and the per connection overheads.
 In addition, they use two-sided RDMA \texttt{send} and \texttt{recv}, but one-sided RDMA \texttt{write} has higher throughput due to lower CPU cost on receive side (Table~\ref{tab:operation-performance}).
 %However, such simple translations suffer from throughput degradation with a large number of concurrent connections. This is because RDMA NIC keeps per-connection states using a $\approx$2~MB~\cite{kalia2018datacenter} on-NIC memory as cache. With hundreds of concurrent connections, we will suffer from frequent cache misses, resulting in serious throughput degradation~\cite{mprdma,kaminsky2016design}. 
