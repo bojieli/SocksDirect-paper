@@ -271,6 +271,8 @@ We leverage the fact that shared memory message passing is much cheaper than loc
 			\hline
 			Spinlock (no contention) & 0.10 & 10 \\
 			\hline
+			Allocate and deallocate a buffer & 0.13 & 7.7 \\
+			\hline
 			Spinlock (contended) & 0.20 & 5 \\
 			\hline
 			Lockless shared memory queue & 0.25 & 27 \\
@@ -283,15 +285,15 @@ We leverage the fact that shared memory message passing is much cheaper than loc
 			\hline
 			Cooperative context switch & 0.52 & 2.0 \\
 			\hline
-			Map 1 page (4~KiB) & 0.78 & 1.3 \\
+			Map one page (4~KiB) & 0.78 & 1.3 \\
 			\hline
 			Atomic shared memory queue & 1.0 & 6.1 \\
 			\hline
 			Map 32 pages (128~KiB) & 1.2 & 0.8 \\
 			\hline
-			Two-sided RDMA & 1.6 & 8 \\
+			One-sided RDMA write & 1.6 & 13 \\
 			\hline
-			One-sided RDMA & 1.6 & 13 \\
+			Two-sided RDMA send / recv & 1.6 & 8 \\
 			\hline
 			\textbf{Inter-host \sys} & 1.7 & 8 \\
 			\hline
@@ -331,6 +333,7 @@ NICs exchange packets with host CPU via \emph{ring buffers}.
 A ring buffer is composed of a fixed number of fixed-length metadata entries.
 Each entry points to a buffer that stores the packet payload.
 To send or receive a packet, a buffer needs to be allocated and deallocated.
+The cost is shown in Table~\ref{tab:operation-performance}.
 Further, to ensure MTU-sized packets can be received, each receive buffer should have the size of at least one MTU.
 However, many packets are smaller than MTU~\cite{thompson1997wide}, so the internal fragmentation decreases memory utilization and locality.
 Although modern NICs support LSO and LRO~\cite{lsolro} to batch multiple packets in a buffer, we aim to completely remove the overheads with a novel wire protocol that take advantage of RDMA.
@@ -535,6 +538,7 @@ Second, RDMA connection does not support \texttt{fork} and container live migrat
 Third, RSocket requires the remote peer also uses RSocket, and fails to connect regular TCP/IP peers.
 This makes incremental deployment difficult for unmodified applications.
 On the performance side, they fail to remove payload copy, socket FD locks, buffer management, process wakeup and the per connection overheads.
+In addition, they use two-sided RDMA \texttt{send} and \texttt{recv}, but one-sided RDMA \texttt{write} has higher throughput due to lower CPU cost on receive side (Table~\ref{tab:operation-performance}).
 %However, such simple translations suffer from throughput degradation with a large number of concurrent connections. This is because RDMA NIC keeps per-connection states using a $\approx$2~MB~\cite{kalia2018datacenter} on-NIC memory as cache. With hundreds of concurrent connections, we will suffer from frequent cache misses, resulting in serious throughput degradation~\cite{mprdma,kaminsky2016design}. 
 
 
