@@ -30,7 +30,7 @@
 
 %As shown in Figure~\ref{fig:architecture}, the core component of \sys{} is a user-space library \libipc{}.
 
-To simplify deployment and development~\cite{andromeda}, we implement \sys in user space rather than kernel.
+To simplify deployment and development~\cite{andromeda}, as well remove kernel crossing overhead, we implement \sys in user space rather than kernel.
 To use \sys, an application loads a user-space library \libipc{} by setting the \texttt{LD\_PRELOAD} environment variable. \libipc{} intercepts all Linux APIs in standard C library that are related to file descriptor (FD) operations. It uses a \emph{FD remapping table} to distinguish socket FDs from kernel FDs (e.g. file and devices), implements socket functions in user space and forwards others to the kernel.
 From a security point of view, because \libipc{} resides in the application address space, we cannot trust its behavior. For example, a malicious application may bypass firewall policies if it is enforced in \libipc{}. Furthermore, TCP port is a global resource that needs centralized allocation~\cite{lin2016scalable,nsdi19freeflow}. Therefore, we need a trusted component outside \libipc{} to enforce access control and manage global resources.
 
