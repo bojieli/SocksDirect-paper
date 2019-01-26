@@ -86,7 +86,7 @@ Finally, to enable multiple threads to time-share a CPU core, Sec.~\ref{subsec:p
 	\centering
 	\includegraphics[width=0.3\textwidth]{images/queue_arch}
 	\vspace{-5pt}
-	\caption{Lock-free socket sharing. Dashed arrows indicate the active sender and receiver of a socket. Each thread tracks its active sockets and communicates with the monitor via an exclusive queue.}
+	\caption{Lock-free socket sharing with two sender and two receiver threads. Dashed arrows indicate the active sender and receiver of each socket. Each thread tracks its active sockets and communicates with the monitor via an exclusive queue.}
 	\label{fig:queue-arch}
 \end{figure}
 
@@ -184,7 +184,7 @@ The take over process on the receiver side is similar.
 	\centering
 	\includegraphics[width=0.33\textwidth]{images/fork_memory}
 	\vspace{-5pt}
-	\caption{Memory layout after fork. FDs 3 and 4 are created before fork and thus shared. After fork, parent and child processes each creates a new FD 5, which is copied on write in FD table. The child process creates a new SHM to store socket data of FD 5. RDMA QPs are in private memory, while SHM queues are shared.}
+	\caption{Memory layout after fork. FDs 3 and 4 are created before fork and thus shared. After fork, parent and child processes each creates a new FD 5, which is copied on write in FD table. So, parent and child see different FD tables. Socket metadata and buffers of FDs 3 and 4 are in SHM and thus shared. The child process creates a new SHM to store socket metadata and buffers of FD 5, which will be shared to its child when it forks again. RDMA QPs are in private memory, while SHM queues are shared. The RDMA QP for child process is created on demand.}
 	\label{fig:fork-memory}
 \end{figure}
 
