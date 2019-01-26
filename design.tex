@@ -34,8 +34,8 @@
 %As shown in Figure~\ref{fig:architecture}, the core component of \sys{} is a user-space library \libipc{}.
 
 Figure~\ref{fig:architecture} gives the architecture of \sys. To use \sys, an application loads a user-space library \libipc{} by setting the \texttt{LD\_PRELOAD} environment variable. \libipc{} intercepts all Linux APIs in \texttt{glibc} that are related to file descriptor operations. It implements socket APIs in user space and forwards the other APIs to the kernel.
-Implementing \sys in user space rather than kernel has two advantages: the kernel crossing overhead is removed, and user space code is easier to debug and deploy~\cite{andromeda}.
-From a security point of view, because \libipc{} resides in the application address space, we cannot trust its behavior. Therefore, we need a trusted component outside \libipc{} to enforce access control and support address translation for container networks.
+Implementing \sys in user space rather than kernel has two advantages: user space code is easier to debug and deploy~\cite{andromeda}, and the kernel crossing overhead is removed.
+From a security point of view, because \libipc{} resides in the application address space, we cannot trust its behavior. For example, a malicious application may bypass firewall policies if it is enforced in \libipc{}. Furthermore, TCP port is a global resource that needs centralized allocation~\cite{lin2016scalable,nsdi19freeflow}. Therefore, we need a trusted component outside \libipc{} to enforce access control and manage global resources.
 
 To this end, we design a \emph{monitor} daemon at each host to coordinate control plane operations, e.g., connection creation. The \emph{monitor} daemon is started before applications. In each host, all the applications loading \libipc{} must establish a shared memory queue with the host's monitor daemon, forming the control plane. On the data plane, applications build peer-to-peer queues to communicate directly, thus relieving the burden of the monitor daemon.
 
