@@ -43,6 +43,7 @@ To this end, we design a \emph{monitor} daemon at each host to coordinate contro
 
 To achieve low latency and high throughput, \sys{} uses SHM for intra-host and RDMA for inter-host communication.
 Each socket connection is mapped to a SHM queue or RDMA QP.
+A socket send operation is typically translated to a SHM or RDMA write.
 We now describe the procedure of \emph{intra-host} communication. The communication initiator first sends a request to the local monitor, then the monitor establishes a shared memory queue between the two applications (possibly in different containers). Afterwards the two applications can communicate directly.
 
 
@@ -58,8 +59,8 @@ If so, it establishes an RDMA queue between the two monitors, so that future con
 To ensure thread safety and avoid locking, as well support fork and container live migration, we optimize for the common case where only one pair of send and receive threads are active, while ensure correctness in all cases (Sec.~\ref{subsec:fork}).
 %With the control plane mechanisms above, a socket connection is mapped to a queue with a pair of active sender and receivers.
 %The data plane aims to implement the queue efficiently.
-To remove buffer management overheads, we design a queue structure that only requires one RDMA write operation per inter-host message and one cache migration per intra-host message (Sec.~\ref{subsec:lockless-queue}).
-Based on the queue structure, we further design a zero copy mechanism that removes data copy on both send and receive side for large messages (Sec.~\ref{subsec:zerocopy}).
+To remove buffer management overheads, we design a ring buffer that only requires (amortized) one RDMA write operation per inter-host message and one cache migration per intra-host message (Sec.~\ref{subsec:lockless-queue}).
+We further design a zero copy mechanism that removes data copy on both send and receive side for large messages (Sec.~\ref{subsec:zerocopy}).
 Finally, to enable multiple threads to time-share a CPU core, Sec.~\ref{subsec:process-mux} presents our cooperative multitasking mechanism.
 
 %In order to remove synchronization overhead for multi-threaded applications, we treat each thread as a separate process.

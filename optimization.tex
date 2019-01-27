@@ -231,6 +231,13 @@ If \libipc{} continues to yield for a certain number of rounds, it will put itse
 %The detailed procedure is as follows.
 
 
+\begin{figure}[t!]
+	\centering
+	\includegraphics[width=0.3\textwidth]{images/conn-setup-new}
+	\vspace{-5pt}
+	\caption{State machine of connection setup in \libipc{}.}
+	\label{fig:conn-setup}
+\end{figure}
 
 
 This section presents the details of connection establishment and teardown procedure, as outlined in Sec.~\ref{sec:architecture}.
@@ -276,13 +283,6 @@ If either the client or the server monitor finds out that the peer is a regular 
 then executes delegated socket operations via the user-space TCP stack, as shown between host 1 and 3 in Figure~\ref{fig:architecture}.
 
 
-\begin{figure}[t!]
-	\centering
-	\includegraphics[width=0.3\textwidth]{images/conn-setup-new}
-	\vspace{-5pt}
-	\caption{State machine of connection setup in \libipc{}.}
-	\label{fig:conn-setup}
-\end{figure}
 
 \parab{Dispatch new connections to listeners.}
 Let's continue with the connect creation procedure assuming that both ends support \sys{}.
