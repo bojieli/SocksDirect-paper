@@ -217,7 +217,6 @@ We aim to bypass kernel without compromising security.
 %First, unlike FreeBSD, the asynchronous interface for reading and writing disk files in Linux cannot leverage OS cache and buffer, so the applications keep using a synchronous interface with multiple threads~\cite{nginx-multi-thread}.
 %Second, many web application frameworks prefer a synchronous programming model to process each user request because it is easier to write and debug~\cite{barroso2017attack}.
 Multiple threads in a process share socket connections. In addition, after a process forks, both parent and child processes share existing sockets. Sockets can also be passed to another process through Unix domain socket. To protect concurrent operations, Linux kernel acquires a per-socket lock for each socket operation~\cite{boyd2010analysis,han2012megapipe,lin2016scalable}. Table~\ref{tab:operation-performance} shows that a shared memory queue protected by atomic operations has 4x latency and 22\% throughput of a lockless queue, even if there is no contention.
-
 We aim to minimize synchronization overhead by optimizing for the common cases and remove synchronizations in frequently used socket operations.
 
 
@@ -463,9 +462,9 @@ We aim to allow zero copy for large transfers in standard socket applications.
 \parab{Kernel FD allocation.}
 In Linux, each socket connection is a file in VFS, so an integer FD and an \emph{inode} need to be allocated.
 The challenge for a user-space socket is that there are many APIs (e.g. open, close and epoll) that support both socket and non-socket FDs (e.g. files and devices), so we must distinguish socket FDs from others.
-Linux compatible sockets in user space~\cite{libvma,rsockets} typically open a file in kernel to obtain a FD for each socket, so they still need kernel FD allocation.
+Linux compatible sockets in user space~\cite{libvma,rsockets} typically open a file in kernel to obtain a dummy FD for each socket, so they still need kernel FD allocation.
 LOS~\cite{huang2017high} partitions the FD space to user and kernel portions, but violates the property that Linux allocates the smallest available FD.
-However, Redis~\cite{redis} and Memcached~\cite{memcached} rely on this property.
+However, many applications such as Redis~\cite{redis} and Memcached~\cite{memcached} rely on this property.
 We aim to bypass kernel in socket FD allocation while keeping compatibility.
 
 \parab{Locks in TCB management.}

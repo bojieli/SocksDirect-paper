@@ -204,7 +204,9 @@ SHM transport does not need special care, because a SHM created before fork/exec
 However, RDMA has problem with fork/exec because the DMA memory regions are not in SHM.
 They become copy-on-write after fork, while the NIC still DMAs from the original physical pages, so the child process cannot use existing RDMA resources.
 After exec, the entire RDMA context is wiped out.
-Our solution is to let the child process re-initialize RDMA resources (PD, MR, etc.) after fork/exec, and re-establish an RDMA QP if it needs to use an existing socket.
+Our solution is to let the child process re-initialize RDMA resources (PD, MR, etc.) after fork/exec.
+When a child process uses a socket created before fork, it asks the monitor to re-establish an RDMA QP with the remote endpoint.
+So, the remote may see two or more QPs for one socket, but they link to the unique copy of socket metadata and buffer.
 Figure~\ref{fig:fork-memory} shows an example of fork.
 
 \parab{FD space sharing.}
@@ -285,9 +287,9 @@ Finally, \libipc{} re-establishes remaining inter-host RDMA and intra-host share
 %To avoid creating redundant queues and connection states, \libipc does not share the FD eagerly with other threads, because most threads in existing applications do not use connections created by other threads.
 %When a thread do want to accesses a FD that belongs to another thread, \libipc sends a message to the owner thread and requests sharing the FD. %This procedure is exactly the same as sharing existing connections during thread creation (Sec.~\ref{subsubsec:fork_fork}). %The sharing procedure only happens once for every connection and thread. Sharing existing connections eagerly during thread creation is an optimization. First, children threads are more likely to use existing connections than siblings. Second, batch processing improves performance.
 
-\subsubsection{Connection Close}
-\label{subsubsec:fork_close}
-\quad
+%\subsubsection{Connection Close}
+%\label{subsubsec:fork_close}
+%\quad
 
 %Close is the operation that all of the processes leave the connection. The synchronization is  especially challenging since all the processes are run in parallel. One challenge lies in file descriptors are managed by decentralized processes and are possibly reused. One process close a connection while the others are doing compute intensive tasks is a case. It is possible that the file descriptor of the old process is reused and a new connection is setup with the same file descriptor. The other process may notice the close of the old connection and also call close on its own side, which lead to the new connection setup by the previous process closed due to the match of same file descriptor. 
 
@@ -295,7 +297,7 @@ Finally, \libipc{} re-establishes remaining inter-host RDMA and intra-host share
 
 %\parab{Broadcast.}
 %When a process calls \texttt{close}, all its peers cannot send to or receive from the FD. In this sense, 
-A socket is closed if all shared processes close it. So, we need to multicast a notification to the peers and collect responses from them. A challenge arises when \texttt{close} is interleaved with \texttt{fork}. Since \texttt{fork} and \texttt{close} do not commute~\cite{clements2015scalable}, we need a rule to determine their partial order. We make the choice that the ordering is determined by the initiator of \texttt{close}. If a process calls \texttt{close} before receiving fork notification, it will piggyback close notification with fork completion to both parent and child processes.
+%A socket is closed if all shared processes close it. So, we need to multicast a notification to the peers and collect responses from them. A challenge arises when \texttt{close} is interleaved with \texttt{fork}. Since \texttt{fork} and \texttt{close} do not commute~\cite{clements2015scalable}, we need a rule to determine their partial order. We make the choice that the ordering is determined by the initiator of \texttt{close}. If a process calls \texttt{close} before receiving fork notification, it will piggyback close notification with fork completion to both parent and child processes.
 
 %\parab{Handshake before releasing resource.}
 %Another challenge is caused by FD reuse after close. As stated in Sec.~\ref{subsec:socket-api}, a FD is deleted after receiving shutdown message of both directions. With multiple processes sharing a connection, after one process calls \texttt{close}, others can still use the connection. Consequently, a process deletes a FD only after receiving shutdown messages of both directions from all peers of the FD.
