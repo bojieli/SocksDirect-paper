@@ -84,11 +84,11 @@ For small messages, \sys achieves 0.3$\mu$s round-trip latency and up to 23~M me
 \parab{Use RDMA efficiently for inter-host socket.}
 \sys achieves  1.7$\mu$s round-trip latency and 8M messages per second throughput, close to raw RDMA performance.
 
-\parab{Robust with number of connections.}
-The performance above can be maintained with up to 100 million connections.
+%\parab{Robust with number of connections.}
+%The performance above can be maintained with up to 100 million connections.
 
 \parab{Scale with number of cores.}
-The performance above is linearly scalable with number of cores. In addition, a single CPU core can create 1.4~M connections per second.
+The performance above is linearly scalable with number of cores. %In addition, a single CPU core can create 1.4~M connections per second.
 
 %\parab{Corner-case operations does not affect long-term performance.}
 %After corner-case operations such as \texttt{fork}, the performance recovers quickly.
@@ -148,11 +148,11 @@ For 2~KiB and larger messages, \sys saturates the network bandwidth, which is 2x
 	\end{minipage}
 	\hspace{0.01\textwidth}
 	\begin{minipage}{.31\textwidth}
-		\centering
-		\includegraphics[width=\textwidth]{eval/microbenchmark/conn-setup-tput.pdf}
-		\vspace{-10pt}
-		\caption{Connection creation throughput with number of cores.}
-		\label{fig:eval-conn-setup-tput}
+		%\centering
+		%\includegraphics[width=\textwidth]{eval/microbenchmark/conn-setup-tput.pdf}
+		%\vspace{-10pt}
+		%\caption{Connection creation throughput with number of cores.}
+		%\label{fig:eval-conn-setup-tput}
 		
 		%\begin{minipage}{0.4\textwidth}
 		\centering \includegraphics[width=\textwidth]{eval/microbenchmark/sharecore-lat.pdf}
@@ -188,11 +188,11 @@ For 2~KiB and larger messages, \sys saturates the network bandwidth, which is 2x
 \subsection{Scalability}
 
 
-Figure~\ref{fig:eval-connnum-tput} shows the throughput with different number of concurrent connections.
-We establish connections between two processes before testing, then send and receive data from the connections in a round-robin order.
-\sys can support more than 100 million concurrent connections with 16~GiB of memory, and the throughput does not degrade under such high concurrency.
-\sys achieves connection stability by multiplexing connections via a single queue.
-In comparison, the performance of RDMA, LibVMA and Linux drops quickly as the number of connections increase. There is a sharp performance drop with more than 512 RDMA connections, because the RDMA transport states saturate the NIC cache. Although LibVMA and Linux do not use RDMA as transport, they maintain per-FD buffers, which lead to CPU cache and TLB miss with thousands of connections. Furthermore, LibVMA installs flow steering rules to NIC for each connection, which also leads to NIC cache miss.
+%Figure~\ref{fig:eval-connnum-tput} shows the throughput with different number of concurrent connections.
+%We establish connections between two processes before testing, then send and receive data from the connections in a round-robin order.
+%\sys can support more than 100 million concurrent connections with 16~GiB of memory, and the throughput does not degrade under such high concurrency.
+%\sys achieves connection stability by multiplexing connections via a single queue.
+%In comparison, the performance of RDMA, LibVMA and Linux drops quickly as the number of connections increase. There is a sharp performance drop with more than 512 RDMA connections, because the RDMA transport states saturate the NIC cache. Although LibVMA and Linux do not use RDMA as transport, they maintain per-FD buffers, which lead to CPU cache and TLB miss with thousands of connections. Furthermore, LibVMA installs flow steering rules to NIC for each connection, which also leads to NIC cache miss.
 
 
 
@@ -211,7 +211,7 @@ The Linux throughput scales linearly from 1 to 7 cores and bottlenecks on the lo
 %The multi-thread scalability of \sys attributes to the partitioning of states and removal of synchronization.
 %We can also see that shared memory communication has 5x throughput than RDMA.% Using RDMA NIC for intra-host socket would meet this bottleneck and thus not scalable.
 
-Figure~\ref{fig:eval-conn-setup-tput} shows the throughput of connection creation with different number of cores. Each core can create 1.4~M new connections per second, which is 20x of Linux and 2x of mTCP~\cite{jeong2014mtcp}. The upper bound is 5.3~M connections per second, where the monitor becomes a bottleneck.
+%Figure~\ref{fig:eval-conn-setup-tput} shows the throughput of connection creation with different number of cores. Each core can create 1.4~M new connections per second, which is 20x of Linux and 2x of mTCP~\cite{jeong2014mtcp}. The upper bound is 5.3~M connections per second, where the monitor becomes a bottleneck.
 
 
 Now we evaluate the performance of cooperative multitasking.
