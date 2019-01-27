@@ -26,8 +26,6 @@
 	\caption{Ring buffer data structures. Shaded part is packet metadata, and black part is payload.}
 \end{figure}
 
-\RED{Need a performance comparison figure of ring buffer architectures.}
-
 Traditionally, the network stack send and receive packets from NICs using a ring buffer.
 As Figure~\ref{fig:ringbuffer-traditional} shows, it leads to buffer management overhead and internal fragmentation.
 Traditional NICs support a limited number of ring buffers, so multiple connections may multiplex through one ring buffer, and this design enables moving payload to per-connection buffers without copy.
@@ -92,6 +90,10 @@ Each thread uses a \emph{shared completion queue} for all RDMA connections, so i
 Second, each queue can switch between \textit{polling} and \textit{interrupt} modes. The queue to the monitor is always in polling mode. Receiver of each queue maintains a counter of consecutive empty polls. When it exceeds a threshold, the receiver sends a message to sender notifying that the queue is entering interrupt mode, and stops polling after a short period. When sender writes to a queue in interrupt mode, it also notifies the monitor and the monitor will signal the receiver to resume polling.
 
 
+
+
+\RED{Need a performance comparison figure of ring buffer architectures. (traditional ring buffer, new ring buffer, intra, inter, x axis: msg size, y axis: throughput)}
+
 \subsection{Zero Copy}
 \label{subsec:zerocopy}
 
@@ -110,8 +112,6 @@ Second, each queue can switch between \textit{polling} and \textit{interrupt} mo
 	\caption{Procedure to send a page with zero copy.}
 \end{figure}
 
-
-\RED{Need a performance comparison figure for copy, batch page remapping, single page remapping, etc.}
 
 As Sec.~\ref{subsec:per-byte-overhead} discussed, the main challenge for zero copy is to maintain the semantics of socket API.
 Fortunately, virtual memory provides a layer of indirection, and many works leverage this \emph{page remapping} technique.
