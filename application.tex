@@ -1,19 +1,25 @@
 \subsection{Application Performance}
 \label{subsec:application}
 
-\RED{Need more content on applications. Nginx, Redis / Memcached. ZeroMQ. eRPC.}
-
 In this section, we demonstrate that \sys{} can significantly improve the performance of real-world applications without modifying the code.
 
-\subsubsection{Nginx}
+\subsubsection{Nginx HTTP Server}
+\quad
 
-We use an Nginx~\cite{nginx}
+We use an Nginx~\cite{nginx} as reverse proxy. Request come from another host, proxied to a web service in the same host, which generates a fixed-sized HTTP response.
 
-\subsubsection{Redis}
+Figure: throughput vs request size.
+
+Figure: small request scalability with number of cores.
+
+\subsubsection{Redis Key-Value Store}
+\quad
 
 Redis~\cite{redis}
 
-Intra-host, inter-host
+Figure: line chart, y axis: throughput, lines: (intra-, inter-) x (\sys{}, libvma, Linux). x axis: key-value size.
+
+Utility: redis-benchmark.
 
 %\subsection{Real-time Stream Processing}
 
@@ -22,3 +28,22 @@ Intra-host, inter-host
 %Scenario: Word Count (distributed system with one source, two mappers and one reducer)
 
 %Metrics: Latency, throughput
+
+\subsubsection{ZeroMQ Message Queue}
+\quad
+
+Figure: line chart, y axis: latency, lines: (intra-, inter-) x (\sys{}, libvma, Linux), x axis: msg size.
+
+Utility: zeromq official test.
+
+\subsubsection{Network Function Chain}
+\quad
+
+Each network function is a process that inputs from stdin and outputs to stdout. Standard pcap packet format. use \emph{pipe} to connect. Compare with Linux pipe and state-of-the-art. Figure~\ref{fig:eval-tun-tput}
+Key point: intra-host is important.
+
+\subsubsection{GraphX on Spark}
+\quad
+
+Two nodes run distributed PageRank.
+Test elapsed time per iteration with \sys{}, libvma and Linux. (Only need three numbers, no figure.)
