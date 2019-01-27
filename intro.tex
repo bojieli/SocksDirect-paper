@@ -143,9 +143,11 @@ The performance above is scalable with number of cores. %Each thread can establi
 
 \RED{Application performance?}
 
-In summary, we make the following contributions:
+In summary, this work makes the following contributions:
 \begin{ecompact}
-	\item \RED{TODO}
+	\item Design and implementation of \sys{}, a high performance user space socket system that is compatible with Linux and preserves isolation among applications.
+	\item Techniques to support fork, lockless socket sharing, allocation free ring buffer and zero copy that may be useful in many scenarios.
+	\item Evaluations show that \sys{} can achieve performance that is comparable to RDMA and SHM queue, as well speedup real-world applications significantly.
 \end{ecompact}
 
 %We evaluate end-to-end performance of \sys{} using two categories of applications: \textit{network functions} and \textit{web services}. For a multi-core pipelined network function (NF) chain, a socket application achieves comparable performance with a state-of-the-art NF framework~\cite{panda2016netbricks}. We also evaluate \sys{} on a standard web application composed of a load balancer, a web service and a key-value store.

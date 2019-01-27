@@ -63,7 +63,7 @@ To ensure thread safety and avoid locking, as well support fork and container li
 %The data plane aims to implement the queue efficiently.
 To remove buffer management overheads, we design a ring buffer that only requires (amortized) one RDMA write operation per inter-host message and one cache migration per intra-host message (Sec.~\ref{subsec:lockless-queue}).
 We further design a zero copy mechanism that removes data copy on both send and receive side for large messages (Sec.~\ref{subsec:zerocopy}).
-Finally, to enable multiple threads to time-share a CPU core, Sec.~\ref{subsec:process-mux} presents our cooperative multitasking mechanism.
+Finally, to enable multiple threads to time-share a CPU core, Sec.~\ref{subsec:process-mux} presents our event notification mechanism.
 
 %In order to remove synchronization overhead for multi-threaded applications, we treat each thread as a separate process.
 %%Although threads in a process share memory, we use thread-specific storage for most states in \libipc{}.

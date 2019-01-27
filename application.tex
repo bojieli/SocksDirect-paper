@@ -4,30 +4,16 @@
 \RED{Need more content on applications. Nginx, Redis / Memcached. ZeroMQ. eRPC.}
 
 In this section, we demonstrate that \sys{} can significantly improve the performance of real-world applications without modifying the code.
-We evaluate a widely used web service scenario: an Nginx load balancer is connected with a simple multi-thread backend web service, while the web service accesses Memcached key-value store for a certain number of round-trips. All services run on a same host and we benchmark from another host.
 
-Figure~\ref{fig:eval-nginx-multiround} shows the end-to-end latency with different number of round-trips between the web service and key-value store.
-For multiple round-trip queries, the end-to-end HTTP latency of \sys{} is only 15\% of Linux.
-As we measured, Linux socket takes 69\% of the total CPU time before using \libipc.
-Figure~\ref{fig:eval-http-tput} shows that \sys{} throughput of the multi-thread backend web service is 3.5 to 4 times of Linux and scales with multiple cores.
+\subsubsection{Nginx}
 
+We use an Nginx~\cite{nginx}
 
-%\subsection{Network Function}
+\subsubsection{Redis}
 
-%Network Function Virtualization is prevalent and widely used in modern datacenters. We build up a chain of Network Functions (NF) with different lengths in one host. Each NF in the chain runs as a process and is pinned on one CPU core. It receives packets from the predecessor, modifies one byte of each packet, then sends them to the successor. We compare the performance of \sys{} with Linux socket and NetBricks~\cite{panda2016netbricks}, a highly optimized NF framework. Figure~\ref{fig:eval-tun-tput} shows that our \sys achieves performance that is comparable with NetBricks and scalable with number of cores.
+Redis~\cite{redis}
 
-
-
-%\subsection{Web Application}
-
-
-%, Nodejs~\cite{nodejs} and memcached~\cite{memcached}
-
-%\begin{itemize}
-%	\item Figure~\ref{fig:eval-nginx-short}: Many short-lived connections. %Nginx $\rightarrow$ Nodejs, Nodejs access memcached once.
-%	\item Figure~\ref{fig:eval-nginx-multiround}: Each connection, backend %interact extensively. (Nodejs access memcached multiple round trips.)
-%\end{itemize}
-
+Intra-host, inter-host
 
 %\subsection{Real-time Stream Processing}
 
@@ -36,11 +22,3 @@ Figure~\ref{fig:eval-http-tput} shows that \sys{} throughput of the multi-thread
 %Scenario: Word Count (distributed system with one source, two mappers and one reducer)
 
 %Metrics: Latency, throughput
-
-%\subsection{Machine Learning}
-
-%Tensorflow~\cite{abadi2016tensorflow}
-
-%Scenario: (Distributed Tensorflow) Parameter server and worker on a same server.
-
-%Metrics: Time per iteration

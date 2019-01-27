@@ -173,26 +173,26 @@ In the following, we categorize socket overhead into four types of overheads: pe
 			Type & Overhead & Our Solution \\
 			\hline
 			\hline
-			Per op & Kernel crossing (syscall) & User space library (\S\ref{subsec:architecture}) \\
+			Per op & Kernel crossing (syscall) & User space library (\S\ref{sec:architecture}) \\
 			\hline
-			Per op & Socket FD locks for concurrent threads \& processes & Threads as a shared-nothing distributed system (\S\ref{subsec:fork}) \\
+			Per op & Socket FD locks for concurrent threads \& processes & Lock-free socket sharing (\S\ref{subsec:fork}) \\
 			\hline
 			\hline
-			Per packet & Transport protocol (TCP/IP) & Offload to RDMA NIC \\
+			Per packet & Transport protocol (TCP/IP) & Use RDMA / SHM (\S\ref{subsec:lockless-queue}) \\
 			\hline
-			Per packet & Buffer management & New wire protocol (\S\ref{subsec:lockless-queue}) \\
+			Per packet & Buffer management & New ring buffer (\S\ref{subsec:lockless-queue}) \\
 			\hline
-			Per packet & I/O multiplexing & Offload to RDMA NIC \\
+			Per packet & I/O multiplexing & Use RDMA / SHM (\S\ref{subsec:lockless-queue}) \\
 			\hline
-			Per packet & Interrupt handling & Polling \& run-to-completion \\
+			Per packet & Interrupt handling & Event notification (\S\ref{subsec:process-mux}) \\
 			\hline
-			Per packet & Process wakeup & Cooperative multitasking (\S\ref{subsec:process-mux}) \\
+			Per packet & Process wakeup & Event notification (\S\ref{subsec:process-mux}) \\
 			\hline
 			\hline
 			Per byte & Payload copy & Page remapping (\S\ref{subsec:zerocopy}) \\
 			\hline
 			\hline
-			Per conn. & Kernel FD allocation & Distribute to \libipc{} (\S\ref{subsec:connection-management}) \\
+			Per conn. & Kernel FD allocation & FD remapping table (\S\ref{subsec:connection-management}) \\
 			\hline
 			Per conn. & Locks in TCB management & Distribute to \libipc{} (\S\ref{subsec:connection-management}) \\
 			\hline
@@ -329,14 +329,14 @@ RDMA provides a hardware-based transport comparable to TCP/IP, therefore it is d
 For intra-host connections, we aim to completely bypass the transport protocol, as Linux pipe does.
 
 \parab{Buffer management.}
-NICs exchange packets with host CPU via \emph{ring buffers}.
+Traditionally, CPU send and receive packets from NICs via \emph{ring buffers}.
 A ring buffer is composed of a fixed number of fixed-length metadata entries.
 Each entry points to a buffer that stores the packet payload.
 To send or receive a packet, a buffer needs to be allocated and deallocated.
 The cost is shown in Table~\ref{tab:operation-performance}.
-Further, to ensure MTU-sized packets can be received, each receive buffer should have the size of at least one MTU.
+Further, to ensure MTU-sized packets can be received, each receive buffer should have a size of at least one MTU.
 However, many packets are smaller than MTU~\cite{thompson1997wide}, so the internal fragmentation decreases memory utilization and locality.
-Although modern NICs support LSO and LRO~\cite{lsolro} to batch multiple packets in a buffer, we aim to completely remove the overheads with a novel wire protocol that take advantage of RDMA.
+Although modern NICs support LSO and LRO~\cite{lsolro} to batch multiple packets in a buffer, we aim to completely remove the overhead.
 
 \parab{I/O multiplexing.}
 With legacy NICs, received packets of different connections are often mixed in the ring buffer, so the networking stack needs to sort the packets into corresponding socket buffers.
