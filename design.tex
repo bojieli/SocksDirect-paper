@@ -43,8 +43,10 @@ To this end, we design a \emph{monitor} daemon at each host to coordinate contro
 
 To achieve low latency and high throughput, \sys{} uses SHM for intra-host and RDMA for inter-host communication.
 Each socket connection is mapped to a SHM queue or RDMA QP.
-A socket send operation is typically translated to a SHM or RDMA write.
-We now describe the procedure of \emph{intra-host} communication. The communication initiator first sends a request to the local monitor, then the monitor establishes a shared memory queue between the two applications (possibly in different containers). Afterwards the two applications can communicate directly.
+A SHM or RDMA QP is marked by a unique token, so other non-root processes cannot access it.
+A socket send operation is translated to a SHM or RDMA write operation to the socket buffer on the remote endpoint.
+
+For \emph{intra-host} communication, the communication initiator first sends a request to the local monitor, then the monitor establishes a shared memory queue between the two applications (possibly in different containers). Afterwards the two applications can communicate directly.
 
 
 %During initialization, \libipc{} connects to the local monitor via a shared memory queue.

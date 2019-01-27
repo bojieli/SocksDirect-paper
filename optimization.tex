@@ -156,7 +156,7 @@ Page allocation in kernel uses a global lock, which is inefficient. \libipc{} ma
 \libipc{} also tracks the origin of received zero-copy pages.
 When a page is unmapped, if it is from another process, \libipc{} return the pages to the owner through a message.
 
-\parab{SHM: Send page addresses securely in user space.}
+\parab{Send page addresses securely via SHM.}
 For intra-host socket, we send the physical page addresses in a message in user-space queues, as step 2 in Figure~\ref{fig:zerocopy-intra}.
 We must prevent unsolicited remapping of arbitrary pages.
 To this end, \libipc{} invokes a modified NIC driver to 
