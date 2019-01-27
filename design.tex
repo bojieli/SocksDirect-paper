@@ -91,6 +91,9 @@ Finally, to enable multiple threads to time-share a CPU core, Sec.~\ref{subsec:p
 \end{figure}
 
 Most socket systems acquire a per-FD lock to enable threads and processes share a socket (Sec.~\ref{subsec:per-operation-overhead}).
+Previous work~\cite{boyd2010analysis,clements2015scalable} suggests that many socket operations are not commutable and synchronizations cannot always be avoided.
+We leverage the fact that SHM message passing is much cheaper than locking~\cite{roghanchi2017ffwd}, and use message passing as the exclusive synchronization mechanism.
+
 Logically, a socket is composed of two FIFO \emph{queues} in opposite directions, each with multiple concurrent senders and receivers.
 Our aim is to maximize the common-case performance while preserving the FIFO semantics.
 We make two observations: First, fork and thread creation are infrequent in high performance applications because of their high cost.
@@ -122,7 +125,7 @@ So there is only one active sender thread and one active receiver thread at any 
 The socket queue is shared among the threads and processes, which allows lock-free access from one sender and one receiver (details will be discussed in Sec.~\ref{subsec:lockless-queue}).
 When another thread wants to send or receive, it should request to \emph{take over} the token.
 
-\RED{Need performance comparison in a figure.}
+%\RED{Need performance comparison in a figure.}
 
 The details for each type of operations are as follows: %four types of operations: a) data transmission (\texttt{send} and \texttt{recv}), b) adding new senders and receivers (\texttt{fork} and thread creation), c) container live migration, and d) connection close.
 
@@ -215,8 +218,8 @@ To identify the parent and child relationship in the monitor, when an applicatio
 After fork, the child process creates a new SHM queue to the monitor and sends the secret (child inherits parent memory space and knows the secret).
 The monitor can thus pair the child process with the parent.
 
-\parab{Peer reaction.}
-Upon fork or thread creation, each existing socket needs to add a sender to the sending direction and a receiver to the receiving direction.
+\parab{Monitor action.}
+Upon fork, exec or thread creation, each existing socket needs to add a sender to the sending direction and a receiver to the receiving direction.
 The parent process/thread inherits the token, so the child process/thread is always inactive.
 
 %The socket queues are in SHM between parent and child processes.
@@ -291,7 +294,7 @@ Finally, \libipc{} re-establishes remaining inter-host RDMA and intra-host share
 
 %\parab{Broadcast.}
 %When a process calls \texttt{close}, all its peers cannot send to or receive from the FD. In this sense, 
-As noted in Sec.~\ref{subsec:connection-management}, closing a shared connection needs to multicast a notification to the peers and collect responses from them. A challenge arises when \texttt{close} is interleaved with \texttt{fork}. Since \texttt{fork} and \texttt{close} do not commute~\cite{clements2015scalable}, we need a rule to determine their partial order. We make the choice that the ordering is determined by the initiator of \texttt{close}. If a process calls \texttt{close} before receiving fork notification, it will piggyback close notification with fork completion to both parent and child processes.
+A socket is closed if all shared processes close it. So, we need to multicast a notification to the peers and collect responses from them. A challenge arises when \texttt{close} is interleaved with \texttt{fork}. Since \texttt{fork} and \texttt{close} do not commute~\cite{clements2015scalable}, we need a rule to determine their partial order. We make the choice that the ordering is determined by the initiator of \texttt{close}. If a process calls \texttt{close} before receiving fork notification, it will piggyback close notification with fork completion to both parent and child processes.
 
 %\parab{Handshake before releasing resource.}
 %Another challenge is caused by FD reuse after close. As stated in Sec.~\ref{subsec:socket-api}, a FD is deleted after receiving shutdown message of both directions. With multiple processes sharing a connection, after one process calls \texttt{close}, others can still use the connection. Consequently, a process deletes a FD only after receiving shutdown messages of both directions from all peers of the FD.

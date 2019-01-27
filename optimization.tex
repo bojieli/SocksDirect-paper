@@ -1,4 +1,4 @@
-\subsection{Queue Structure}
+\subsection{SHM and RDMA Ring Buffer}
 \label{subsec:lockless-queue}
 
 \iffalse
@@ -19,36 +19,56 @@
 	}
 	\hspace{0.02\textwidth}
 	\subfloat[\sys.]{
-		\includegraphics[width=0.14\textwidth]{images/ringbuffer_new}
+		\includegraphics[width=0.16\textwidth]{images/ringbuffer_new}
 		\label{fig:ringbuffer-new}
 	}
 	\vspace{-10pt}
-	\caption{Ring buffer data structures.}
+	\caption{Ring buffer data structures. Shaded part is packet metadata, and black part is payload.}
 \end{figure}
-
-\RED{A figure to compare traditional and \sys ring buffer designs.}
 
 \RED{Need a performance comparison figure of ring buffer architectures.}
 
-%We first revisit requirements of the queue between a pair of communicating threads in different applications or hosts. A sender enqueues messages sequentially. At the same time, a receiver peeks and dequeues messages at any position. The message may be a control command or data of a FD, so the message size is variable.
-%Our aim is high throughput and low latency when messages in the queue are dequeued in the same order as enqueued, and preserve liveness when dequeuing in arbitrary order.
-Shared memory and RDMA are state-of-the-art methods for inter-core and inter-host communication respectively.
-%As Figure~\ref{fig:queue-performance} shows, 
-Sharing \emph{head} and \emph{tail} pointers between sender and receiver introduces inter-core cache migration overheads in shared memory and unacceptable latency for RDMA.
-For high throughput and low latency, our principle is that each shared memory region is either writable by the sender or receiver, but never both.
-So we keep \textit{head} and \textit{tail} pointers locally in sender and receiver respectively.
-Because the receiver needs to modify \emph{isdel} and \emph{nextptr} fields, we create a \emph{shadow ring buffer} in receiver's private memory and update the corresponding offset in place of shared memory.
+Traditionally, the network stack send and receive packets from NICs using a ring buffer.
+As Figure~\ref{fig:ringbuffer-traditional} shows, it leads to buffer management overhead and internal fragmentation.
+Traditional NICs support a limited number of ring buffers, so multiple connections may multiplex through one ring buffer, and this design enables moving payload to per-connection buffers without copy.
+Fortunately, RDMA write verbs open up new design possibility.
+Our innovation is to have \emph{one ring buffer per socket connection} and store packets back-to-back, as Figure~\ref{fig:ringbuffer-new} shows.
+The sender determines the ring buffer and offset (i.e. \emph{tail} pointer), then use RDMA write verb to send the packet to the tail pointer.
+During sending, the receiver CPU does not need to do anything.
+When the receiver application calls \texttt{recv}, data is dequeued from the \emph{head} pointer.
+The process is similar for SHM because both SHM and RDMA support write primitives.
 
-\parab{Credit-based ring buffer.}
+%%We first revisit requirements of the queue between a pair of communicating threads in different applications or hosts. A sender enqueues messages sequentially. At the same time, a receiver peeks and dequeues messages at any position. The message may be a control command or data of a FD, so the message size is variable.
+%%Our aim is high throughput and low latency when messages in the queue are dequeued in the same order as enqueued, and preserve liveness when dequeuing in arbitrary order.
+%SHM and RDMA are state-of-the-art methods for intra-host and inter-host communication respectively.
+%%As Figure~\ref{fig:queue-performance} shows, 
+%Sharing \emph{head} and \emph{tail} pointers between sender and receiver introduces inter-core cache migration overheads in shared memory and unacceptable latency for RDMA.
+%For high throughput and low latency, our principle is that each shared memory region is either writable by the sender or receiver, but never both.
+%So we keep \textit{head} and \textit{tail} pointers locally in sender and receiver respectively.
+%Because the receiver needs to modify \emph{isdel} and \emph{nextptr} fields, we create a \emph{shadow ring buffer} in receiver's private memory and update the corresponding offset in place of shared memory.
+
 %Most ring buffer designs share \textit{head} and \textit{tail} pointers between sender and receiver, which introduces an additional cache migration or RDMA operation. To eliminate such overhead, we keep \textit{head} and \textit{tail} pointers locally in sender and receiver respectively.
 To tell whether the ring buffer is full, the sender maintains a \textit{queue credits} count, indicating the number of free bytes in ring buffer.
 %Many applications use the limited send buffer as a back-pressure signal to control how much data to generate.
-To achieve fair queue utilization among FDs, the sender also maintains \emph{per-FD credits}.
-When sender enqueues a message, it consumes both queue and per-FD credits. When receiver dequeues a message, it increments a counter locally, and writes a \textit{credit return flag} in sender's memory once the counter exceeds half the size of ring buffer. The sender regains queue credits upon detecting the flag, and scans the returned portion of queue to regain per-FD credits.
+%To achieve fair queue utilization among FDs, the sender also maintains \emph{per-FD credits}.
+When sender enqueues a packet, it consumes credits. When receiver dequeues a message, it increments a counter locally, and writes a \textit{credit return flag} in sender's memory once the counter exceeds half the size of ring buffer. The sender regains queue credits upon detecting the flag.
+%Notice that this mechanism is irrelevant to congestion control; the latter is handled by the NIC hardware~\cite{zhu2015congestion}.
 
-\parab{Enqueue and dequeue.}
-Sender enqueues message at \textit{tail} pointer. For shared memory queue, first, sender clears header of the next message to prevent the receiver from considering junk data in the ring buffer to be a message. Next, sender writes payload, then writes header, finally advances \textit{tail}. Receiver polls \textit{isvalid} at \textit{head} pointer, then copies the message, finally advances \textit{head}.
-For RDMA, the sender maintains a local copy of ring buffer, and we use one-sided RDMA write to synchronize updates from sender to receiver.
+\parab{Two copies of ring buffers on send and receive sides.}
+The above mechanism still incurs buffer management on the send side because the sender needs to construct RDMA message in a buffer.
+Second, it does not support container live migration because the remaining data in RDMA queue is hard to migrate.
+Third, we aim to batch small messages to improve throughput.
+To this end, we maintain a copy of ring buffers on both send and receive sides.
+The sender side writes its local ring buffer, and invokes RDMA to synchronize the sender to the receiver.
+We use an RDMA RC QP for each ring buffer, and maintain a counter of in-flight RDMA messages.
+If the counter does not exceed threshold, an RDMA message is sent for every socket \texttt{send} operation.
+Otherwise, the message is not sent, and \emph{send\_next} marks the first unsent message.
+Upon completion of an RDMA write, we send a large message containing all unsent changes (\emph{send\_next} to \emph{tail} in Figure~\ref{fig:ringbuffer-new}).
+This adaptive batching mechanism minimizes latency on idle links and maximizes throughput on busy links.
+For SHM, we have only one copy of ring buffer shared by two processes, and synchronization is done by cache coherence hardware.
+
+%Before sending, sender clears header of the next message to prevent the receiver from considering junk data in the ring buffer to be a message. Next, sender writes payload, then writes header, finally advances \textit{tail}. Receiver polls \textit{isvalid} at \textit{head} pointer, then copies the message, finally advances \textit{head}.
+%For RDMA, the sender maintains a local copy of ring buffer, and we use one-sided RDMA write to synchronize updates from sender to receiver.
 %For RDMA, it is known that one-sided verbs has higher throughput than two-sided ones; short messages has lower throughput than large ones~\cite{kalia2014using,kaminsky2016design}.
 %In light of this, the inter-host queue has two identical copies in pinned sender and receiver memory, and we use one-sided RDMA write to synchronize updates from sender to receiver.
 %\libipc{} polls CQ to limit the number of in-flight (sent but not acknowledged) messages, which is not only required by RDMA NIC, but also enables \emph{adapative batching}~\cite{li2016clicknp,li2017kv}.
@@ -59,15 +79,15 @@ For RDMA, the sender maintains a local copy of ring buffer, and we use one-sided
 \parab{Consistency between payload and metadata.}
 %One may believe that out-of-order execution in CPU may mandate the use of memory fence instructions. 
 %For shared-memory queue, 
-X86 processors from Intel and AMD provide total store ordering~\cite{sewell2010x86,intel-manual}, which implies that two writes are observed by other cores in the same order as they were written. An 8-byte \texttt{MOV} instruction is atomic, so writing a header is atomic. Because sender writes header after payload, the receiver would read a consistent message after polling \textit{isvalid} flag. Therefore, for shared-memory queue, memory fence instruction is unnecessary.
+For SHM, X86 processors from Intel and AMD provide total store ordering~\cite{sewell2010x86,intel-manual}, which implies that two writes are observed by other cores in the same order as they were written. An 8-byte \texttt{MOV} instruction is atomic, so writing a header is atomic. Because sender writes header after payload, the receiver would read a consistent message. Therefore, memory fence instruction is unnecessary.
 
 Because RDMA does not ensure write ordering within a message~\cite{infiniband2000infiniband}, we do need to make sure a message is completely arrived. Sender uses \textit{RDMA write with immediate} verb to generate completions on receiver. The receiver polls RDMA completion queue rather than the ring buffer. RDMA ensures cache consistency on receiver, and the completion is guaranteed to be delivered after writing the data.
 
 
 \parab{Amortize polling overhead.}
-Polling queues wastes CPU cycles of the receiver when a pair of threads do not communicate frequently. We amortize polling overhead using two techniques.
+Polling ring buffers wastes CPU cycles of the receiver when a pair of threads do not communicate frequently. We amortize polling overhead using two techniques.
 First, for RDMA queues, we leverage the RDMA NIC to multiplex event notifications into a single queue.
-A thread uses a shared completion queue for all RDMA connections, so it only needs to poll one queue rather than multiple queues.
+Each thread uses a \emph{shared completion queue} for all RDMA connections, so it only needs to poll one queue rather than multiple queues.
 
 Second, each queue can switch between \textit{polling} and \textit{interrupt} modes. The queue to the monitor is always in polling mode. Receiver of each queue maintains a counter of consecutive empty polls. When it exceeds a threshold, the receiver sends a message to sender notifying that the queue is entering interrupt mode, and stops polling after a short period. When sender writes to a queue in interrupt mode, it also notifies the monitor and the monitor will signal the receiver to resume polling.
 
@@ -93,15 +113,23 @@ Second, each queue can switch between \textit{polling} and \textit{interrupt} mo
 
 \RED{Need a performance comparison figure for copy, batch page remapping, single page remapping, etc.}
 
-The main challenge for zero copy is to maintain the semantics of socket API.
+As Sec.~\ref{subsec:per-byte-overhead} discussed, the main challenge for zero copy is to maintain the semantics of socket API.
+Fortunately, virtual memory provides a layer of indirection, and many works leverage this \emph{page remapping} technique.
+%Rather than copying, we can remap the physical pages from sender's virtual addresses to receiver's.
+Linux zero copy socket~\cite{linux-zero-copy} only support send side, by setting the data pages as copy-on-write.
+However, many applications overwrite the send buffer frequently, so the copy-on-write mechanism simply delays the copy from \texttt{send} time to first overwrite time. 
+To achieve zero copy receive, 20 years ago, BSD~\cite{thadani1995efficient} and Solaris~\cite{chu1996zero} remap the virtual page of application buffer to the physical page of system buffer. However, as Table~\ref{tab:operation-performance} shows, on modern CPUs, mapping one page has even higher cost than copying it, because of kernel crossing and TLB flush costs.
+Recently, many high performance TCP/IP stacks~\cite{han2012megapipe,yasukata2016stackmap} and socket-to-RDMA libraries~\cite{rsockets,socketsdirect} provide both standard socket API and an alternative zero-copy API, but none of them achieves zero copy for the standard API.
+Further, no existing works support zero copy for intra-host sockets.
+
+
 %A sender may write the send buffer after non-blocking \texttt{send}, and the receiver does not know the receive buffer before \texttt{recv}.
-Fortunately, virtual memory provides a layer of indirection. % so we can remap virtual address of a buffer to another physical page if the data occupies entire 4~KiB pages.
-Rather than copying, we remap the physical pages from sender's virtual addresses to receiver's.
+% so we can remap virtual address of a buffer to another physical page if the data occupies entire 4~KiB pages.
+
 To enable zero-copy, we need to modify the NIC driver to expose several kernel functions related to page remapping. 
 %Due to the remapping overhead (Table~\ref{tab:operation-performance}), we only use zero-copy for \texttt{send} or \texttt{recv} with at least 8~KiB payload size. Smaller messages are copied instead.
-As Table~\ref{tab:operation-performance} shows, remapping a single page is more expensive than copying it because of kernel crossing and TLB flush costs. Hence, we only use zero copy for \texttt{send} or \texttt{recv} with at least 8~KiB payload size.
+To amortize page remapping cost, we only use zero copy for \texttt{send} or \texttt{recv} with at least 8~KiB payload size.
 Smaller messages are copied instead.
-Page remapping has been used by zero-copy sockets~\cite{thadani1995efficient,chu1996zero,linux-zero-copy} and we make following improvements.
 
 \parab{Page alignment.}
 Page remapping only works when the send and receive addresses are page aligned and the transfer contains entire pages.
@@ -197,12 +225,17 @@ If \libipc{} continues to yield for a certain number of rounds, it will put itse
 %If the remote peer does not support \sys{}, all future operations with it will be delegated to the local monitor.
 %The detailed procedure is as follows.
 
+
+
+
 This section presents the details of connection establishment and teardown procedure, as outlined in Sec.~\ref{sec:architecture}.
 
 \parab{Initialization.}
 During initialization, \libipc{} connects to the monitor in local host via \emph{bootstrap socket} (a Unix domain socket or kernel TCP socket on localhost or overlay network) and establishes a shared memory queue between them.
 After that, communication between the application and monitor goes through the shared memory queue.
 
+
+\RED{Update FD creation.}
 \parab{Socket creation.}
 An application first creates a socket identified by an integer \emph{file descriptor} (FD).
 Socket FDs and other FDs (e.g. disk files) share a namespace and Linux always allocates the lowest available FD.

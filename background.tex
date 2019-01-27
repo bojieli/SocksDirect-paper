@@ -219,8 +219,7 @@ We aim to bypass kernel without compromising security.
 Multiple threads in a process share socket connections. In addition, after a process forks, both parent and child processes share existing sockets. Sockets can also be passed to another process through Unix domain socket. To protect concurrent operations, Linux kernel acquires a per-socket lock for each socket operation~\cite{boyd2010analysis,han2012megapipe,lin2016scalable}. Table~\ref{tab:operation-performance} shows that a shared memory queue protected by atomic operations has 4x latency and 22\% throughput of a lockless queue, even if there is no contention.
 
 We aim to minimize synchronization overhead by optimizing for the common cases and remove synchronizations in frequently used socket operations.
-Previous work~\cite{boyd2010analysis,clements2015scalable} suggests that many socket operations are not commutable and synchronizations cannot always be avoided.
-We leverage the fact that shared memory message passing is much cheaper than locking~\cite{roghanchi2017ffwd}, and use message passing as the exclusive synchronization mechanism.
+
 
 %\parab{Intra-host communication.}
 %Most existing approaches for intra-host socket either use kernel network stack or NIC loopback.
@@ -453,12 +452,8 @@ Zero copy \texttt{recv} is even harder than \texttt{send}.
 Linux provides a readiness-based event model, i.e. the application is aware of the incoming data (e.g. via \texttt{epoll}) and then call \texttt{recv}, so the data received by the NIC but not delivered to the application must be stored in the system buffer.
 Because \texttt{recv} allows the application to provide any buffer as the data destination, system needs to copy data from system to application buffer. 
 %If we buffer data on the sender and only transmit it on \texttt{recv}, the receiver needs to wait for a round-trip time. For this reason, socket implementations buffer data on the receiver and copy it to application on \texttt{recv}.
-
-Linux zero copy socket~\cite{linux-zero-copy} only support send side, by setting the data pages as copy-on-write.
-However, many applications overwrite the send buffer frequently, so the copy-on-write mechanism simply delays the copy from \texttt{send} time to first overwrite time. 
-To achieve zero copy receive, 20 years ago, BSD~\cite{thadani1995efficient} and Solaris~\cite{chu1996zero} remap the virtual page of application buffer to the physical page of system buffer. However, as Table~\ref{tab:operation-performance} shows, on modern CPUs, mapping one page has even higher cost than copying it. This is because page mapping needs kernel crossing and TLB flush.
-Recently, many high performance TCP/IP stacks~\cite{han2012megapipe,yasukata2016stackmap} and socket-to-RDMA libraries~\cite{rsockets,socketsdirect} provide both standard socket API and an alternative zero-copy API, but none of them achieves zero copy for the standard API.
 We aim to allow zero copy for large transfers in standard socket applications.
+
 
 
 \subsubsection{Per Connection Overheads}
