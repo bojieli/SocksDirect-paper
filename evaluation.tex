@@ -104,7 +104,11 @@ Each thread is pinned on a CPU core. We run tests for enough warm-up rounds befo
 We compare with Linux and LibVMA~\cite{libvma}, a user-space TCP/IP stack optimized for Mellanox NICs.
 This work does not raise any ethical issues.
 
-\subsection{Performance}
+\subsection{Microbenchmarks}
+\label{subsec:microbenchmark}
+
+\subsubsection{Latency and Throughput}
+\quad
 
 
 
@@ -185,8 +189,8 @@ For 2~KiB and larger messages, \sys saturates the network bandwidth, which is 2x
 	\end{minipage}
 \end{figure*}
 
-\subsection{Scalability}
-
+\subsubsection{Multi-core Scalability}
+\quad
 
 %Figure~\ref{fig:eval-connnum-tput} shows the throughput with different number of concurrent connections.
 %We establish connections between two processes before testing, then send and receive data from the connections in a round-robin order.
