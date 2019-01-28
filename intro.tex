@@ -73,7 +73,7 @@ We design \sys{}, a user-space socket system with compatibility, isolation and p
 %We further minimize message passing by partitioning socket states to each process. We implement the socket APIs \textit{as locally as possible}. In particular, we allocate file descriptors, buffers and manage socket options in the caller process. For non-local operations, we make the best effort to \textit{minimize centralized coordination and blocking wait}. Data transmission and event multiplexing operations (\textit{e.g.} \texttt{send}, \texttt{recv} and \texttt{epoll}) only need non-blocking access to peer-to-peer communication channels. For connection establishment, each server has a coordinator process, called \textit{monitor}, to load balance incoming connections, setup inter-process queues and enforce ACL policies. Delegation to the monitor is more secure and efficient than inter-process synchronization~\cite{roghanchi2017ffwd}.
 
 
-At its heart, \sys{} leverages RDMA and \emph{shared memory} (SHM) for inter-host and intra-host transports, respectively.
+At its heart, \sys{} leverages RDMA and \emph{shared memory} (SHM) for inter-host and intra-host communication, respectively.
 However, despite the high performance of RDMA and SHM, their abstraction level is much lower than socket.
 Socket provides a virtual file system (VFS) abstraction to applications, and the bulk of overhead in existing socket systems is to provide this abstraction~\cite{clark1989analysis,boyd2010analysis,jeong2014mtcp}.
 We aim to translate socket to RDMA and SHM efficiently.
