@@ -31,8 +31,8 @@ As Figure~\ref{fig:ringbuffer-traditional} shows, it leads to buffer management 
 Traditional NICs support a limited number of ring buffers, so multiple connections may multiplex through one ring buffer, and this design enables moving payload to per-connection buffers without copy.
 Fortunately, RDMA write verbs open up new design possibility.
 Our innovation is to have \emph{one ring buffer per socket connection} and store packets back-to-back, as Figure~\ref{fig:ringbuffer-new} shows.
-The sender determines the ring buffer and offset (i.e. \emph{tail} pointer), then use RDMA write verb to send the packet to the tail pointer.
-During sending, the receiver CPU does not need to do anything.
+The sender determines the ring buffer and offset (i.e. \emph{tail} pointer), then use RDMA write verb to write the packet to the tail pointer in remote-side memory.
+During transmission, the receiver CPU does not need to do anything.
 When the receiver application calls \texttt{recv}, data is dequeued from the \emph{head} pointer.
 The process is similar for SHM because both SHM and RDMA support write primitives.
 

@@ -1,4 +1,4 @@
-\section{Discussion}
+\section{Discussion and Future Work}
 \label{sec:discussion}
 
 %\textbf{Communicating with TCP/IP peers.}
@@ -15,12 +15,19 @@
 
 \RED{Discuss limitations of RDMA, including a large number of connections and QoS.}
 
-\textbf{Limitations of RDMA.}
+\parab{Scale to many connections.}
+Two challenges:
+1. NIC cache miss. Why: Existing RDMA deployment for small-to-medium clusters~\cite{guo2016rdma}, not too many concurrent connections. Solution: Larger NIC, DRAM.
+2. RDMA connection setup cost. Not good for short connections. Solution: Offload to NIC.
+
+Another possible solution: Transport in User Space. Challenge: RDMA UD does not support one-sided write, so the ring buffer in Sec.~\ref{subsec:lockless-queue} does not work, so we still have the buffer management overhead and internal fragmentation, like other networking stacks.
 
 \textbf{QoS.}
 We offload data-plane performance isolation and congestion control to the RDMA NIC, following an emerging line of work~\cite{peter2016arrakis,zhu2015congestion,lu2017memory,mprdma,mittal2018revisiting} in this direction, because NICs in data centers are becoming increasingly programmable~\cite{smartnic,cavium,kaufmann2015flexnic,li2016clicknp}.
 
-\RED{Discuss future works, including using standard TCP/IP as wire protocol.}
+\textbf{Networking stack on other layers.}
+RDMA: lower layer,
+eRPC, message queue, etc: higher layer.
 
 %\section{Related Work}
 %\label{sec:related-work}

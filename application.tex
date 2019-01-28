@@ -17,9 +17,10 @@ Figure: small request scalability with number of cores.
 
 Redis~\cite{redis}
 
-Figure: line chart, y axis: throughput, lines: (intra-, inter-) x (\sys{}, libvma, Linux). x axis: key-value size.
+Figure: line chart, y axis: throughput, lines: (intra-, inter-) x (\sys{}, libvma, Linux). x axis: number of concurrent clients.
 
 Utility: redis-benchmark.
+Key point: concurrency low: test latency, concurrency high: test throughput.
 
 %\subsection{Real-time Stream Processing}
 
@@ -34,7 +35,8 @@ Utility: redis-benchmark.
 
 Figure: line chart, y axis: latency, lines: (intra-, inter-) x (\sys{}, libvma, Linux), x axis: msg size.
 
-Utility: zeromq official test.
+Utility: zeromq official test zeromq\_lat.
+Key point: latency is low.
 
 \subsubsection{Network Function Chain}
 \quad
