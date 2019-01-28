@@ -28,7 +28,7 @@ The second problem is that establishing an RDMA connection takes $\approx30 \mu 
 Another promising direction to solve the RDMA concurrency issue is to implement the reliable transport in CPU. However, RDMA UD does not support one-sided write, so the ring buffer in Sec.~\ref{subsec:lockless-queue} will not work.
 
 \textbf{QoS of RDMA.}
-We offload data-plane performance isolation and congestion control to the RDMA NIC, following an emerging line of work~\cite{peter2016arrakis,zhu2015congestion,lu2017memory,mprdma,mittal2018revisiting} in this direction, because NICs in data centers are becoming increasingly programmable~\cite{cavium,kaufmann2015flexnic,mellanox-innova,mellanox-bluefield}, and public clouds already provide QoS in network functions outside guest VMs~\cite{smartnic,li2016clicknp}.
+We offload data-plane performance isolation and congestion control to the RDMA NIC, following an emerging line of work~\cite{peter2016arrakis,zhu2015congestion,lu2017memory,mprdma,mittal2018revisiting} in this direction, because NICs in data centers are becoming increasingly programmable~\cite{smartnic,cavium,kaufmann2015flexnic,mellanox-innova,mellanox-bluefield}, and public clouds already provide QoS in network functions outside guest VMs~\cite{li2016clicknp,panda2016netbricks,floem-osdi18}.
 
 %\textbf{Networking stack on other layers.}
 %RDMA: lower layer,
