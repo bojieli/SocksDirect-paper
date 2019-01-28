@@ -542,13 +542,14 @@ The story of stateful offloads is different in recent years because of hardware 
 As a result, RDMA~\cite{infiniband2000infiniband} becomes widely available in production data centers~\cite{guo2016rdma}.
 RDMA uses hardware offloading to provide ultra low latency and near zero CPU overhead compared to software-based TCP/IP network stacks.
 To enable socket applications to use RDMA, RSocket~\cite{rsockets}, SDP~\cite{socketsdirect} and UNH EXS~\cite{russell2008extended} translate socket operations to RDMA verbs.
-FreeFlow~\cite{nsdi19freeflow} designs a software switch to virtualize an RDMA NIC for container overlay network, which leverages shared memory for intra-host and RDMA for inter-host communication.
+They have similar designs, and RSocket is the most actively maintained one.
+FreeFlow~\cite{nsdi19freeflow} designs a software switch to virtualize an RDMA NIC for container overlay network, which leverages SHM for intra-host and RDMA for inter-host communication.
 FreeFlow uses RSocket to translate socket to RDMA.
 
-However, these works have limitations.
+However, these works have limitations due to abstraction mismatch of RDMA and sockets.
 On the compatibility side, first, they lack support for several important APIs, e.g. \texttt{epoll}, so it is not compatible with many applications including Nginx, Memcached, Redis, etc.
-This is because RDMA does not support \texttt{epoll} as well.
-Second, RDMA connection does not support \texttt{fork} and container live migration~\cite{nsdi19freeflow}, so RSocket has the same problems.
+This is because RDMA only provides transport functions, while \texttt{epoll} is a file abstraction integrated with OS event notification.
+Second, RDMA QP does not support \texttt{fork} and container live migration~\cite{nsdi19freeflow}, so RSocket has the same problems.
 Third, because RSocket uses RDMA as wire protocol, it cannot connect to regular TCP/IP peers.
 This is a deployment challenge because all hosts and applications in a distributed system must switch to RSocket simutanenously.
 We aim to transparently detect whether the remote side supports Rsocket, and fall back to TCP/IP if not.
