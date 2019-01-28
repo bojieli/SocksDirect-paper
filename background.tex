@@ -542,7 +542,7 @@ The story of stateful offloads is different in recent years because of hardware 
 As a result, RDMA~\cite{infiniband2000infiniband} becomes widely available in production data centers~\cite{guo2016rdma}.
 RDMA uses hardware offloading to provide ultra low latency and near zero CPU overhead compared to software-based TCP/IP network stacks.
 To enable socket applications to use RDMA, RSocket~\cite{rsockets}, SDP~\cite{socketsdirect} and UNH EXS~\cite{russell2008extended} translate socket operations to RDMA verbs.
-They have similar designs, and RSocket is the most actively maintained one.
+They have similar designs, and RSocket is the most actively maintained one .
 FreeFlow~\cite{nsdi19freeflow} designs a software switch to virtualize an RDMA NIC for container overlay network, which leverages SHM for intra-host and RDMA for inter-host communication.
 FreeFlow uses RSocket to translate socket to RDMA.
 
