@@ -17,13 +17,13 @@ The scalability of \sys{} to many connections is bounded by SHM and RDMA.
 To show that \libipc{} and monitor are not the bottleneck, we run a synthetic experiment that creates a lot of connections between two processes that reuse RDMA QPs and SHMs. An application thread with \libipc{} can create 1.4~M new connections per second, which is 20x of Linux and 2x of mTCP~\cite{jeong2014mtcp}. The monitor can create 5.3~M connections per second.
 
 Because the number of processes inside a host is limited, the number of SHM connections will probably not be very large.
-However, one host may connect to many other hosts, where the scalability of RDMA becomes a concern.
+However, one host may connect to many other hosts, and the scalability of RDMA becomes a concern.
 This boils down to two problems.
-First, RDMA NIC keeps per-connection states using on-NIC memory as cache. With thousands of concurrent connections, we will suffer from frequent cache misses~\cite{mprdma,kaminsky2016design,kalia2018datacenter}.
-However, NICs are equipped with small memory because traditionally RDMA was deployed in small-to-medium size clusters.
+First, RDMA NIC keeps per-connection states using on-NIC memory as cache. With thousands of concurrent connections, the performance suffers from frequent cache misses~\cite{mprdma,kaminsky2016design,kalia2018datacenter}.
+However, NICs are equipped with small memory because RDMA was traditionally deployed in small-to-medium size clusters.
 With large-scale RDMA deployment in recent years~\cite{guo2016rdma}, commodity NICs have larger memory to store thousands of connections~\cite{kalia2018datacenter} and SmartNICs have gigabytes of DRAM on board~\cite{mellanox-innova,mellanox-bluefield,smartnic}.
 We believe the NIC cache miss problem will be less a concern in future datacenters.
-The second problem is that establishing an RDMA connection takes $\approx30 \mu s$ in our testbed, so this cost is significant for short connections. However, this process only involves communication between local CPU and NIC, and we expect future works for improvement.
+The second problem is that establishing an RDMA connection takes $\approx30 \mu s$ in our testbed, which is significant for short connections. However, this process only involves communication between local CPU and NIC, and we expect future works to improve.
 
 Another promising direction to solve the RDMA concurrency issue is to implement the reliable transport in CPU. However, RDMA UD does not support one-sided write, so the ring buffer in Sec.~\ref{subsec:lockless-queue} will not work.
 
