@@ -163,8 +163,8 @@ For 2~KiB and larger messages, \sys saturates the network bandwidth, which is 2x
 		%\begin{minipage}{0.4\textwidth}
 		\centering \includegraphics[width=\textwidth]{eval/microbenchmark/sharecore-lat.pdf}
 		\vspace{-15pt}
-		\label{fig:eval-context-switch}
 		\caption{Latency of multiple processes sharing a core.}
+		\label{fig:eval-context-switch}
 		%\end{minipage}
 	\end{minipage}
 	\hspace{0.01\textwidth}
@@ -209,8 +209,8 @@ Sender and receiver process each creates several threads, then each thread pins 
 For intra-host socket, \sys provides 306~M message per second throughput between 16 pairs of sender and receiver cores, which is 40x of Linux.
 LibVMA falls back to Linux for intra-host socket.
 Using RDMA for inter-host socket, \sys achieves 62~M messages per second throughput (8x Linux and 24x LibVMA).
-Although \sys{} creates $n^2$ queues for $n$ sender and receiver threads, in this workload only $n$ of them are active.
-Because the NIC only caches active RDMA connections and \libipc{} only polls active queues, the idle queues do not degrade performance.
+%Although \sys{} creates $n^2$ queues for $n$ sender and receiver threads, in this workload only $n$ of them are active.
+%Because the NIC only caches active RDMA connections and \libipc{} only polls active queues, the idle queues do not degrade performance.
 Single thread LibVMA has better throughput than \sys due to batching.
 Due to lock contention on shared NIC queues, compared to single thread, the throughput of LibVMA reduces to 1/4 with two threads, and 1/10 with three threads.
 The Linux throughput scales linearly from 1 to 7 cores and bottlenecks on the loopback or NIC queues with more cores.
