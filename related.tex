@@ -20,7 +20,7 @@ Because the number of processes inside a host is limited, the number of SHM conn
 However, one host may connect to many other hosts, where the scalability of RDMA becomes a concern.
 This boils down to two problems.
 First, RDMA NIC keeps per-connection states using on-NIC memory as cache. With thousands of concurrent connections, we will suffer from frequent cache misses~\cite{mprdma,kaminsky2016design,kalia2018datacenter}.
-However, NICs are equipped with small memory because traditionally RDMA was deployed in clusters with small to medium size.
+However, NICs are equipped with small memory because traditionally RDMA was deployed in small-to-medium size clusters.
 With large-scale RDMA deployment in recent years~\cite{guo2016rdma}, commodity NICs have larger memory to store thousands of connections~\cite{kalia2018datacenter} and SmartNICs have gigabytes of DRAM on board~\cite{mellanox-innova,mellanox-bluefield,smartnic}.
 We believe the NIC cache miss problem will be less a concern in future datacenters.
 The second problem is that establishing an RDMA connection takes $\approx30 \mu s$ in our testbed, so this cost is significant for short connections. However, this process only involves communication between local CPU and NIC, and we expect future works for improvement.
