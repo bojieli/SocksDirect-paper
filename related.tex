@@ -25,7 +25,7 @@ With large-scale RDMA deployment in recent years~\cite{guo2016rdma}, commodity N
 We believe the NIC cache miss problem will be less a concern in future datacenters.
 The second problem is that establishing an RDMA connection takes $\approx30 \mu s$ in our testbed, which is significant for short connections. However, this process only involves communication between local CPU and NIC, and we expect future works to improve.
 
-Another promising direction to solve the RDMA concurrency issue is to implement the reliable transport in CPU. However, RDMA UD does not support one-sided write, so the ring buffer in Sec.~\ref{subsec:lockless-queue} will not work. It would be interesting to improve software RDMA~\cite{soft-roce} or VMA on TCP/IP~\cite{libvma} for a better software-NIC co-design.
+Another promising direction to solve the RDMA concurrency issue is to implement the reliable transport in CPU, and the NIC remains stateless. However, RDMA UD does not support one-sided write, so the ring buffer in Sec.~\ref{subsec:lockless-queue} will not work. Existing software RDMA~\cite{soft-roce} has low performance. It would be interesting to co-design software and NIC.
 
 \textbf{QoS of RDMA.}
 We offload data-plane performance isolation and congestion control to the RDMA NIC, following an emerging line of work~\cite{peter2016arrakis,zhu2015congestion,lu2017memory,mprdma,mittal2018revisiting} in this direction, because NICs in data centers are becoming increasingly programmable~\cite{smartnic,cavium,kaufmann2015flexnic,mellanox-innova,mellanox-bluefield}, and public clouds already provide QoS in network functions outside guest VMs~\cite{li2016clicknp,panda2016netbricks,floem-osdi18}.
