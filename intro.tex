@@ -8,16 +8,17 @@
 %The overhead of Linux socket becomes salient given the rapid growth of network speed and number of CPU cores per server. %We benchmark communication intensive applications (\textit{e.g.} Nginx and memcached) and find that 50\%$\sim$90\% of CPU time is spent in the OS kernel. When more CPU cores are utilized, they even spend a larger portion of time in the kernel~\cite{boyd2010analysis}. In addition to CPU overhead, latency is also a problem. The round-trip time (RTT) between two processes communicating with shared memory can be as low as 0.2$\mu$s, while TCP socket RTT between two cores is $\approx$16$\mu$s. In a data center, the RTT between RDMA servers is also one order of magnitude lower than kernel TCP/IP stack.
 
 Socket API is the most widely used communication primitive in modern applications. It is used universally for communications among processes, containers and hosts.
-Traditional Linux socket implementation can only achieve latency and throughput numbers an order of magnitude worse than what the raw hardware is capable of.
+Traditional Linux socket implementation can only achieve latency and throughput numbers which are an order of magnitude worse than the raw capability of hardware.
 %Socket operations have latency and throughput one order of magnitude worse than the raw hardware.
 %Socket operations are expensive and scale poorly with modern multi-core CPUs.
 Communication intensive applications such as distributed key-value stores and web servers could spend 50\%$\sim$90\% of CPU time in the OS kernel~\cite{jeong2014mtcp}, mostly processing socket operations.
 
-There has been extensive work (Sec.~\ref{subsec:related-work}) aiming at reducing the socket overhead, but existing approaches are not satisfactory.
-First, many user-space sockets are not fully compatible with native socket in areas such as when a process forks, when multiple processes listen on the same port, and when communication is intra-host.
+There has been extensive work (Sec.~\ref{subsec:related-work}) aiming at reducing the socket overhead. But existing approaches have various limitations.
+First, many user-space sockets are not fully compatible with native socket in areas such as process fork and intra-host communication. 
+%To achieve full compatibility, these solutions often incur the overhead of kernel crossing or virtual switch
 %Second, some user-space sockets do not allow multiple applications to share the NIC hardware.
-Those solutions that do achieve better compatibility often incur the overhead of kernel crossing or virtual switch.
-Second, even in the performance front, there are still much room for improvement. None of existing works can achieve performance close to raw RDMA, because they fail to remove some important overheads such as multi-thread synchronization, buffer management, memory copy and TCP/IP protocol processing.
+%Those solutions that do achieve better compatibility often incur the overhead of kernel crossing or virtual switch.
+Second, even in the performance front, there is still much room for improvement. None of existing works can achieve performance close to raw RDMA, because they fail to remove some important overheads such as multi-thread synchronization, buffer management, memory copy and TCP/IP protocol processing.
 %It is often believed that the legacy socket API contributes most to the overheads, so many high performance socket systems propose alternative APIs that require developers to change application code.
 %In addition, when the number of active threads is larger than that of CPU cores, polling and kernel event notification are a dilemma.
 %Finally, they cannot take advantage of low latency networking provided by RDMA.
@@ -76,7 +77,7 @@ We design \sys{}, a user-space socket system with compatibility, isolation and p
 At its heart, \sys{} leverages RDMA and \emph{shared memory} (SHM) for inter-host and intra-host communication, respectively.
 However, despite the high performance of RDMA and SHM, their abstraction level is much lower than socket.
 Socket provides a virtual file system (VFS) abstraction to applications, and the bulk of overhead in existing socket systems is to provide this abstraction~\cite{clark1989analysis,boyd2010analysis,jeong2014mtcp}.
-We aim to translate socket to RDMA and SHM efficiently.
+We aim to translate socket operations to RDMA and SHM efficiently.\textcolor{red}{Wei: This seems not promising because socket to RDMA has many solutions.}
 
 To achieve both isolation and performance, \sys{} follows the principle of separating control and data plane~\cite{peter2016arrakis}.
 We design a \emph{monitor} daemon in each host as the control plane to enforce access control policies, dispatch new connections, perform address translation for container networks, and establish transport channel between communication peers.
