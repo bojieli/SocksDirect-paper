@@ -13,14 +13,15 @@ Traditional Linux socket implementation can only achieve latency and throughput 
 %Socket operations are expensive and scale poorly with modern multi-core CPUs.
 Communication intensive applications such as distributed key-value stores and web servers could spend 50\%$\sim$90\% of CPU time in the OS kernel~\cite{jeong2014mtcp}, mostly processing socket operations.
 
-There exists an extensive body of work aiming at reducing the socket overhead.
+There exists an extensive body of work aiming at improving socket performance.
 Existing approaches either optimize the kernel networking stack~\cite{lin2016scalable,han2012megapipe,yasukata2016stackmap}, or move TCP/IP stack to user-space~\cite{jeong2014mtcp,marinos2014network,seastar,fstack,libvma}, or offload transport to RDMA NICs~\cite{rsockets,socketsdirect}.
 However, all these solutions have limitations on compatibility and performance.
 Most of them are not fully compatible with native socket in areas such as process fork, event polling, multiple application socket sharing and intra-host communication. 
 %To achieve full compatibility, these solutions often incur the overhead of kernel crossing or virtual switch
 %Second, some user-space sockets do not allow multiple applications to share the NIC hardware.
 %Those solutions that do achieve better compatibility often incur the overhead of kernel crossing or virtual switch.
-Even in the performance front, there is still much room for improvement. None of existing work can achieve performance close to raw RDMA, because they fail to remove some important overheads such as synchronization, buffer management and memory copy.
+Even in the performance front, there is still much room for improvement. None of existing work can achieve performance close to raw RDMA, because they fail to remove some important overheads such as synchronization, buffer management and memory copy. For example, \textcolor{red}{Explain the overhead of memory copy here}
+
 %\textcolor{red}{Wei: This seems not promising because socket to RDMA has many solutions.}
 %It is often believed that the legacy socket API contributes most to the overheads, so many high performance socket systems propose alternative APIs that require developers to change application code.
 %In addition, when the number of active threads is larger than that of CPU cores, polling and kernel event notification are a dilemma.
@@ -39,7 +40,7 @@ Even in the performance front, there is still much room for improvement. None of
 %\textbf{The above part is motivation and related work.}
 
 %The goal of this work is to answer the question: Can a Linux compatible and general purpose socket system provide performance comparable to RDMA systems?
-We design \sys{}, a user-space socket system with compatibility, isolation and performance in mind.
+Realizing these limiations, we design \sys{}, a user-space socket system to achieve compatibility, isolation and high performance simultaneously.
 \begin{ecompact}
 	\item \textbf{Compatibility}.
 	Existing applications can use \sys{} as a drop-in replacement with no modification.
@@ -76,16 +77,17 @@ We design \sys{}, a user-space socket system with compatibility, isolation and p
 %The key to multi-core scalability and inter-process isolation is to avoid synchronization and state sharing. 
 %We further minimize message passing by partitioning socket states to each process. We implement the socket APIs \textit{as locally as possible}. In particular, we allocate file descriptors, buffers and manage socket options in the caller process. For non-local operations, we make the best effort to \textit{minimize centralized coordination and blocking wait}. Data transmission and event multiplexing operations (\textit{e.g.} \texttt{send}, \texttt{recv} and \texttt{epoll}) only need non-blocking access to peer-to-peer communication channels. For connection establishment, each server has a coordinator process, called \textit{monitor}, to load balance incoming connections, setup inter-process queues and enforce ACL policies. Delegation to the monitor is more secure and efficient than inter-process synchronization~\cite{roghanchi2017ffwd}.
 
-A key problem for socket system is that socket provides a virtual file system (VFS) abstraction to applications, and the bulk of overhead in existing socket systems is to provide this abstraction rather than the TCP/IP protocol~\cite{clark1989analysis,boyd2010analysis,jeong2014mtcp}.
-Although the VFS abstraction is complicated and not scalable in general~\cite{clements2015scalable}, many frequently used socket operations are simple and scalable.
-Our principle is to optimize for the common situation while stay compatible in general.
-To speedup data transmission while preserving isolation in connection management, \sys{} follows the principle of separating control and data plane~\cite{peter2016arrakis}.
+To achieve the above goals, we first need to understand the overhead of Linux socket. We find that Linux socket provides a virtual file system (VFS) abstraction to applications, and the bulk of overhead in existing socket systems is due to this abstraction rather than TCP/IP protocol~\cite{clark1989analysis,boyd2010analysis,jeong2014mtcp}.
+Although the VFS abstraction is complicated and not scalable in general~\cite{clements2015scalable}, many frequently used socket operations are actually simple and scalable.
+
+Therefore, our design principle is optimizing for the common situation while staying compatible in general.
+To speedup data transmission while preserving isolation in connection management, \sys{} separates control and data plane~\cite{peter2016arrakis}.
 We design a \emph{monitor} daemon in each host as the \emph{control plane} to enforce access control policies, dispatch new connections, perform address translation for container networks, and establish transport channel between communication peers.
 The \emph{data plane} is handled by a dynamically loaded user-space library \libipc{}, which intercepts function calls to Linux \emph{glibc}. \libipc{} implements socket APIs in user space and forwards non-socket related APIs to the kernel.
 %Applications can take advantage of \libipc{} by simply using the \emph{LD\_PRELOAD} environment variable in Linux to load the library.
 
 
-In \libipc{}, data transmission and event polling is handled in a peer-to-peer fashion between processes
+In \libipc{}\textcolor{red}{inconsistent name!}, data transmission and event polling is handled in a peer-to-peer fashion between processes
 %, while connection establishment is delegated to the monitor.
 We exploit multiple techniques to effectively utilize hardware and improve system efficiency.
 In general, a socket connection is shared among threads and forked processes.
