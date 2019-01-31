@@ -106,4 +106,4 @@ EOD
 plot "$libsd" title "SocksDirect" with linespoints linestyle 1,\
 "$linux" title "Linux" with linespoints linestyle 2, \
 "$libvma" title "LibVMA" with linespoints linestyle 3, \
-"$rsocket$ title "RSocket" with linespoints linestyle 4
+"$rsocket" title "RSocket" with linespoints linestyle 4
