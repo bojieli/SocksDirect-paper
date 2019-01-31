@@ -7,12 +7,17 @@ Rsocket~\cite{rsockets} cannot run the following applications, so we compare the
 \subsubsection{Nginx HTTP Server}
 \quad
 
-We use Nginx~\cite{nginx} HTTP server as reverse proxy between an HTTP request generator and an HTTP response generator.
-Each thread of the generators use a persistent TCP connection to communicate with Nginx.
+To test a typical Web service scenario where the clients come from the network and served within a host, we use Nginx~\cite{nginx} as a reverse proxy between an HTTP request generator and an HTTP response generator.
+Nginx and the response generator are in a same host, while the request generator is in a different host.
+The generators use a persistent TCP connection to communicate with Nginx.
+In Figure A, the request generator measures the time from sending an HTTP request to receiving the whole response.
 
 Figure: latency vs request size.
 
-Figure: 1KB request throughput scalability with number of cores.
+In Figure B, to test the how Nginx throughput scales with multiple cores, we run Nginx with a fixed number of worker threads and response size 1KB.
+The request generator sends multiple HTTP requests in parallel, and we use a sufficient number of generator threads to saturate Nginx throughput.
+
+Figure: throughput scalability with number of cores.
 
 \subsubsection{Redis Key-Value Store}
 \quad
@@ -46,8 +51,8 @@ Key point: latency is low.
 Each network function is a process that inputs from stdin and outputs to stdout. Standard pcap packet format. use \emph{pipe} to connect. Compare with Linux pipe and state-of-the-art. Figure~\ref{fig:eval-tun-tput}
 Key point: intra-host is important.
 
-\subsubsection{GraphX on Spark}
-\quad
+%\subsubsection{GraphX on Spark}
+%\quad
 
-Two nodes run distributed PageRank.
-Test elapsed time per iteration with \sys{}, libvma and Linux. (Only need three numbers, no figure.)
+%Two nodes run distributed PageRank.
+%Test elapsed time per iteration with \sys{}, libvma and Linux. (Only need three numbers, no figure.)
