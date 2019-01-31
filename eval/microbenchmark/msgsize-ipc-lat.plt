@@ -14,7 +14,7 @@ set xlabel "Message size (Bytes)"  font "Arial, 24"
 set ylabel "Latency ({/Symbol m}s, log scale)" font "Arial, 24" offset graph -0.02, 0
 set xtics ("8B" 8, "64B" 64, "512B" 512, "4K" 4096, "32K" 32768, "256K" 262144, "1M" 1048576) font "Arial, 24"
 set ytics font "Arial, 24"
-set key inside reverse left top font "Arial, 24"
+set key inside reverse left top font "Arial, 20"
 set logscale y 10 
 set logscale x 2
 
@@ -81,6 +81,28 @@ $libsd << EOD
 1048576	25.2598	21.176	32.385
 EOD
 
+$rsocket << EOD
+8 1.878 2.027 1.9436
+16 1.877 2.031 1.9591
+32 1.835 2.021 1.98987
+64 1.851 2.003 1.91945
+128 2.942 3.136 3.0429
+256 2.701 2.874 2.77224
+512 2.847 3.043 2.94172
+1024 3.269 3.513 3.36519
+2048 3.736 18.522 5.02789
+4096 5.222 19.106 6.42125
+8192 7.686 20.66 9.20476
+16384 12.052 21.745 13.6299
+32768 18.567 25.841 20.0689
+65536 28.104 33.524 29.9303
+131072 50.489 53.867 51.3569
+262144 91.624 100.258 94.1538
+524288 165.325 226.832 172.241
+1048576 334.492 388.218 344.154
+EOD
+
 plot "$libsd" title "SocksDirect" with yerrorlines linestyle 1,\
 "$linux" title "Linux" with yerrorlines linestyle 2,\
-"$libvma" title "LibVMA" with yerrorlines linestyle 3
+"$libvma" title "LibVMA" with yerrorlines linestyle 3,\
+"$rsocket" title "RSocket" with yerrorlines linestyle 4
