@@ -16,11 +16,13 @@ Communication intensive applications such as distributed key-value stores and we
 There exists an extensive body of work aiming at improving socket performance.
 Existing approaches either optimize the kernel networking stack~\cite{lin2016scalable,han2012megapipe,yasukata2016stackmap}, or move TCP/IP stack to user-space~\cite{jeong2014mtcp,marinos2014network,seastar,fstack,libvma}, or offload transport to RDMA NICs~\cite{rsockets,socketsdirect}.
 However, all these solutions have limitations on compatibility and performance.
-Most of them are not fully compatible with native socket in areas such as process fork, event polling, multiple application socket sharing and intra-host communication. 
+Most of them are not fully compatible with native socket in areas such as process fork, event polling, multiple application socket sharing and intra-host communication.
+Some of them~\cite{jeong2014mtcp} have isolation problems that do not allow multiple applications to share a NIC.
 %To achieve full compatibility, these solutions often incur the overhead of kernel crossing or virtual switch
 %Second, some user-space sockets do not allow multiple applications to share the NIC hardware.
 %Those solutions that do achieve better compatibility often incur the overhead of kernel crossing or virtual switch.
-Even in the performance front, there is still much room for improvement. None of existing work can achieve performance close to raw RDMA, because they fail to remove some important overheads such as multi-thread synchronization, buffer management and memory copy. For example, they copy data on both send and receive in order to comply with standard socket API.
+Even in the performance front, there is still much room for improvement. None of existing work can achieve performance close to raw RDMA, because they fail to remove some important overheads such as multi-thread synchronization, buffer management and memory copy.
+For example, a socket is shared among threads in a process, so, many systems use locking to avoid race conditions.
 
 %\textcolor{red}{Wei: This seems not promising because socket to RDMA has many solutions.}
 %It is often believed that the legacy socket API contributes most to the overheads, so many high performance socket systems propose alternative APIs that require developers to change application code.
@@ -40,7 +42,7 @@ Even in the performance front, there is still much room for improvement. None of
 %\textbf{The above part is motivation and related work.}
 
 %The goal of this work is to answer the question: Can a Linux compatible and general purpose socket system provide performance comparable to RDMA systems?
-Realizing these limiations, we design \sys{}, a user-space socket system to achieve compatibility, isolation and high performance simultaneously.
+Realizing these limitations, we design \sys{}, a user-space socket system to achieve compatibility, isolation and high performance simultaneously.
 \begin{ecompact}
 	\item \textbf{Compatibility}.
 	Existing applications can use \sys{} as a drop-in replacement with no modification.
@@ -53,34 +55,12 @@ Realizing these limiations, we design \sys{}, a user-space socket system to achi
 \end{ecompact}
 
 
+To achieve high performance, \sys fully exploits the capability of modern hardware. It leverages RDMA for inter-host communication and uses \emph{shared memory} (SHM) for intra-host communication. However, it is challenging to translate socket functions to RDMA and SHM operations. Straightforward solutions may violate the compatibility or leave much performance on the table. For example, socket recv() puts data in an application-provided buffer, but RDMA recv() requires pre-registering the buffer. Existing works~\cite{rsockets} either provide a zero copy API incompatible with unmodified applications, or manage internal buffers to recv() from RDMA and copy to application. %For example, \textcolor{red}{Take socket send() to RDMA send operations as an example here. If no memory copy, compatibility. If memory copy, performance degradation. Btw, how to point out isolation problem here?}
 
-%We design \sys{}, a high performance user-space socket architecture that is compatible with existing applications and preserves isolation among processes, while being scalable to multiple cores, threads and concurrent connections.
-%\sys is designed to be compatible with existing applications using Linux socket.
-%It preserves Linux socket semantics, and in particular behaves correctly with process fork and thread creation. %We also take particular caution to preserve \textit{process isolation} in \sys.
-%The main component of \sys{} is a user-space library \libipc{} that intercepts Linux \emph{glibc} APIs, implements socket operations in user space and forwards others to the kernel.
-%Applications can take advantage of \libipc{} by simply using the \emph{LD\_PRELOAD} environment variable in Linux to load the library.
+To achieve all the three goals simultaneously, we first need to understand how Linux socket provides compatibility and isolation. Linux socket provides a virtual file system (VFS) abstraction to applications. With this abstraction, application developers can do communication like operating files, without digging into network protocol details. This abstraction also provides good isolation among applications that share an address and port space. However, the VFS abstraction is very complicated given its generality of cover many corner cases, thus incurring high overhead~\cite{clark1989analysis,boyd2010analysis,jeong2014mtcp}.   
 
-%The emergence of containers and micro-services draws attention to intra-server communication~\cite{bailis2016introducing}.
-%%For manageability and fault isolation, developers break monolithic services into self-contained microservice containers, interconnected via container network. 
-%Following the trend of recent data-plane operating systems~\cite{peter2016arrakis,belay2017ix,freeflow}, 
-%\sys should optimize for both intra-server and inter-server socket.
+We find that many commonly used socket operations are actually simple. despite the generality and complexity of VFS. Therefore, our design principle is optimizing for the common situations while staying compatible in general.
 
-%We set out to build \sys{} with five performance goals.
-%The first two are \textit{low latency} and \textit{high throughput} (aka low CPU overhead) for both intra- and inter-host connections.
-%Moreover, the performance should be \textit{scalable} on modern multi-core CPUs.
-%In addition, the performance should not degrade with large number of \textit{concurrent connections} between two processes.
-%Finally, context switch should be efficient when multiple active threads run on a CPU core.
-% Many user connections are forwarded from the load balancer to an application~\cite{lin2016scalable}. Some applications create a TCP socket to key-value store for each request they process~\cite{nishtala2013scaling}.
-
-
-
-%The key to multi-core scalability and inter-process isolation is to avoid synchronization and state sharing. 
-%We further minimize message passing by partitioning socket states to each process. We implement the socket APIs \textit{as locally as possible}. In particular, we allocate file descriptors, buffers and manage socket options in the caller process. For non-local operations, we make the best effort to \textit{minimize centralized coordination and blocking wait}. Data transmission and event multiplexing operations (\textit{e.g.} \texttt{send}, \texttt{recv} and \texttt{epoll}) only need non-blocking access to peer-to-peer communication channels. For connection establishment, each server has a coordinator process, called \textit{monitor}, to load balance incoming connections, setup inter-process queues and enforce ACL policies. Delegation to the monitor is more secure and efficient than inter-process synchronization~\cite{roghanchi2017ffwd}.
-
-To achieve the above goals, we first need to understand the overhead of Linux socket. We find that Linux socket provides a virtual file system (VFS) abstraction to applications, and the bulk of overhead in existing socket systems is due to this abstraction rather than TCP/IP protocol~\cite{clark1989analysis,boyd2010analysis,jeong2014mtcp}.
-Although the VFS abstraction is complicated and not scalable in general~\cite{clements2015scalable}, many frequently used socket operations are actually simple and scalable.
-
-Therefore, our design principle is optimizing for the common situation while staying compatible in general.
 To speedup data transmission while keeping isolation in connection management, \sys{} separates control and data plane~\cite{peter2016arrakis}.
 We design a \emph{monitor} daemon in each host as the \emph{control plane} to enforce access control policies, manage address/port resources, dispatch new connections, and establish transport channels between communication peers.
 The \emph{data plane} is handled by a dynamically loaded user-space library \libipc{}, which intercepts function calls to Linux \emph{glibc}. \libipc{} implements socket APIs in user space and forwards non-socket related APIs to the kernel.
