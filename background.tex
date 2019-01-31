@@ -330,7 +330,7 @@ TCP/IP protocol processing, congestion control and loss recovery consume CPU on 
 In addition, loss detection, rate-based congestion control and TCP state machine use timers, which is hard to achieve both microsecond-level granularity and low overhead~\cite{jeong2014mtcp}.
 Fortunately, recent years witnessed large scale deployment of RDMA in many datacenters~\cite{guo2016rdma,zhu2015congestion,mittal2015timely}.
 RDMA provides a hardware-based transport comparable to TCP/IP, therefore it is desirable to offload the transport protocol to the RDMA NIC.
-For intra-host connections, we aim to completely bypass the transport protocol, as Linux \emph{pipe} does.
+For intra-host sockets, we aim to completely bypass the transport protocol. %as Linux \emph{pipe} does.
 
 \parab{Buffer management.}
 Traditionally, CPU send and receive packets from NICs via \emph{ring buffers}.
