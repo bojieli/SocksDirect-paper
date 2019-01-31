@@ -517,10 +517,11 @@ They use the NIC to forward packets between applications in a same host.
 As shown in Table~\ref{tab:operation-performance}, the hairpin latency from CPU to NIC is much higher than inter-core cache migration delay.
 The throughput is also bounded by Memory-Mapped I/O (MMIO) doorbell latency and PCIe bandwidth~\cite{neugebauer2018understanding,li2017kv}.
 
-Apart from these new OS architectures, many recent efforts use high performance packet I/O frameworks on Linux, e.g., Netmap~\cite{rizzo2012netmap}, Intel DPDK~\cite{dpdk} and PF\_RING~\cite{pf-ring}), to directly access NIC queues in user space.
+Apart from these new OS architectures, many user space sockets use high performance packet I/O frameworks on Linux, e.g., Netmap~\cite{rizzo2012netmap}, Intel DPDK~\cite{dpdk} and PF\_RING~\cite{pf-ring}, in order to directly access NIC queues in user space.
 SandStorm~\cite{marinos2014network}, mTCP~\cite{jeong2014mtcp}, Seastar~\cite{seastar} and F-Stack~\cite{fstack} propose new APIs and thus need to modify applications.
 Most of the API changes aim to support zero copy, and the standard API still copies data.
-LibVMA~\cite{libvma}, OpenOnload~\cite{openonload}, DBL~\cite{dbl} and LOS~\cite{huang2017high} are designed to be compatible with existing applications.
+%FaSST~\cite{kalia2016fasst} and eRPC~\cite{kalia2018datacenter} provide RPC APIs rather than socket.
+LibVMA~\cite{libvma}, OpenOnload~\cite{openonload}, DBL~\cite{dbl} and LOS~\cite{huang2017high} conform to the standard socket API.
 
 User-space TCP/IP stacks provide much better performance than Linux, but it is still not close to RDMA and SHM.
 One important reason is that none of existing works support sharing a socket among threads and processes, causing compatibility problems in fork and container live migration, and multi-thread locking overhead as well.
