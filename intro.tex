@@ -45,9 +45,9 @@ For example, a socket is shared among threads in a process, so, many systems use
 Realizing these limitations, we design \sys{}, a user-space socket system to achieve compatibility, isolation and high performance simultaneously.
 \begin{ecompact}
 	\item \textbf{Compatibility}.
-	Existing applications can use \sys{} as a drop-in replacement with no modification.
+	Applications can use \sys{} as a drop-in replacement without modifications.
 	It supports both intra-host and inter-host communication, and behaves correctly during process fork and thread creation.
-	If a remote peer does not support \sys{}, the system falls back to TCP transparently.
+	%If a remote peer does not support \sys{}, the system falls back to TCP transparently.
 	\item \textbf{Isolation}.
 	\sys{} preserves isolation among applications and containers, and it enforces access control policies.
 	\item \textbf{High Performance}.
@@ -55,9 +55,9 @@ Realizing these limitations, we design \sys{}, a user-space socket system to ach
 \end{ecompact}
 
 
-To achieve high performance, \sys fully exploits the capability of modern hardware. It leverages RDMA for inter-host communication and uses \emph{shared memory} (SHM) for intra-host communication. However, it is challenging to translate socket functions to RDMA and SHM operations. Straightforward solutions may violate the compatibility or leave much performance on the table. For example, socket recv() puts data in an application-provided buffer, but RDMA recv() requires pre-registering the buffer. Existing works~\cite{rsockets} either provide a zero copy API incompatible with unmodified applications, or manage internal buffers to recv() from RDMA and copy to application. %For example, \textcolor{red}{Take socket send() to RDMA send operations as an example here. If no memory copy, compatibility. If memory copy, performance degradation. Btw, how to point out isolation problem here?}
+To achieve high performance, \sys fully exploits the capability of modern hardware. It leverages RDMA for inter-host communication and uses \emph{shared memory} (SHM) for intra-host communication. However, translating socket functions to RDMA and SHM operations is non-trivial. Straightforward solutions may violate the compatibility or leave much performance on the table. \textcolor{red}{I think send is a better example.}For example, socket recv() puts data in an application-provided buffer, but RDMA recv() requires pre-registering the buffer. Existing works~\cite{rsockets} either provide a zero copy API incompatible with unmodified applications, or manage internal buffers to recv() from RDMA and copy to application. %For example, \textcolor{red}{Take socket send() to RDMA send operations as an example here. If no memory copy, compatibility. If memory copy, performance degradation. Btw, how to point out isolation problem here?}
 
-To achieve all the three goals simultaneously, we first need to understand how Linux socket provides compatibility and isolation. Linux socket provides a virtual file system (VFS) abstraction to applications. With this abstraction, application developers can do communication like operating files, without digging into network protocol details. This abstraction also provides good isolation among applications that share an address and port space. However, the VFS abstraction is very complicated and many APIs are not scalable by design~\cite{clark1989analysis,boyd2010analysis,jeong2014mtcp}.
+To achieve all the three goals simultaneously, we first need to understand how Linux socket provides compatibility and isolation. Linux socket provides a virtual file system (VFS) abstraction to applications. With this abstraction, application developers can do communication like operating files, without digging into network protocol details. This abstraction also provides good isolation among applications that share an address and port space. However, the VFS abstraction is very complicated and many APIs are inherently not scalable~\cite{clark1989analysis,boyd2010analysis,jeong2014mtcp}.
 
 We find that many commonly used socket operations are actually simple. despite the generality and complexity of VFS. Therefore, our design principle is optimizing for the common situations while staying compatible in general.
 
