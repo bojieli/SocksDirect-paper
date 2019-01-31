@@ -25,7 +25,20 @@ $netbricks << EOD
 8 20
 EOD
 
-$linux << EOD
+
+$linuxpipe << EOD
+1 1.5
+2 1.6
+3 1.5
+4 1.5
+5 1.4
+6 1.3
+7 1.2
+8 1.2
+EOD
+
+
+$linuxsocket << EOD
 1 1.2
 2 1.2
 3 1.2
@@ -50,5 +63,6 @@ EOD
 
 
 plot "$libsd" title "SocksDirect" with linespoints linestyle 1,\
-"$linux" title "Linux" with linespoints linestyle 2, \
-"$netbricks" title "NetBricks" with linespoints linestyle 3
+"$linuxpipe" title "Linux Pipe" with linespoints linestyle 2, \
+"$linuxsocket" title "Linux Socket" with linespoints linestyle 3, \
+"$netbricks" title "NetBricks" with linespoints linestyle 4
