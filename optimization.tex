@@ -128,7 +128,7 @@ Further, no existing works support zero copy for intra-host sockets.
 
 To enable zero-copy, we need to modify the NIC driver to expose several kernel functions related to page remapping. 
 %Due to the remapping overhead (Table~\ref{tab:operation-performance}), we only use zero-copy for \texttt{send} or \texttt{recv} with at least 8~KiB payload size. Smaller messages are copied instead.
-To amortize page remapping cost, we only use zero copy for \texttt{send} or \texttt{recv} with at least 8~KiB payload size.
+To amortize page remapping cost, we only use zero copy for \texttt{send} or \texttt{recv} with at least 16~KiB payload size.
 Smaller messages are copied instead.
 
 \parab{Page alignment.}
