@@ -15,6 +15,7 @@ set xtics ("8B" 8, "64B" 64, "512B" 512, "4K" 4096, "32K" 32768, "256K" 262144, 
 set ytics font "Arial, 24"
 set key outside horizontal font "Arial, 20"
 set logscale x 2
+set logscale y 10
 
 $linux << EOD
 8	0.077453613
