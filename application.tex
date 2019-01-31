@@ -2,17 +2,20 @@
 \label{subsec:application}
 
 In this section, we demonstrate that \sys{} can significantly improve the performance of real-world applications without modifying the code.
-Rsocket~\cite{rsockets} fails to run the following applications, so we compare the performance with Linux and LibVMA~\cite{libvma}.
+Rsocket~\cite{rsockets} is not compatible with any of the following applications, so we compare the performance with Linux.
 
 \subsubsection{Nginx HTTP Server}
 \quad
 
 To test a typical Web service scenario where the clients come from the network and served within a host, we use Nginx~\cite{nginx} v1.10 as a reverse proxy between an HTTP request generator and an HTTP response generator.
-Nginx and the response generator are in a same host, while the request generator is in a different host.
-The generators use a persistent TCP connection to communicate with Nginx.
-In Figure A, the request generator measures the time from sending an HTTP request to receiving the whole response.
+In the first setting, Nginx and the response generator are in a same host, while the request generator is in a different host.
+In the second setting, Nginx, response and request generators are in three different hosts.
+The generators use a keep-alive TCP connection to communicate with Nginx.
+LibVMA~\cite{libvma} does not work with unmodified Nginx due to fork.
+In Figure~\ref{fig:eval-nginx}, the request generator measures the time from sending an HTTP request to receiving the whole response.
+For small HTTP response sizes, \sys{} reduces latency by 5.5x compared to Linux.
+For large responses, due to zero copy, \sys{} reduces latency by up to 20x.
 
-Figure: latency vs request size.
 
 %In Figure B, to test the how Nginx throughput scales with multiple cores, we run Nginx with a fixed number of worker threads and response size 1KB.
 %The request generator sends multiple HTTP requests in parallel, and we use a sufficient number of generator threads to saturate Nginx throughput.
@@ -35,6 +38,13 @@ Key point: concurrency low: test latency, concurrency high: test throughput.
 %Scenario: Word Count (distributed system with one source, two mappers and one reducer)
 
 %Metrics: Latency, throughput
+
+\subsubsection{RPC library}
+\quad
+
+We measure RPC latency using RPClib~\cite{rpclib}.
+We run the example RPC in RPClib among two processes inside a host, and it takes 45 $\mu s$. Across two hosts, the RPC takes 79 $\mu s$.
+Using \sys{}, intra-host latency becomes 21 $\mu s$ (53\% reduction) and inter-host is 46 $\mu s$ (42\% reduction).
 
 
 \subsubsection{Network Function Pipeline}
