@@ -13,7 +13,7 @@ Traditional Linux socket implementation can only achieve latency and throughput 
 %Socket operations are expensive and scale poorly with modern multi-core CPUs.
 Communication intensive applications such as distributed key-value stores and web servers could spend 50\%$\sim$90\% of CPU time in the OS kernel~\cite{jeong2014mtcp}, mostly processing socket operations.
 
-There has been extensive work aiming at reducing the socket overhead (Sec.~\ref{subsec:related-work}).
+There has been extensive work aiming at reducing the socket overhead.
 They either optimize the kernel networking stack~\cite{lin2016scalable,han2012megapipe,yasukata2016stackmap}, or build a user-space TCP/IP stack~\cite{jeong2014mtcp,marinos2014network,seastar,fstack,libvma}, or offload the transport to RDMA NICs~\cite{rsockets,socketsdirect}.
 However, existing approaches have limitations on compatibility and performance.
 First, many of them are not fully compatible with native socket in areas such as process fork, event polling, multiple application sharing and intra-host communication. 
