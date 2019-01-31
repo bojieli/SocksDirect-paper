@@ -12,7 +12,7 @@ set style line 8 pt 13 lc rgb "#f781bf" linewidth 1.5 ps 1.0
 set xlabel "Number of cores"  font "Arial, 24"
 set ylabel "Tput (M packet/s)" font "Arial, 24" offset graph -0.03, 0
 set ytics font "Arial, 24"
-set key outside horizontal font "Arial, 24"
+set key outside horizontal font "Arial, 20"
 
 $netbricks << EOD
 1 22
