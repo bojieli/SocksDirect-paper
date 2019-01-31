@@ -79,7 +79,7 @@ We design \sys{}, a user-space socket system with compatibility, isolation and p
 
 Although the VFS abstraction of socket is complicated and not scalable in general~\cite{clements2015scalable}, many frequently used operations are simple and scalable.
 Our principle is to optimize for the common cases and be compatible with all cases.
-To achieve both isolation and performance, \sys{} follows the principle of separating control and data plane~\cite{peter2016arrakis}.
+To speedup data transmission while preserving isolation in connection management, \sys{} follows the principle of separating control and data plane~\cite{peter2016arrakis}.
 We design a \emph{monitor} daemon in each host as the control plane to enforce access control policies, dispatch new connections, perform address translation for container networks, and establish transport channel between communication peers.
 The data plane is handled by a dynamically loaded user-space library \libipc{}, which intercepts Linux \emph{glibc}, implements socket APIs in user space and forwards the other APIs to the kernel.
 \libipc{} implements data transmission and event polling in a peer-to-peer fashion between processes, while connection establishment is delegated to the monitor.
