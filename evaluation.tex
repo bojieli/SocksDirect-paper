@@ -179,6 +179,12 @@ For zero copy messages ($\ge$16 KiB), \sys{} saturates the network bandwidth, wh
 	\end{minipage}
 	\hspace{0.01\textwidth}
 	\begin{minipage}{.31\textwidth}
+				\centering \includegraphics[width=\textwidth]{eval/web/msgsize-clocal-lat.pdf}
+		\vspace{-15pt}
+		\caption{Nginx HTTP request end-to-end latency.}
+		\label{fig:eval-nginx}
+	\end{minipage}
+	\begin{minipage}{.31\textwidth}
 		\centering
 		\includegraphics[width=\textwidth]{eval/microbenchmark/nfv-tun-tput.pdf}
 		\vspace{-15pt}
@@ -214,10 +220,7 @@ For zero copy messages ($\ge$16 KiB), \sys{} saturates the network bandwidth, wh
 		%\label{fig:eval-conn-setup-tput}
 		
 		%\begin{minipage}{0.4\textwidth}
-		\centering \includegraphics[width=\textwidth]{eval/web/msgsize-clocal-lat.pdf}
-		\vspace{-15pt}
-		\caption{Message processing latency where processes share a core.}
-		\label{fig:eval-nginx}
+
 		%\end{minipage}
 	\vspace{-15pt}
 \end{figure*}

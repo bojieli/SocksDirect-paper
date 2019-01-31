@@ -7,7 +7,7 @@ Rsocket~\cite{rsockets} fails to run the following applications, so we compare t
 \subsubsection{Nginx HTTP Server}
 \quad
 
-To test a typical Web service scenario where the clients come from the network and served within a host, we use Nginx~\cite{nginx} as a reverse proxy between an HTTP request generator and an HTTP response generator.
+To test a typical Web service scenario where the clients come from the network and served within a host, we use Nginx~\cite{nginx} v1.10 as a reverse proxy between an HTTP request generator and an HTTP response generator.
 Nginx and the response generator are in a same host, while the request generator is in a different host.
 The generators use a persistent TCP connection to communicate with Nginx.
 In Figure A, the request generator measures the time from sending an HTTP request to receiving the whole response.
@@ -36,13 +36,6 @@ Key point: concurrency low: test latency, concurrency high: test throughput.
 
 %Metrics: Latency, throughput
 
-\subsubsection{ZeroMQ Message Queue}
-\quad
-
-Figure: line chart, y axis: latency, lines: (intra-, inter-) x (\sys{}, libvma, Linux), x axis: msg size.
-
-Utility: zeromq official test zeromq\_lat.
-Key point: latency is low.
 
 \subsubsection{Network Function Pipeline}
 \quad
