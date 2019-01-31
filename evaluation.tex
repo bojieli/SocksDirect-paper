@@ -19,7 +19,7 @@
 			\label{fig:eval-msgsize-ipc-lat}
 			%\end{minipage}
 		}
-		\vspace{-5pt}
+		\vspace{-10pt}
 		\caption{Single-core intra-host performance with message sizes.}
 		\label{fig:eval-msgsize-intra}
 	\end{minipage}
@@ -39,7 +39,7 @@
 			\label{fig:eval-msgsize-network-lat}
 			%\end{minipage}
 		}
-		\vspace{-5pt}
+		\vspace{-10pt}
 		\caption{Single-core inter-host performance with message sizes.}
 		\label{fig:eval-msgsize-inter}
 	\end{minipage}
@@ -59,8 +59,8 @@
 			\label{fig:eval-cornum-network}
 			%\end{minipage}
 		}
-		\vspace{-5pt}
-		\caption{Data transmission throughput with number of cores.}
+		\vspace{-10pt}
+		\caption{8-byte data transmission throughput with number of cores.}
 		\label{fig:eval-corenum-tput}
 	\end{minipage}
 	\iffalse
@@ -125,7 +125,7 @@ We evaluate \sys on servers with two Xeon E5-2698 v3 CPUs, 256~GiB memory and a 
 Each thread is pinned on a CPU core. We run tests for enough warm-up rounds before collecting data.
 For latency, we build a ping-pong application and report the mean round-trip time, with error bars representing 1\% and 99\% percentile.
 For throughput, one side keeps sending data while the other side keeps receiving data.
-We compare with Linux, RSocket~\cite{rsockets} and LibVMA~\cite{libvma}, a user-space TCP/IP stack optimized for Mellanox NICs.
+We compare with Linux, raw RDMA write verb, Rsocket~\cite{rsockets}, and LibVMA~\cite{libvma}, a user-space TCP/IP stack optimized for Mellanox NICs.
 We did not evaluate mTCP~\cite{jeong2014mtcp} because the underlying DPDK library has limited support on our NIC. mTCP has much higher latency than RDMA due to batching, and the reported throughput was 1.7~M packets per second~\cite{kalia2018datacenter}. %The throughput reported in mTCP paper was 1.7~M packets per second~\cite{kalia2018datacenter}, while RDMA achieves more than 10~M messages per second.
 This work does not raise any ethical issues.
 
@@ -139,18 +139,24 @@ This work does not raise any ethical issues.
 
 Figure~\ref{fig:eval-msgsize-intra} shows intra-host socket performance between a pair of sender and receiver threads.
 For 8-byte messages, \sys achieves 0.3$\mu$s round-trip latency (35x lower than Linux) and 23~M messages per second throughput (20x Linux).
-In comparison, a simple shared memory queue has 0.25$\mu$s round trip latency and 27~M throughput, indicating that \sys adds little overhead.
-This latency is 5x lower than NIC hairpin, \textit{i.e.} one process sends packet to NIC and the NIC delivers it to another process. Using the NIC to forward intra-host packets involve PCIe latency.
-The one-way delay of \sys is 0.15$\mu$s, even lower than a kernel crossing (0.2$\mu$s). Kernel-based sockets require a kernel crossing on both sender and receiver.
+In comparison, a simple SHM queue has 0.25$\mu$s round trip latency and 27~M throughput, indicating that \sys adds little overhead.
+RSocket has 6x latency and 1/4 throughput of \sys{}, because it uses the NIC to forward intra-host packets, which incurs PCIe latency.
+LibVMA simply uses kernel TCP socket for intra-host.
+The one-way delay of \sys{} is 0.15$\mu$s, even lower than a kernel crossing (0.2$\mu$s). Kernel-based sockets require a kernel crossing on both sender and receiver.
 
-Due to memory copy, for 8~KiB messages, the throughput of \sys is only 60\% higher than Linux, and the latency is 4x lower. For messages larger than 8~KiB, \sys uses page remapping to achieve zero copy. For 1~MiB messages, \sys achieves 13x lower latency and 26x throughput than Linux.
+Due to memory copy, for 8~KiB messages, the throughput of \sys is only 60\% higher than Linux, and the latency is 4x lower. For messages with at least 16~KiB size, \sys uses page remapping to achieve zero copy.
+For 1~MiB messages, \sys achieves 1/13 latency and 26x throughput than Linux.
+The latency of RSocket is unstable and may be even larger than Linux in some cases, because of event notification delay.
 
 
 Figure~\ref{fig:eval-msgsize-inter} shows inter-host socket performance between a pair of threads.
-For 8-byte messages, \sys achieves 8M messages per second throughput (7x Linux) and 1.7$\mu$s round-trip latency (17x lower than Linux).
+For 8-byte messages, \sys achieves 18M messages per second throughput (15x Linux) and 1.7$\mu$s latency (17x lower than Linux).
 The throughput and latency is close to raw RDMA write operations (shown as dashed line), which does not have socket semantics.
-LibVMA uses batching to achieve 19M throughput, but the latency is 7x of \sys.
-For 2~KiB and larger messages, \sys saturates the network bandwidth, which is 2x of LibVMA and Linux. This performance gain mainly comes from zero copy.
+\sys{} has even higher throughput than RDMA for 8-byte messages due to batching.
+LibVMA also uses batching to achieve better throughput than \sys{} for 16 to 128 byte messages, but the latency is 7x of \sys{}.
+For message sizes less than 8~KiB, the throughput of inter-host RDMA is  slightly lower than intra-host SHM, because the ring buffer structure is shared.
+For 512B to 8KiB messages, \sys{} is bounded by packet copy, but still faster than RSocket and LibVMA due to reduced buffer management overheads.
+For zero copy messages, \sys{} saturates the network bandwidth, which has 3.5x throughput of all compared works and 72\% latency of RSocket.
 
 
 
@@ -209,16 +215,16 @@ For 2~KiB and larger messages, \sys saturates the network bandwidth, which is 2x
 
 
 
-Figure~\ref{fig:eval-corenum-tput} shows the throughput with different number of cores.
+Figure~\ref{fig:eval-corenum-tput} shows the throughput of 8-byte messages with different number of cores.
 Sender and receiver process each creates several threads, then each thread pins on a core and communicates with a peer thread.
 \sys achieves almost linear scalability for both intra-host and inter-host sockets.
-For intra-host socket, \sys provides 306~M message per second throughput between 16 pairs of sender and receiver cores, which is 40x of Linux.
+For intra-host socket, \sys provides 306~M message per second throughput between 16 pairs of sender and receiver cores, which is 40x of Linux and 30x of RSocket.
 LibVMA falls back to Linux for intra-host socket.
-Using RDMA for inter-host socket, \sys achieves 62~M messages per second throughput (8x Linux and 24x LibVMA).
+Using RDMA for inter-host socket, \sys uses batching to achieve 276~M messages per second throughput with 16 cores, which is 2.5x of the message throughput of our RDMA NIC.
+RSocket peeks at 24~M for intra-host and 33~M for inter-host, because it fails to utilize RDMA verbs efficiently.
 %Although \sys{} creates $n^2$ queues for $n$ sender and receiver threads, in this workload only $n$ of them are active.
 %Because the NIC only caches active RDMA connections and \libipc{} only polls active queues, the idle queues do not degrade performance.
-Single thread LibVMA has better throughput than \sys due to batching.
-Due to lock contention on shared NIC queues, compared to single thread, the throughput of LibVMA reduces to 1/4 with two threads, and 1/10 with three threads.
+Due to lock contention on shared NIC queues, compared to single thread, the throughput of LibVMA reduces to 1/4 with two threads, and 1/10 with three and more threads.
 The Linux throughput scales linearly from 1 to 7 cores and bottlenecks on the loopback or NIC queues with more cores.
 %The multi-thread scalability of \sys attributes to the partitioning of states and removal of synchronization.
 %We can also see that shared memory communication has 5x throughput than RDMA.% Using RDMA NIC for intra-host socket would meet this bottleneck and thus not scalable.
@@ -226,11 +232,10 @@ The Linux throughput scales linearly from 1 to 7 cores and bottlenecks on the lo
 %Figure~\ref{fig:eval-conn-setup-tput} shows the throughput of connection creation with different number of cores. Each core can create 1.4~M new connections per second, which is 20x of Linux and 2x of mTCP~\cite{jeong2014mtcp}. The upper bound is 5.3~M connections per second, where the monitor becomes a bottleneck.
 
 
-Now we evaluate the performance of cooperative multitasking.
-There may be multiple threads sharing a core, and each thread needs to wait for its turn to process messages.
+Finally, we evaluate the performance of multiple threads sharing a core. Each thread needs to wait for its turn to process messages.
 Figure~\ref{fig:eval-context-switch} shows the message processing latency in such scenario.
 First, when only a fraction of workers are active, the idle workers do not impact performance. 
-Second, although the latency increases almost linearly with number of active workers, but it is still 20x to 30x lower than Linux, because cooperative context switch is faster than kernel wakeup.
+Second, although the latency increases almost linearly with number of active workers, it is still 1/20 to 1/30 of Linux.
 
 
 %Finally, we benchmark the throughput and latency after \texttt{fork} and other corner-case operations. Initially, there is only one pair of sender and receiver. At time $T_0$, receiver forks, and the parent process keeps receiving. At time $T_1$, the child process begins to receives takes over the socket. At time $T_2$, sender forks, and only the parent sends. At time $T_3$, the child sender also starts sending. We find that both throughput and latency resume to initial maximal performance within 1~ms after each event.
