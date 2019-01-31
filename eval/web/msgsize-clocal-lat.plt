@@ -14,7 +14,8 @@ set xlabel "Message size (Bytes)"  font "Arial, 24"
 set ylabel "Latency ({/Symbol m}s, log scale)" font "Arial, 24" offset graph -0.02, 0
 set xtics ("8B" 8, "64B" 64, "512B" 512, "4K" 4096, "32K" 32768, "256K" 262144, "1M" 1048576) font "Arial, 24"
 set ytics font "Arial, 24"
-set key inside reverse left top font "Arial, 20"
+set key inside reverse left top font "Arial, 24"
+set yrange [10:1000]
 set logscale y 10 
 set logscale x 2
 
