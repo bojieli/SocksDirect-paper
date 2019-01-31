@@ -93,7 +93,27 @@ $libsd << EOD
 16 61680
 EOD
 
+$rsocket << EOD
+1 5759
+2 5694
+3 10787
+4 10914
+5 14242
+6 11807
+7 10911
+8 13476
+9 13237
+10 11016
+11 13099
+12 11779
+13 11755
+14 13009
+15 11022
+16 10998
+EOD
+
 plot $libsd using ($1):($2/1000) title "SocksDirect" with linespoints linestyle 1,\
 "$linux" using ($1):($2/1000) title "Linux" with linespoints linestyle 2,\
 "$libvma" using ($1):($2/1000) title "LibVMA" with yerrorlines linestyle 3,\
+"$rsocket" using ($1):($2/1000) title "RSocket" with linespoints linestyle 5,\
 "$RDMA" using ($1):($2/1000) title "RDMA" with linespoints linestyle 4
