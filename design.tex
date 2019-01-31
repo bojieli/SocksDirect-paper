@@ -33,7 +33,7 @@
 
 To simplify deployment and development~\cite{andromeda}, as well remove kernel crossing overhead, we implement \sys in user space rather than kernel.
 To use \sys, an application loads a user-space library \libipc{} by setting the \texttt{LD\_PRELOAD} environment variable. \libipc{} intercepts all Linux APIs in standard C library that are related to file descriptor (FD) operations. It uses a \emph{FD remapping table} to distinguish socket FDs from kernel FDs (e.g. file and devices), implements socket functions in user space and forwards others to the kernel.
-From a security point of view, because \libipc{} resides in the application address space, we cannot trust its behavior. For example, a malicious application may bypass firewall policies if it is enforced in \libipc{}. Furthermore, TCP port is a global resource that needs centralized allocation~\cite{lin2016scalable,nsdi19freeflow}. Therefore, we need a trusted component outside \libipc{} to enforce access control and manage global resources.
+From a security point of view, because \libipc{} resides in the application address space, we cannot trust its behavior. For example, a malicious application may bypass firewall policies if it is enforced in \libipc{}. Furthermore, TCP port is a global resource that needs allocation~\cite{lin2016scalable,nsdi19freeflow}. Therefore, we need a trusted component outside \libipc{} to enforce access control and manage global resources.
 
 To this end, we design a \emph{monitor} daemon at each host to coordinate control plane operations, e.g., connection creation. The monitor is a system service. In each host, all the applications loading \libipc{} must establish a shared memory (SHM) queue with the host's monitor daemon, forming the control plane. On the data plane, applications build peer-to-peer queues to communicate directly, thus relieving the burden of the monitor daemon. Figure~\ref{fig:architecture} shows the architecture of \sys{}.
 
@@ -226,7 +226,7 @@ The monitor can thus pair the child process with the parent.
 
 \parab{Monitor action.}
 Upon fork, exec or thread creation, each existing socket needs to add a sender to the sending direction and a receiver to the receiving direction.
-The parent process/thread inherits the token, so the child process/thread is always inactive.
+The parent process inherits the token, so the child process is always inactive.
 
 %The socket queues are in SHM between parent and child processes.
 %However, to avoid synchronization in accessing shared metadata, the metadata is in thread local storage and copied from parent to child.

@@ -142,7 +142,7 @@ Socket is the standard communication primitive among applications, containers an
 %Socket is also used to exchange data between parameter server and workers in Tensorflow and from mapper to reducer in Spark.
 %The socket API was designed in 1980s when network communication has millisecond scale latency, so the computation overhead in OS networking stack is negligible.
 %In contrast, modern data centers have networks with microsecond scale latency and throughput comparable to intra-host buses, making socket a well-known bottleneck for communication intensive applications.
-Modern data center networks have microsecond-level base latency and tens of Gbps throughput. However, traditional Linux socket is implemented in the OS kernel space with shared data structures, making socket a well-known bottleneck for communication intensive applications running on multiple hosts~\cite{barroso2017attack}. In addition to inter-host communications, cloud applications and containers at the same host often communicate with each other, making intra-host socket communication increasingly important in the cloud era. Under stress tests, applications such as Nginx~\cite{reese2008nginx}, memcached~\cite{fitzpatrick2004distributed} and Redis~\cite{carlson2013redis} consume 50\% to 90\% CPU time in the kernel, mostly dealing with TCP socket operations~\cite{jeong2014mtcp}.
+Modern data center networks have microsecond-level base latency and tens of Gbps throughput. However, traditional Linux socket is implemented in the OS kernel space with shared data structures, making socket a well-known bottleneck for communication intensive applications running on multiple hosts~\cite{barroso2017attack}. In addition to inter-host communications, cloud applications and containers at the same host often communicate with each other, making intra-host socket communication increasingly important in the cloud era. Under stress tests, applications such as Nginx~\cite{reese2008nginx}, Memcached~\cite{fitzpatrick2004distributed} and Redis~\cite{carlson2013redis} consume 50\% to 90\% CPU time in the kernel, mostly dealing with TCP socket operations~\cite{jeong2014mtcp}.
 
 \iffalse
 %To understand the cost of socket, we first need to know the functions of socket.
@@ -161,7 +161,7 @@ It is well known that the VFS layer contributes a large portion of cost~\cite{cl
 This can be verified by a simple experiment: the latency and throughput of Linux TCP socket between two processes in a host is only a little worse than pipe, FIFO and Unix domain socket (Table~\ref{tab:operation-performance}).
 Pipe, FIFO and UNIX domain socket bypass the transport and NIC layers, but their performance is still not satisfactory.
 
-In the following, we categorize socket overhead into four types of overheads: per operation, per packet, per byte and per connection.
+In the following, we categorize socket overhead into four types: per operation, per packet, per byte and per connection.
 %Clark et. al~\cite{clark1989analysis} categorized socket overhead into per-packet and per-byte costs.
 %Because connection establishment incurs significant cost~\cite{jeong2014mtcp,lin2016scalable} and some operations do not touch payload (e.g. \texttt{dup2}, \texttt{fnctl} and \texttt{epoll}), we include two additional types of costs: per connection cost and per operation cost, as Table~\ref{tab:overhead} shows.
 
@@ -330,7 +330,7 @@ TCP/IP protocol processing, congestion control and loss recovery consume CPU on 
 In addition, loss detection, rate-based congestion control and TCP state machine use timers, which is hard to achieve both microsecond-level granularity and low overhead~\cite{jeong2014mtcp}.
 Fortunately, recent years witnessed large scale deployment of RDMA in many datacenters~\cite{guo2016rdma,zhu2015congestion,mittal2015timely}.
 RDMA provides a hardware-based transport comparable to TCP/IP, therefore it is desirable to offload the transport protocol to the RDMA NIC.
-For intra-host connections, we aim to completely bypass the transport protocol, as Linux pipe does.
+For intra-host connections, we aim to completely bypass the transport protocol, as Linux \emph{pipe} does.
 
 \parab{Buffer management.}
 Traditionally, CPU send and receive packets from NICs via \emph{ring buffers}.

@@ -61,7 +61,7 @@ The sender side writes its local ring buffer, and invokes RDMA to synchronize th
 We use an RDMA RC QP for each ring buffer, and maintain a counter of in-flight RDMA messages.
 If the counter does not exceed threshold, an RDMA message is sent for every socket \texttt{send} operation.
 Otherwise, the message is not sent, and \emph{send\_next} marks the first unsent message.
-Upon completion of an RDMA write, we send a large message containing all unsent changes (\emph{send\_next} to \emph{tail} in Figure~\ref{fig:ringbuffer-new}).
+Upon completion of an RDMA write, we send a message containing all unsent changes (\emph{send\_next} to \emph{tail} in Figure~\ref{fig:ringbuffer-new}).
 This adaptive batching mechanism minimizes latency on idle links and maximizes throughput on busy links.
 For SHM, we have only one copy of ring buffer shared by two processes, and synchronization is done by cache coherence hardware.
 

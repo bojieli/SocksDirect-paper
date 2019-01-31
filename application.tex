@@ -2,7 +2,7 @@
 \label{subsec:application}
 
 In this section, we demonstrate that \sys{} can significantly improve the performance of real-world applications without modifying the code.
-Rsocket~\cite{rsockets} is not compatible with any of the following applications, so we compare the performance with Linux.
+Rsocket~\cite{rsockets} is not compatible with any of the following applications.
 
 \subsubsection{Nginx HTTP Server}
 \quad
@@ -21,15 +21,15 @@ For large responses, due to zero copy, \sys{} reduces latency by up to 20x.
 %The request generator sends multiple HTTP requests in parallel, and we use a sufficient number of generator threads to saturate Nginx throughput.
 %Figure B: throughput scalability with number of cores.
 
-\subsubsection{Redis Key-Value Store}
-\quad
+%\subsubsection{Redis Key-Value Store}
+%\quad
 
-Redis~\cite{redis}
+%Redis~\cite{redis}
 
-Figure: line chart, y axis: throughput, lines: (intra-, inter-) x (\sys{}, libvma, Linux). x axis: number of concurrent clients.
+%Figure: line chart, y axis: throughput, lines: (intra-, inter-) x (\sys{}, libvma, Linux). x axis: number of concurrent clients.
 
-Utility: redis-benchmark.
-Key point: concurrency low: test latency, concurrency high: test throughput.
+%Utility: redis-benchmark.
+%Key point: concurrency low: test latency, concurrency high: test throughput.
 
 %\subsection{Real-time Stream Processing}
 
@@ -43,7 +43,7 @@ Key point: concurrency low: test latency, concurrency high: test throughput.
 \quad
 
 We measure RPC latency using RPClib~\cite{rpclib}.
-We run the example RPC in RPClib among two processes inside a host, and it takes 45 $\mu s$. Across two hosts, the RPC takes 79 $\mu s$.
+We run the example 1~KiB RPC in RPClib among two processes inside a host, and it takes 45 $\mu s$. Across two hosts, the RPC takes 79 $\mu s$.
 Using \sys{}, intra-host latency becomes 21 $\mu s$ (53\% reduction) and inter-host is 46 $\mu s$ (42\% reduction).
 
 
