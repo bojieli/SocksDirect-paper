@@ -15,7 +15,7 @@ set yrange [0.1:100]
 set logscale y 10
 set xtics ("8B" 8, "64B" 64, "512B" 512, "4K" 4096, "32K" 32768, "256K" 262144, "1M" 1048576) font "Arial, 24"
 set ytics font "Arial, 24"
-set key inside right bottom horizontal font "Arial, 20"
+set key inside reverse right bottom vertical font "Arial, 20"
 set logscale x 2
 
 $linux << EOD
