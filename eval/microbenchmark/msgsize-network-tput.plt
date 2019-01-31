@@ -11,11 +11,12 @@ set style line 7 pt 13 lc rgb "#a65628" linewidth 1.5 ps 1.0
 set style line 8 pt 13 lc rgb "#f781bf" linewidth 1.5 ps 1.0
 set xlabel "Message size (Bytes)"  font "Arial, 24"
 set ylabel "Throughput (Gbps)" font "Arial, 24" offset graph -0.02, 0
+set yrange [0.1:100]
+set logscale y 10
 set xtics ("8B" 8, "64B" 64, "512B" 512, "4K" 4096, "32K" 32768, "256K" 262144, "1M" 1048576) font "Arial, 24"
 set ytics font "Arial, 24"
-set key outside horizontal font "Arial, 20"
+set key inside right bottom horizontal font "Arial, 20"
 set logscale x 2
-set logscale y 10
 
 $linux << EOD
 8	0.077453613
