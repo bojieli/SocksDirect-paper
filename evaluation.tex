@@ -123,7 +123,8 @@ It also improves throughput of a network function chain by 15x.
 
 We evaluate \sys on servers with two Xeon E5-2698 v3 CPUs, 256~GiB memory and a Mellanox ConnectX-4 NIC. The servers are interconnected with an Arista 7060CX-32S 100G switch~\cite{arista-7060cx}. We use Ubuntu 16.04 with Linux 4.15, RoCEv2 for RDMA and poll completion queue every 64 messages.
 Each thread is pinned on a CPU core. We run tests for enough warm-up rounds before collecting data.
-We report the mean round-trip latency, with error bars representing 1\% and 99\% percentile.
+For latency, we build a ping-pong application and report the mean round-trip time, with error bars representing 1\% and 99\% percentile.
+For throughput, one side keeps sending data while the other side keeps receiving data.
 We compare with Linux, RSocket~\cite{rsockets} and LibVMA~\cite{libvma}, a user-space TCP/IP stack optimized for Mellanox NICs.
 We did not evaluate mTCP~\cite{jeong2014mtcp} because the underlying DPDK library has limited support on our NIC. mTCP has much higher latency than RDMA due to batching, and the reported throughput was 1.7~M packets per second~\cite{kalia2018datacenter}. %The throughput reported in mTCP paper was 1.7~M packets per second~\cite{kalia2018datacenter}, while RDMA achieves more than 10~M messages per second.
 This work does not raise any ethical issues.
