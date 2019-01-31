@@ -395,7 +395,7 @@ So, \libipc{} runs every socket operation to completion and use polling to wait 
 			\multicolumn{11}{c|}{Removed Performance Overheads} \\
 			\hline
 			\hline
-			Kernel crossing on data plane & & & Batched & \yes & Batched & \yes & \yes & \yes & \yes & $<$8KB msg \\
+			Kernel crossing on data plane & & & Batched & \yes & Batched & \yes & \yes & \yes & \yes & $<$16KB msg \\
 			\hline
 			Socket FD locks & & & & & & & & & & \yes \\
 			\hline
@@ -407,7 +407,7 @@ So, \libipc{} runs every socket operation to completion and use polling to wait 
 			\hline
 			Process wakeup & & & & & & & & & & \yes \\
 			\hline
-			Payload copy & & \yes & & & \yes & & & & & \yes \\
+			Payload copy & & \yes & & & \yes & & & & & $\ge$16KB msg \\
 			\hline
 			Kernel FD allocation & & \yes &  &  & \yes & & & & & \yes \\
 			\hline
@@ -554,7 +554,8 @@ Third, because RSocket uses RDMA as wire protocol, it cannot connect to regular 
 This is a deployment challenge because all hosts and applications in a distributed system must switch to RSocket simutanenously.
 We aim to transparently detect whether the remote side supports Rsocket, and fall back to TCP/IP if not.
 On the performance side, they fail to remove payload copy, socket FD locks, buffer management, process wakeup and the per connection overheads.
-In addition, they use two-sided RDMA \texttt{send} and \texttt{recv}, but one-sided RDMA \texttt{write} has higher throughput due to lower CPU cost on receive side (Table~\ref{tab:operation-performance}).
+For example, RSocket allocates buffers and copies payload on both send and receive sides.
+%In addition, they use two-sided RDMA \texttt{send} and \texttt{recv}, but one-sided RDMA \texttt{write} has higher throughput due to lower CPU cost on receive side (Table~\ref{tab:operation-performance}).
 %However, such simple translations suffer from throughput degradation with a large number of concurrent connections. This is because RDMA NIC keeps per-connection states using a $\approx$2~MB~\cite{kalia2018datacenter} on-NIC memory as cache. With hundreds of concurrent connections, we will suffer from frequent cache misses, resulting in serious throughput degradation~\cite{mprdma,kaminsky2016design}. 
 
 
