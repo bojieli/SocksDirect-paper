@@ -2,11 +2,13 @@
 \label{subsec:application}
 
 In this section, we demonstrate that \sys{} can significantly improve the performance of real-world applications without modifying the code.
+Rsocket~\cite{rsockets} cannot run the following applications, so we compare the performance with Linux and libvma~\cite{libvma}.
 
 \subsubsection{Nginx HTTP Server}
 \quad
 
-We use an Nginx~\cite{nginx} as reverse proxy. Request come from another host, proxied to a web service in the same host, which generates a fixed-sized HTTP response.
+We use Nginx~\cite{nginx} HTTP server as reverse proxy between an HTTP request generator and an HTTP response generator.
+Each thread of the generators use a persistent TCP connection to communicate with Nginx.
 
 Figure: latency vs request size.
 

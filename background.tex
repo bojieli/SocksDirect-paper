@@ -510,15 +510,15 @@ However, the bulk of kernel overheads are still there.
 The challenge for supporting zero copy is the socket semantics, as discussed in Sec.~\ref{subsec:per-byte-overhead}.
 
 \parab{User-space TCP/IP stack:} The second line of work completely bypasses kernel TCP/IP stack and implements TCP/IP in user space.
-In this category, IX~\cite{belay2017ix} and Arrakis~\cite{peter2016arrakis} are new OS architectures that uses virtualization to ensure security and isolation. IX leverages user space network stack~\cite{dunkels2001design} while using kernel to forward every packet for performance isolation and QoS. In contrast, Arrakis offloads QoS to NIC, therefore bypasses kernel for data plane.% \RED{What is the problem of IX and Arrakis?}
+In this category, IX~\cite{belay2017ix} and Arrakis~\cite{peter2016arrakis} are new OS architectures that use virtualization to ensure security and isolation. IX leverages LwIP~\cite{dunkels2001design} to implement TCP/IP in user space while using kernel to forward every packet for performance isolation and QoS. In contrast, Arrakis offloads QoS to NIC, therefore bypasses kernel for data plane.% \RED{What is the problem of IX and Arrakis?}
 
 Apart from these new OS architectures, many recent efforts use high performance packet I/O frameworks on Linux, e.g., Netmap~\cite{rizzo2012netmap}, Intel DPDK~\cite{dpdk} and PF\_RING~\cite{pf-ring}), to directly access NIC queues in user space.
 SandStorm~\cite{marinos2014network}, mTCP~\cite{jeong2014mtcp}, Seastar~\cite{seastar} and F-Stack~\cite{fstack} propose new APIs and thus need to modify applications.
-Most of the API changes aim to support zero copy.
+Most of the API changes aim to support zero copy, and the standard API still copies data.
 LibVMA~\cite{libvma}, OpenOnload~\cite{openonload}, DBL~\cite{dbl} and LOS~\cite{huang2017high} are designed to be compatible with existing applications.
 
-User-space TCP/IP stacks provide much better performance than Linux, but still not close to RDMA and shared memory.
-Part of the reason is that none of existing works support sharing a socket among threads and processes, causing compatibility problems in fork and container live migration, and multi-thread locking overhead as well.
+User-space TCP/IP stacks provide much better performance than Linux, but it is still not close to RDMA and SHM.
+One important reason is that none of existing works support sharing a socket among threads and processes, causing compatibility problems in fork and container live migration, and multi-thread locking overhead as well.
 
 First, when a process forks, only one of the parent and child processes can use existing sockets.
 However, many web services~\cite{apache,nginx,php-fpm,python-gunicorn,vsftpd} and key-value stores~\cite{memcached} have a master process to accept a connection and (optionally) read the request header, then it may fork off a child process to handle the request, where the child needs to access the socket.
@@ -537,8 +537,8 @@ The latter approach guarantees correctness, but locking hurts performance even i
 
 \parab{Offloading transport to NICs:}
 The third line of research offload part of the socket system to NIC hardware.
-TCP Offload Engines (TOE)~\cite{tcp-chimney-offload} offload part or full TCP/IP stack to the NIC, but they only took off in specialized areas (e.g. iSCSI HBA~\cite{iscsi-hba}) and stateless offloads (e.g. checksum and LSO/LRO~\cite{lsolro}).
-The story of stateful offloads is different in recent years because of hardware trends and application demands in datacenters~\cite{chuanxiong-rdma-keynote}.
+TCP Offload Engines (TOE)~\cite{tcp-chimney-offload} offload part or full TCP/IP stack to the NIC, but they only took off in specialized areas (e.g. iSCSI HBA~\cite{iscsi-hba}) and stateless offloads (e.g. checksum, flow steering and LSO/LRO~\cite{lsolro}).
+The story of \emph{stateful} offloads is different in recent years because of hardware trends and application demands in datacenters~\cite{chuanxiong-rdma-keynote}.
 As a result, RDMA~\cite{infiniband2000infiniband} becomes widely available in production data centers~\cite{guo2016rdma}.
 RDMA uses hardware offloading to provide ultra low latency and near zero CPU overhead compared to software-based TCP/IP network stacks.
 To enable socket applications to use RDMA, RSocket~\cite{rsockets}, SDP~\cite{socketsdirect} and UNH EXS~\cite{russell2008extended} translate socket operations to RDMA verbs.
