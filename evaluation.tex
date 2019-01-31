@@ -98,23 +98,23 @@
 We implement \sys in three components: a user-space library \libipc{} and a monitor daemon with 17K lines of C++ code, and a modified RDMA NIC driver to support zero copy. We evaluate \sys in the following aspects:
 
 \parab{Use shared memory efficiently for intra-host socket.}
-For small messages, \sys achieves 0.3$\mu$s round-trip latency and up to 23~M messages per second throughput, close to raw SHM performance. For large messages, \sys uses zero copy to achieve 1/13 latency and 26x throughput than Linux.
+For 8-byte messages, \sys achieves 0.3$\mu$s round-trip latency and up to 23~M messages per second throughput, close to raw SHM performance. For large messages, \sys uses zero copy to achieve 1/13 latency and 26x throughput than Linux.
 
 \parab{Use RDMA efficiently for inter-host socket.}
-\sys achieves 1.7$\mu$s round-trip latency and 18M messages per second throughput, close to raw RDMA performance.
+\sys achieves 1.7$\mu$s round-trip latency, close to raw RDMA performance.
+With zero copy, a single connection can saturate an 100~Gbps link.
 
 %\parab{Robust with number of connections.}
 %The performance above can be maintained with up to 100 million connections.
 
-\parab{Scale with number of cores.}
-The performance above is linearly scalable with number of cores. %In addition, a single CPU core can create 1.4~M connections per second.
+\parab{Scalable with number of cores.}
+The throughput is almost linearly scalable with number of cores. %In addition, a single CPU core can create 1.4~M connections per second.
 
 %\parab{Corner-case operations does not affect long-term performance.}
 %After corner-case operations such as \texttt{fork}, the performance recovers quickly.
 
-\parab{Significant speedup with unmodified real-world applications.}
-\sys{} is compatible with many real-world applications.
-It achieves 5.5x latency reduction for Nginx, Redis and ZeroMQ.
+\parab{Significant speedup with unmodified end-to-end applications.}
+As an example, \sys{} reduces Nginx HTTP request latency by 5.5x to 20x.
 
 
 \subsection{Methodology}
@@ -205,7 +205,7 @@ For zero copy messages ($\ge$16 KiB), \sys{} saturates the network bandwidth, wh
 		%\caption{Multi-core scalability of HTTP backend service throughput.}
 		%\label{fig:eval-http-tput}
 	\end{minipage}
-	\vspace{-15pt}
+	\vspace{-10pt}
 \end{figure*}
 
 \begin{figure*}[t!]

@@ -11,7 +11,7 @@ Socket API is the most widely used communication primitive in modern application
 Linux socket can only achieve latency and throughput numbers which are an order of magnitude worse than the raw capability of hardware.
 %Socket operations have latency and throughput one order of magnitude worse than the raw hardware.
 %Socket operations are expensive and scale poorly with modern multi-core CPUs.
-Communication intensive applications such as distributed key-value stores and web servers could spend 50\%$\sim$90\% of CPU time in the OS kernel~\cite{jeong2014mtcp}, mostly processing socket operations.
+%Communication intensive applications such as distributed key-value stores and web servers could spend 50\%$\sim$90\% of CPU time in the OS kernel~\cite{jeong2014mtcp}, mostly processing socket operations.
 
 There exists an extensive body of work aiming at improving socket performance.
 Existing approaches either optimize the kernel networking stack~\cite{lin2016scalable,han2012megapipe,yasukata2016stackmap}, or move TCP/IP stack to user-space~\cite{jeong2014mtcp,marinos2014network,seastar,fstack,libvma}, or offload transport to RDMA NICs~\cite{rsockets,socketsdirect}.
@@ -73,10 +73,9 @@ We exploit multiple techniques to effectively utilize hardware and improve syste
 In general, a socket connection is shared among threads and forked processes.
 To avoid race conditions in accessing socket metadata and buffers, synchronization is needed. Rather than locking on each operation, we design a token-based approach for sharing that remove synchronization overhead for the common case.
 When sending and receiving data from NICs, existing systems allocate buffers for each packet.
-To remove buffer management overhead, we design a per-connection ring buffer with two copies on both sender and receiver.
-\sys{} leverages RDMA and \emph{shared memory} (SHM) for inter-host and intra-host communication, respectively, to synchronize from sender ring buffer to receiver.
-To achieve zero copy for large messages, we leverage the page table to remap pages rather than copying data.
-Finally, we observe that cooperative context switch is faster than process wakeup, so we design a mechanism to allow CPU time sharing among polling processes.
+To remove buffer management overhead, we design a per-connection ring buffer with two copies on both sender and receiver, then leverage RDMA and SHM to synchronize from sender ring buffer to receiver.
+To achieve zero copy for large messages, we leverage the virtual memory to remap pages.
+%Finally, we observe that cooperative context switch is faster than process wakeup, so we design a mechanism to allow CPU time sharing among polling processes.
 %\fi
 
 \iffalse
@@ -118,18 +117,19 @@ To share a CPU core efficiently among multiple active threads, \sys uses \emph{c
 %As a result, we achieve zero copy for both shared memory, RDMA and TCP transport.
 
 \sys{} achieves latency and throughput close to the raw performance achievable from the underlying SHM queue and RDMA.
-On the latency side, \sys{} achieves $0.3\mu$s RTT for intra-host socket, 1/35 of Linux and only $0.05\mu$s higher than a bare-metal SHM queue. For inter-host socket, \sys{} achieves $1.7\mu$s RTT between RDMA hosts, almost the same as raw RDMA verbs and 1/17 of Linux.
-On the throughput side, a single thread can send 23~M intra-host messages per second (20x Linux) or 8~M inter-host (7x Linux). For large messages, with zero copy, a single connection saturates NIC bandwidth.
+On the latency side, \sys{} achieves $0.3\mu$s RTT for intra-host socket, 1/35 of Linux and only $0.05\mu$s higher than a bare-metal SHM queue. For inter-host socket, \sys{} achieves $1.7\mu$s RTT between RDMA hosts, almost the same as raw RDMA write and 1/17 of Linux.
+On the throughput side, a single thread can send 23~M intra-host messages per second (20x of Linux) or 18~M inter-host (15x of Linux, 1.4x of raw RDMA write).
+For large messages, with zero copy, a single connection saturates NIC bandwidth.
 The performance above is scalable with number of cores.
-\sys{} offers significant speedup for existing real-world applications.
-For example, Nginx web server has 5.5x lower HTTP request latency.
+\sys{} offers significant speedup for real-world applications.
+For example, HTTP request latency of Nginx~\cite{nginx} improves by 5.5x, and RPCs are 50\% faster.
 
 In summary, this work makes the following contributions:
 \begin{ecompact}
 	\item An analysis of overheads in Linux socket.
 	\item Design and implementation of \sys{}, a high performance user space socket system that is compatible with Linux and preserves isolation among applications.
 	\item Techniques to support fork, lockless connection sharing, allocation free ring buffer and zero copy that may be useful in many scenarios other than sockets.
-	\item Evaluations show that \sys{} can achieve performance that is comparable to RDMA and SHM queue, as well speedup real-world applications significantly.
+	\item Evaluations show that \sys{} can achieve performance that is comparable to RDMA and SHM queue.
 \end{ecompact}
 
 %We evaluate end-to-end performance of \sys{} using two categories of applications: \textit{network functions} and \textit{web services}. For a multi-core pipelined network function (NF) chain, a socket application achieves comparable performance with a state-of-the-art NF framework~\cite{panda2016netbricks}. We also evaluate \sys{} on a standard web application composed of a load balancer, a web service and a key-value store.
