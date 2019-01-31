@@ -5,7 +5,7 @@
 	\centering
 	\begin{minipage}{.31\textwidth}
 		\centering
-		\subfloat[intra-host throughput]{                    
+		\subfloat[Intra-host throughput.]{                    
 			%\begin{minipage}{0.4\textwidth}
 			\centering
 			\includegraphics[width=\textwidth]{eval/microbenchmark/msgsize-ipc-tput.pdf}
@@ -13,7 +13,7 @@
 			%\end{minipage}
 		}
 		\vspace{-10pt}
-		\subfloat[intra-host latency]{
+		\subfloat[Intra-host latency.]{
 			%\begin{minipage}{0.4\textwidth}
 			\centering \includegraphics[width=\textwidth]{eval/microbenchmark/msgsize-ipc-lat.pdf}
 			\label{fig:eval-msgsize-ipc-lat}
@@ -26,14 +26,14 @@
 	\hspace{0.01\textwidth}
 	\begin{minipage}{.31\textwidth}
 		\centering
-		\subfloat[inter-host throughput]{
+		\subfloat[Inter-host throughput.]{
 			%\begin{minipage}{0.4\textwidth}
 			\centering \includegraphics[width=\textwidth]{eval/microbenchmark/msgsize-network-tput.pdf}
 			\label{fig:eval-msgsize-network-tput}
 			%\end{minipage}
 		}
 		\vspace{-10pt}
-		\subfloat[inter-host latency]{
+		\subfloat[Inter-host latency.]{
 			%\begin{minipage}{0.4\textwidth}
 			\centering \includegraphics[width=\textwidth]{eval/microbenchmark/msgsize-network-lat.pdf}
 			\label{fig:eval-msgsize-network-lat}
@@ -45,15 +45,15 @@
 	\end{minipage}
 	\hspace{0.01\textwidth}
 	\begin{minipage}{.31\textwidth}
-		\subfloat[intra-host]{                    
+		\subfloat[Intra-host throughput.]{                    
 			%\begin{minipage}{0.4\textwidth}
 			\centering
 			\includegraphics[width=\textwidth]{eval/microbenchmark/corenum-IPC-tput.pdf}
 			\label{fig:eval-cornum-ipc}
 			%\end{minipage}
 		}
-		\vspace{-5pt}
-		\subfloat[inter-host]{
+		\vspace{-10pt}
+		\subfloat[Inter-host throughput.]{
 			%\begin{minipage}{0.4\textwidth}
 			\centering \includegraphics[width=\textwidth]{eval/microbenchmark/corenum-network-tput.pdf}
 			\label{fig:eval-cornum-network}
@@ -174,7 +174,7 @@ For zero copy messages ($\ge$16 KiB), \sys{} saturates the network bandwidth, wh
 		%\begin{minipage}{0.4\textwidth}
 		\centering \includegraphics[width=\textwidth]{eval/microbenchmark/sharecore-lat.pdf}
 		\vspace{-15pt}
-		\caption{Latency of multiple processes sharing a core.}
+		\caption{Message processing latency where processes share a core.}
 		\label{fig:eval-context-switch}
 		%\end{minipage}
 	\end{minipage}
@@ -182,7 +182,8 @@ For zero copy messages ($\ge$16 KiB), \sys{} saturates the network bandwidth, wh
 	\begin{minipage}{.31\textwidth}
 		\centering
 		\includegraphics[width=\textwidth]{eval/microbenchmark/nfv-tun-tput.pdf}
-		\caption{Throughput of NFV service chain.}
+		\vspace{-15pt}
+		\caption{Throughput of network function pipeline.}
 		\label{fig:eval-tun-tput}
 		%\includegraphics[width=\textwidth]{eval/microbenchmark/nginx-short-tput.pdf}
 		%\vspace{-15pt}
@@ -233,9 +234,8 @@ The Linux throughput scales linearly from 1 to 7 cores and bottlenecks on the lo
 
 
 Finally, we evaluate the performance of multiple threads sharing a core. Each thread needs to wait for its turn to process messages.
-Figure~\ref{fig:eval-context-switch} shows the message processing latency in such scenario.
-First, when only a fraction of workers are active, the idle workers do not impact performance. 
-Second, although the latency increases almost linearly with number of active workers, it is still 1/20 to 1/30 of Linux.
+As Figure~\ref{fig:eval-context-switch} shows, although the message processing latency increases almost linearly with number of active processes, it is still 1/20 to 1/30 of Linux.
+
 
 
 %Finally, we benchmark the throughput and latency after \texttt{fork} and other corner-case operations. Initially, there is only one pair of sender and receiver. At time $T_0$, receiver forks, and the parent process keeps receiving. At time $T_1$, the child process begins to receives takes over the socket. At time $T_2$, sender forks, and only the parent sends. At time $T_3$, the child sender also starts sending. We find that both throughput and latency resume to initial maximal performance within 1~ms after each event.
