@@ -189,21 +189,21 @@ After the remapped pages are freed (e.g. overwritten by another \texttt{recv}), 
 
 \parab{Challenge 1: multiplex events between kernel and \libipc{}.}
 The application polls events from both sockets and other \textit{kernel FDs} handled by Linux kernel.
-A naive way to poll kernel events is to invoke the syscall (e.g. \texttt{epoll\_wait}) every time, which incurs high overhead because event polling is a frequent operation on virtually every send and receive.
+A naive way to poll kernel events is to invoke the syscall (e.g. \textit{epoll\_wait}) every time, which incurs high overhead because event polling is a frequent operation on virtually every send and receive.
 %LOS~\cite{huang2017high} periodically invokes non-blocking \texttt{epoll\_wait} syscall with kernel FDs, which leads to a trade-off between delay and CPU overhead. Differently,
-Differently, \libipc{} creates a per-process \textit{epoll thread} which invokes \texttt{epoll\_wait} syscall to poll kernel events. Whenever epoll thread receives a kernel event, it broadcasts the event to application threads via SHM queues. Then \libipc{} will return such kernel events together with user-space socket events to the application.
+Differently, \libipc{} creates a per-process \textit{epoll thread} which invokes \textit{epoll\_wait} syscall to poll kernel events. Whenever epoll thread receives a kernel event, application threads will report the event together with user-space socket events.
 
 \parab{Challenge 2: interrupt busy processes.}
 %To minimize context switch, \sys{} runs in user mode and uses cooperative multitasking to multiplex processes on CPU cores. 
 %Coordination and delegation based on message passing requires processes to respond to messages promptly.
-The socket take-over mechanism (Sec.~\ref{subsubsec:fork_rdwr}) requires a process to respond monitor requests promtly. However, processes may execute application code without calling \libipc{} for a long time. To address this issue, we design a \textit{signal} mechanism analogous to interrupts in OS. Event initiators  first poll the receive queue for a period of time for ACK. If no reply, it sends a Linux \texttt{signal} to the receptor and wake up the process.
+The socket take-over mechanism (Sec.~\ref{subsubsec:fork_rdwr}) requires a process to respond monitor requests promtly. However, processes may execute application code without calling \libipc{} for a long time. To address this issue, we design a \textit{signal} mechanism analogous to interrupts in OS. Event initiators first poll the receive queue for a period of time for ACK. If no reply, it sends a Linux \textit{signal} to the receptor and wake up the process.
 
 The signal handler, registered by \libipc{}, first determines whether the process is executing application or \libipc{} code. \libipc{} sets and clears a flag at entry and exit of the library. If signal handler finds that the process is in \libipc, it does nothing and \libipc{} will process the event before returning control to the application. Otherwise, the signal handler immediately processes messages from the emergency queue to the monitor, before returning control to the application. 
 %Because \libipc{} is designed to be fast and non-blocking, message passing initiators will soon receive the response.
 
 \parab{Challenge 3: enable multiple threads time-share a core.}
 %When an application calls non-blocking socket operations, \libipc{} polls the ring buffers and returns immediately.
-For blocking operations (e.g., blocking recv, connect and epoll\_wait), \libipc{} first polls the ring buffers once. If the operation is not completed, rather than polling infinitely, \libipc{} calls \texttt{sched\_yield} to yield to other processes on the same core. %As stated in Sec.~\ref{subsec:bottleneck}, context switch in cooperative multitasking only takes 0.4~$\mu$s. However, an application may wait a long time for an external event, making frequent wake-ups wasteful. In this regard, we count consecutive wake-ups which does not process any message, and puts the process to sleep when this reaches a threshold. 
+For blocking operations (e.g., blocking recv, connect and epoll\_wait), \libipc{} first polls the ring buffers once. If the operation is not completed, rather than polling infinitely, \libipc{} calls \textit{sched\_yield} to yield to other processes on the same core. %As stated in Sec.~\ref{subsec:bottleneck}, context switch in cooperative multitasking only takes 0.4~$\mu$s. However, an application may wait a long time for an external event, making frequent wake-ups wasteful. In this regard, we count consecutive wake-ups which does not process any message, and puts the process to sleep when this reaches a threshold. 
 If \libipc{} continues to yield for a certain number of rounds, it will put itself into sleep. Before sleeping, it sends a message to the monitor and all peers, so they can wake it up later through a message.
 
 %\parab{Handling events from kernel.}
