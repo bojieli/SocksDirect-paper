@@ -59,7 +59,7 @@ To achieve high performance, \sys fully exploits the capability of modern hardwa
 
 To achieve all the three goals simultaneously, we first need to understand how Linux socket provides compatibility and isolation. Linux socket provides a virtual file system (VFS) abstraction to applications. With this abstraction, application developers can do communication like operating files, without digging into network protocol details. This abstraction also provides good isolation among applications that share an address and port space. However, the VFS abstraction is very complicated and many APIs are inherently not scalable~\cite{clark1989analysis,boyd2010analysis,jeong2014mtcp}.
 
-We find that many commonly used socket operations are actually simple. despite the generality and complexity of VFS. Therefore, our design principle is optimizing for the common situations while staying compatible in general.
+We find that many commonly used socket operations are actually simple despite the generality and complexity of VFS. Therefore, our design principle is optimizing for the common situations while staying compatible in general.
 
 To speedup data transmission while keeping isolation in connection management, \sys{} separates control and data plane~\cite{peter2016arrakis}.
 We design a \emph{monitor} daemon in each host as the \emph{control plane} to enforce access control policies, manage address/port resources, dispatch new connections, and establish transport channels between communication peers.
