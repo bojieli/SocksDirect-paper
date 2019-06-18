@@ -1,6 +1,77 @@
 \section{Evaluation}
 \label{sec:evaluation}
 
+
+\begin{table}[t]
+	\centering
+	\scalebox{0.75}{
+		\begin{tabularx}{0.63\textwidth}{l|l|r|r|r|r}
+			\hline
+			Type & Overhead & \sys & LibVMA & RSocket & Linux \\
+			\hline
+			\hline
+			Per op & Total & & & & \\
+			\hline
+			Per op & C library shim & & & & \\
+			\hline
+			Per op & Kernel crossing (syscall) & N/A & N/A & N/A & \\
+			\hline
+			Per op & Find connection context & & & & \\
+			\hline
+			Per op & Socket FD locking & N/A & & &  \\
+			\hline
+			\hline
+			Per packet & Total & & & & \\
+			\hline
+			Per packet & Transport protocol & NIC & & NIC & \\
+			\hline
+			Per packet & Buffer management & N/A & & & \\
+			\hline
+			Per packet & Generate NIC request & & & & \\
+			\hline
+			Per packet & NIC doorbell and DMA & & & & \\
+			\hline
+			Per packet & NIC processing \& wire & & & & \\
+			\hline
+			Per packet & CPU cache migration & () & N/A & N/A & ()  \\
+			\hline
+			Per packet & I/O multiplexing & NIC & NIC & NIC & \\
+			\hline
+			Per packet & Interrupt handling & N/A & & & \\
+			\hline
+			Per packet & Process wakeup &  & & & \\
+			\hline
+			\hline
+			Per byte & Total & & & & \\
+			\hline
+			Per byte & Payload copy & & & & \\
+			\hline
+			Per byte & Get page address & & N/A & N/A & N/A \\
+			\hline
+			Per byte & Remap page & & N/A & N/A & N/A \\
+			\hline
+			Per byte & Page allocation & & & & \\
+			\hline
+	    	\hline
+			Per conn. & Total & & & & \\
+			\hline
+			Per conn. & FD  \& port allocation & & & & \\
+			\hline
+			Per conn. & TCB management & & & & \\
+			\hline
+			Per conn. & Connection dispatch & & & & \\
+			\hline
+			Per conn. & RDMA QP creation & & N/A & & N/A \\
+			\hline
+		\end{tabularx}
+	}
+	\caption{Latency breakdown of socket operations in \sys and other systems. Numbers are nanoseconds. Numbers in brackets are intra-host latencies.}
+	\label{tab:microbenchmark}
+	\vspace{-10pt}
+\end{table}
+
+
+
 \begin{figure*}[t!]
 	\centering
 	\begin{minipage}{.31\textwidth}
